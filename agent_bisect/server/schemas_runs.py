@@ -12,6 +12,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 Outcome = Literal["pass", "fail"]
+# A run with no outcome row yet is still being recorded -- `outcome`/`reward`
+# are `None` while `status == "recording"`, never a fabricated "fail"/`0.0`.
+RunStatus = Literal["recording", "complete"]
 FaultType = Literal["wrong_value", "missing_field", "stale_record", "tool_error"]
 Actor = Literal["agent", "user", "tool"]
 PositionBucket = Literal["early", "middle", "late"]
@@ -45,7 +48,9 @@ class RunSummary(BaseModel):
     domain: str
     task_id: str
     model: str
-    outcome: Outcome
+    status: RunStatus
+    # `None` while `status == "recording"` -- never a fabricated "fail".
+    outcome: Outcome | None
     n_steps: int
     decisive_step: int | None
     fault_type: FaultType | None
@@ -188,8 +193,10 @@ class RunDetail(BaseModel):
     seed: int | None
     tau2_commit: str
     created_at: str
-    outcome: Outcome
-    # `None`, never `0.0`, when the run has no outcome row yet (still recording).
+    status: RunStatus
+    # Both `None` while `status == "recording"` -- never a fabricated
+    # "fail"/`0.0`.
+    outcome: Outcome | None
     reward: float | None
     steps: tuple[StepView, ...]
     planted_step: int | None

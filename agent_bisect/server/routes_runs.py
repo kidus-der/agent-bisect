@@ -35,6 +35,7 @@ _SortQuery = Query("run_id", pattern=r"^-?[A-Za-z_]+$")
 def list_runs(
     domain: str | None = None,
     outcome: str | None = None,
+    status: str | None = None,
     model: str | None = None,
     sort: str = _SortQuery,
     page: int = Query(1, ge=1),
@@ -42,7 +43,13 @@ def list_runs(
     repo: DashboardRepository = RepoDep,
 ) -> Envelope[RunListPage | NotAvailable]:
     filters = RunFilter(
-        domain=domain, outcome=outcome, model=model, sort=sort, page=page, limit=limit
+        domain=domain,
+        outcome=outcome,
+        status=status,
+        model=model,
+        sort=sort,
+        page=page,
+        limit=limit,
     )
     try:
         runs, total = repo.list_runs(filters)

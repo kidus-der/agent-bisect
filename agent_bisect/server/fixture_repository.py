@@ -79,6 +79,7 @@ class FixtureRepository:
                             title=summary.run_id,
                             subtitle=f"{summary.domain} · {summary.task_id}",
                             href=f"/runs/{summary.run_id}",
+                            status=summary.status,
                         )
                     )
         return SearchResults(query=query, hits=tuple(hits[:25]))
@@ -95,6 +96,8 @@ class FixtureRepository:
             runs = [r for r in runs if r.domain == filters.domain]
         if filters.outcome:
             runs = [r for r in runs if r.outcome == filters.outcome]
+        if filters.status:
+            runs = [r for r in runs if r.status == filters.status]
         if filters.model:
             runs = [r for r in runs if r.model == filters.model]
 

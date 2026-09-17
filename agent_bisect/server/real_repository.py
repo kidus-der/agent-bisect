@@ -101,13 +101,23 @@ class RealRepository:
             conn = _ro_connect(self._index_path)
             if conn is not None:
                 try:
-                    rows = conn.execute("SELECT run_id FROM runs").fetchall()
+                    rows = conn.execute(
+                        "SELECT r.run_id, (o.run_id IS NOT NULL) FROM runs r "
+                        "LEFT JOIN outcomes o ON o.run_id = r.run_id"
+                    ).fetchall()
                 finally:
                     conn.close()
-                for (run_id,) in rows:
+                for run_id, has_outcome in rows:
                     if needle in run_id.lower():
+                        status = "complete" if has_outcome else "recording"
                         hits.append(
-                            SearchHit(kind="run", id=run_id, title=run_id, href=f"/runs/{run_id}")
+                            SearchHit(
+                                kind="run",
+                                id=run_id,
+                                title=run_id,
+                                href=f"/runs/{run_id}",
+                                status=status,
+                            )
                         )
         return SearchResults(query=query, hits=tuple(hits[:25]))
 
@@ -133,7 +143,7 @@ class RealRepository:
         return [Step.model_validate_json(row[0]) for row in rows]
 
     def _run_summary(
-        self, manifest: RunManifest, outcome: Outcome, steps: list[Step]
+        self, manifest: RunManifest, outcome: Outcome | None, steps: list[Step]
     ) -> RunSummary:
         sparkline = tuple(
             SparkPoint(
@@ -152,7 +162,9 @@ class RealRepository:
             domain=manifest.domain,
             task_id=manifest.task_id,
             model=manifest.agent_model,
-            outcome="pass" if outcome.passed else "fail",
+            status="complete" if outcome is not None else "recording",
+            # `None` while still recording -- never a fabricated "fail".
+            outcome=None if outcome is None else ("pass" if outcome.passed else "fail"),
             n_steps=len(steps),
             decisive_step=None,
             fault_type=None,
@@ -172,8 +184,9 @@ class RealRepository:
         try:
             summaries = []
             for manifest, outcome in self._all_manifests(conn):
-                if outcome is None:
-                    continue  # still in progress: nothing honest to report as pass/fail yet
+                # A run with no outcome yet is still listed -- as
+                # status="recording", never silently hidden or shown as
+                # "fail" (`_run_summary` handles both null-outcome states).
                 steps = self._steps_for(conn, manifest.run_id)
                 summaries.append(self._run_summary(manifest, outcome, steps))
         finally:
@@ -183,6 +196,8 @@ class RealRepository:
             summaries = [s for s in summaries if s.domain == filters.domain]
         if filters.outcome:
             summaries = [s for s in summaries if s.outcome == filters.outcome]
+        if filters.status:
+            summaries = [s for s in summaries if s.status == filters.status]
         if filters.model:
             summaries = [s for s in summaries if s.model == filters.model]
         summaries = sort_runs(summaries, filters.sort)
@@ -230,8 +245,9 @@ class RealRepository:
             seed=manifest.seed,
             tau2_commit=manifest.tau2_commit,
             created_at=manifest.created_at.isoformat(),
-            outcome="pass" if (outcome and outcome.passed) else "fail",
-            # Not 0.0: a run with no outcome row yet is still recording, not failed.
+            status="complete" if outcome is not None else "recording",
+            # Both `None` while recording -- never a fabricated "fail"/`0.0`.
+            outcome=None if outcome is None else ("pass" if outcome.passed else "fail"),
             reward=outcome.reward if outcome else None,
             steps=step_views,
             planted_step=None,

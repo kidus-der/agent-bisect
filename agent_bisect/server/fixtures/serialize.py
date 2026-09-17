@@ -120,12 +120,15 @@ def _blame_stripe(plan: RunPlan) -> tuple[BlameCell, ...]:
 def to_run_summary(plan: RunPlan) -> RunSummary:
     calls, cost = _calls_and_cost(plan)
     decisive = plan.estimate_shared.blamed_step if plan.estimate_shared else None
+    recording = plan.status == "recording"
     return RunSummary(
         run_id=plan.run_id,
         domain=plan.domain,
         task_id=plan.task_id,
         model=plan.agent_model,
-        outcome="pass" if plan.passed else "fail",
+        status=plan.status,
+        # `None` while recording -- never a fabricated "fail".
+        outcome=None if recording else ("pass" if plan.passed else "fail"),
         n_steps=plan.n_steps,
         decisive_step=decisive,
         fault_type=plan.fault_type,
@@ -183,6 +186,7 @@ def to_step_views(plan: RunPlan) -> tuple[StepView, ...]:
 
 
 def to_run_detail(plan: RunPlan, judge: JudgePanel | None) -> RunDetail:
+    recording = plan.status == "recording"
     return RunDetail(
         run_id=plan.run_id,
         domain=plan.domain,
@@ -192,8 +196,10 @@ def to_run_detail(plan: RunPlan, judge: JudgePanel | None) -> RunDetail:
         seed=plan.seed,
         tau2_commit=plan.tau2_commit,
         created_at=plan.created_at,
-        outcome="pass" if plan.passed else "fail",
-        reward=plan.reward,
+        status=plan.status,
+        # Both `None` while recording -- never a fabricated "fail"/reward.
+        outcome=None if recording else ("pass" if plan.passed else "fail"),
+        reward=None if recording else plan.reward,
         steps=to_step_views(plan),
         planted_step=plan.planted_step,
         fault_type=plan.fault_type,

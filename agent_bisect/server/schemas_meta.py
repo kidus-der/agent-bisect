@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from agent_bisect.server.schemas_common import DataSource
+from agent_bisect.server.schemas_runs import RunStatus
 
 
 class HealthPayload(BaseModel):
@@ -36,6 +37,8 @@ class SearchHit(BaseModel):
     title: str
     subtitle: str | None = None
     href: str
+    status: RunStatus | None = None
+    """Only set for a `kind="run"` hit."""
 
 
 class SearchResults(BaseModel):

@@ -22,6 +22,7 @@ BULK_COUNT = 258
 ZERO_TESTED_RUN_ID = "run-edge-zero-tested"
 NO_CLEAR_RUN_ID = "run-edge-no-clear"
 SIXTY_STEP_RUN_ID = "run-edge-60-step"
+RECORDING_RUN_IDS = ("run-edge-recording-1", "run-edge-recording-2")
 
 
 def _zero_tested_run(master_seed: int) -> RunPlan:
@@ -140,6 +141,42 @@ def _brief_run() -> RunPlan:
     )
 
 
+def _recording_run(
+    master_seed: int, run_id: str, domain: str, task_id: str, n_steps: int
+) -> RunPlan:
+    """A run that's still being recorded: no outcome, no reward, no blame --
+    `status="recording"` masks `outcome`/`reward` at serialization time
+    (`fixtures.serialize`), so the UI's in-progress state has something real
+    to render against instead of only ever seeing finished runs."""
+    rng = seeded_rng(master_seed, run_id)
+    actors = build_actors(n_steps)
+    tool_names = build_tool_names(rng, domain, actors)
+    return RunPlan(
+        run_id=run_id,
+        domain=domain,
+        task_id=task_id,
+        agent_model="nvidia/llama-3.1-nemotron-70b-instruct",
+        user_model="meta/llama-3.1-8b-instruct",
+        seed=int(rng.integers(0, 2**31 - 1)),
+        tau2_commit="a1b2c3d4e5f6",
+        created_at="2026-09-17T09:00:00Z",
+        actors=actors,
+        tool_names=tool_names,
+        passed=False,  # unused: `status="recording"` masks `outcome` regardless
+        reward=0.0,  # unused: `status="recording"` masks `reward` regardless
+        fault_type=None,
+        planted_step=None,
+        spec=None,
+        tested_steps=(),
+        estimate_shared=None,
+        estimate_no_control=None,
+        estimate_per_step=None,
+        base_pass_rate=None,
+        split=None,
+        status="recording",
+    )
+
+
 def build_all_plans(master_seed: int) -> tuple[RunPlan, ...]:
     """The whole fixture run set: named edge cases plus `BULK_COUNT` generated runs."""
     edge_cases = (
@@ -168,6 +205,12 @@ def build_all_plans(master_seed: int) -> tuple[RunPlan, ...]:
             run_id=UNICODE_RUN_ID,
         ),
         _brief_run(),
+        _recording_run(
+            master_seed, RECORDING_RUN_IDS[0], "airline", "seat_upgrade_request", n_steps=4
+        ),
+        _recording_run(
+            master_seed, RECORDING_RUN_IDS[1], "retail", "cancel_before_ship", n_steps=9
+        ),
     )
     bulk = tuple(build_run_plan(index, master_seed=master_seed) for index in range(BULK_COUNT))
     return edge_cases + bulk

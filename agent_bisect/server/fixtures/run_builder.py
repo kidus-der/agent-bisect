@@ -26,7 +26,7 @@ from agent_bisect.server.fixtures.catalog import (
     RETAIL_TOOLS,
 )
 from agent_bisect.server.fixtures.synth import pick, pick_int, seeded_rng
-from agent_bisect.server.schemas_runs import Actor, FaultType
+from agent_bisect.server.schemas_runs import Actor, FaultType, RunStatus
 
 _ACTOR_BLOCK: tuple[Actor, ...] = ("user", "agent", "tool", "agent")
 CALLS_PER_RERUN = 10
@@ -91,6 +91,10 @@ class RunPlan:
     estimate_per_step: RunEstimate | None
     base_pass_rate: float | None
     split: str | None
+    # Default "complete": every existing `build_run_plan` call site has an
+    # outcome. Only the two dedicated "still recording" edge-case runs in
+    # `dataset.py` pass "recording" explicitly.
+    status: RunStatus = "complete"
 
     @property
     def n_steps(self) -> int:

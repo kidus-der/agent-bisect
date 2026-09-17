@@ -75,7 +75,10 @@ def _build_overview(
         methods_by_name["judge_step_by_step"],
     ]
     best_judge = max(judge_methods, key=lambda m: m.accuracy.value)
-    failing = [p for p in plans if not p.passed]
+    # A recording run hasn't failed -- it just hasn't finished -- so it's
+    # excluded from "failures" the same way its `outcome` is masked at
+    # serialization (fixtures.serialize).
+    failing = [p for p in plans if p.status == "complete" and not p.passed]
     labelled = [p for p in plans if p.fault_type is not None]
     total_calls = sum(s.calls for s in run_summaries)
     total_cost = sum(s.cost_usd for s in run_summaries)
