@@ -14,8 +14,8 @@ const RECALL: readonly RecallPoint[] = [
 ]
 
 const COST_POINTS: readonly CostAccuracyPoint[] = [
-  { method: 'bisect', mean_cost_usd: 1.5607, accuracy: 0.9651 },
-  { method: 'judge_all_at_once', mean_cost_usd: 0.03, accuracy: 0.7674 },
+  { method: 'bisect', mean_calls: 780, mean_cost_usd: 1.5607, accuracy: 0.9651 },
+  { method: 'judge_all_at_once', mean_calls: 780, mean_cost_usd: 0.03, accuracy: 0.7674 },
 ]
 
 const METHODS: readonly MethodResult[] = [
@@ -27,15 +27,21 @@ const METHODS: readonly MethodResult[] = [
   },
 ]
 
+const PROVENANCE = {
+  measured_to_m: 3,
+  beyond_is_judge_ranking_only: true,
+  note: 'Recall past m=3 is the judge\u2019s ranking, not a replayed measurement.',
+}
+
 describe('RecallCurve', () => {
   test('describes the curve in text, including the pre-registered m', () => {
-    render(<RecallCurve points={RECALL} />)
+    render(<RecallCurve provenance={PROVENANCE} points={RECALL} />)
     expect(screen.getByText(/rises from 76\.7% at m=1 to 90\.7% at m=4/)).toBeInTheDocument()
     expect(screen.getByText(/pre-registered m=3 it is 83\.7%/)).toBeInTheDocument()
   })
 
   test('says so rather than drawing an empty axis when no points were reported', () => {
-    render(<RecallCurve points={[]} />)
+    render(<RecallCurve provenance={PROVENANCE} points={[]} />)
     expect(screen.getByText('No recall@m points reported.')).toBeInTheDocument()
   })
 })
@@ -61,7 +67,10 @@ describe('CostAccuracyScatter', () => {
   test('names every method and its cost in the text alternative', () => {
     const points = toScatterPoints(COST_POINTS, accuracyIntervals(METHODS))
     render(<CostAccuracyScatter points={points} intervalsUnavailable={false} />)
-    expect(screen.getByText(/Bisect: \$1\.56 per diagnosis at 96\.5%/)).toBeInTheDocument()
+    // Calls lead, and the price rides along only because this fixture has one.
+    expect(
+      screen.getByText(/Bisect: 780 calls per diagnosis \(\$1\.56\) at 96\.5%/),
+    ).toBeInTheDocument()
     expect(screen.getByText(/95% CI 90\.2% to 98\.8%/)).toBeInTheDocument()
   })
 

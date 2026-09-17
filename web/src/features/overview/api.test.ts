@@ -13,10 +13,18 @@ const PAYLOAD: OverviewPayload = {
     runs_recorded: 266,
     failures_diagnosed: 86,
     calls_spent: 86490,
+    cost_per_diagnosis_calls: 1005,
     cost_per_diagnosis_usd: 1.5209,
   },
+  recall_provenance: {
+    measured_to_m: 3,
+    beyond_is_judge_ranking_only: true,
+    note: 'Recall past m=3 is the judge\u2019s ranking, not a replayed measurement.',
+  },
   recall_at_m: [{ m: 1, recall: 0.7674 }],
-  cost_vs_accuracy: [{ method: 'bisect', mean_cost_usd: 1.5607, accuracy: 0.9651 }],
+  cost_vs_accuracy: [
+    { method: 'bisect', mean_calls: 780, mean_cost_usd: 1.5607, accuracy: 0.9651 },
+  ],
   hero_run: {
     run_id: 'brief-12-step',
     domain: 'airline',

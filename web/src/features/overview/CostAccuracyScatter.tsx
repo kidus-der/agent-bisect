@@ -3,7 +3,9 @@
  * vendored Bklit scatter, which takes Date x-values only and has no error-bar
  * or per-point-label support — both of which this plot is mostly made of.
  *
- * Cost spans two orders of magnitude (3¢ to $3), so the x-axis is logarithmic
+ * Cost is measured in model calls — the unit the server always has; USD needs a
+ * price list that real mode does not carry. Calls span three orders of
+ * magnitude (1 to ~1,500), so the x-axis is logarithmic
  * and says so.
  */
 import { Group } from '@visx/group'
@@ -16,6 +18,7 @@ import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { PercentYAxis } from '@/components/chart-theme/PercentYAxis'
 import { chartColours } from '@/components/chart-theme/chartTheme'
 import { springTransition } from '@/design/motion'
+import { formatCalls, formatUsd } from '@/lib/cost'
 import { formatNumber } from '@/lib/format'
 import { formatPercent } from '@/lib/stats'
 
@@ -38,7 +41,8 @@ const HEADLINE_RADIUS = 7
 const CAP_HALF = 4
 const POINT_DELAY_SECONDS = 0.07
 const IN_VIEW_AMOUNT = 0.3
-const MIN_COST_USD = 0.02
+/** One call, so a single-call method still lands on a log axis. */
+const MIN_CALLS = 1
 /**
  * Five points, two of which share a cost, never resolve into five in-place
  * labels at any width this chart actually gets — at 1440 `Bisect` and `Re-run
@@ -80,7 +84,7 @@ function methodColour(method: MethodName): string {
 }
 
 function formatCost(value: number): string {
-  return formatNumber(value, { decimals: 2, prefix: '$' })
+  return formatNumber(Math.round(value), { decimals: 0 })
 }
 
 export interface ScatterPoint extends CostAccuracyPoint {
@@ -101,9 +105,11 @@ function describe(points: readonly ScatterPoint[]): string {
     const interval = point.interval
       ? `, 95% CI ${formatPercent(point.interval.ci_low)} to ${formatPercent(point.interval.ci_high)}`
       : ' (no interval reported)'
-    return `${methodLabel(point.method)}: ${formatCost(point.mean_cost_usd)} per diagnosis at ${formatPercent(point.accuracy)} step accuracy${interval}.`
+    const price = formatUsd(point.mean_cost_usd)
+    const priced = price === null ? '' : ` (${price})`
+    return `${methodLabel(point.method)}: ${formatCalls(point.mean_calls)} per diagnosis${priced} at ${formatPercent(point.accuracy)} step accuracy${interval}.`
   })
-  return `Step accuracy against mean cost per diagnosis, one point per method, cost on a logarithmic axis. ${sentences.join(' ')}`
+  return `Step accuracy against mean model calls per diagnosis, one point per method, calls on a logarithmic axis. ${sentences.join(' ')}`
 }
 
 interface PlotProps {
@@ -117,13 +123,13 @@ interface PlotProps {
 function Plot({ points, width, height, revealed, reduced }: PlotProps) {
   const innerWidth = Math.max(width - MARGIN.left - MARGIN.right, 0)
   const innerHeight = Math.max(height - MARGIN.top - MARGIN.bottom, 0)
-  const costs = points.map((point) => Math.max(point.mean_cost_usd, MIN_COST_USD))
+  const costs = points.map((point) => Math.max(point.mean_calls, MIN_CALLS))
   const x = scaleLog<number>({
-    domain: [Math.min(...costs, MIN_COST_USD) * 0.6, Math.max(...costs) * 1.7],
+    domain: [Math.min(...costs, MIN_CALLS) * 0.6, Math.max(...costs) * 1.7],
     range: [0, innerWidth],
   })
   const y = scaleLinear<number>({ domain: [...Y_DOMAIN], range: [innerHeight, 0] })
-  const pointX = (point: ScatterPoint): number => x(Math.max(point.mean_cost_usd, MIN_COST_USD))
+  const pointX = (point: ScatterPoint): number => x(Math.max(point.mean_calls, MIN_CALLS))
   const centres = points.map(pointX)
 
   return (
@@ -158,7 +164,7 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
           fontSize={11}
           fill={chartColours.label}
         >
-          mean cost per diagnosis (USD, log scale)
+          mean model calls per diagnosis (log scale)
         </text>
 
         {points.map((point, index) => {
