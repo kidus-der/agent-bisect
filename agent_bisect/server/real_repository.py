@@ -27,13 +27,14 @@ from typing import Any
 from pydantic import ValidationError
 
 from agent_bisect.attribution.blame_store import load_blame
+from agent_bisect.attribution.estimate import wilson_interval
 from agent_bisect.core.limits import load_limiter_settings
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step
 from agent_bisect.server.repository import DataNotAvailable, RunFilter
 from agent_bisect.server.run_filtering import RunSearchRow, filter_runs
 from agent_bisect.server.run_sorting import sort_runs
-from agent_bisect.server.schemas_benchmark import BenchmarkSummary, DatasetPage
+from agent_bisect.server.schemas_benchmark import BenchmarkSummary, CiValue, DatasetPage
 from agent_bisect.server.schemas_live import (
     BudgetStatus,
     CallsPoint,
@@ -43,7 +44,7 @@ from agent_bisect.server.schemas_live import (
 )
 from agent_bisect.server.schemas_meta import MetaPayload, SearchHit, SearchResults
 from agent_bisect.server.schemas_overview import OverviewPayload
-from agent_bisect.server.schemas_pr import PrCheckDetail, PrCheckSummary
+from agent_bisect.server.schemas_pr import PrCheckDetail, PrCheckSummary, ScenarioRow
 from agent_bisect.server.schemas_runs import (
     BlameCell,
     InterventionDiff,
@@ -67,6 +68,10 @@ _RECENT_WINDOW_SECONDS = 60
 #: object per file, shaped like `JobStatus` minus `job_id` (the phase
 #: directory name) and `phase` (defaults to that name, upper-cased).
 _STATUS_FILENAME = "status.json"
+#: `runs/gate/<check_id>/result.json`: `bisect gate`'s own output
+#: (`agent_bisect.gate.action.to_result_json`), one directory per invocation.
+_GATE_DIRNAME = "gate"
+_GATE_RESULT_FILENAME = "result.json"
 
 
 def _total_tokens(step: Step) -> int | None:
@@ -516,8 +521,91 @@ class RealRepository:
                 continue
         return tuple(statuses)
 
+    def _gate_result(self, check_id: str) -> dict[str, Any] | None:
+        """`runs/gate/<check_id>/result.json`, or `None` if `bisect gate` has
+        never written one under that id."""
+        path = self._runs_dir / _GATE_DIRNAME / check_id / _GATE_RESULT_FILENAME
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
+    def _pr_check_title(result: dict[str, Any]) -> str:
+        """No title is stored -- a local gate run compares two git refs, not
+        a GitHub PR with its own name. Real, not fabricated: exactly what
+        was compared."""
+        return f"{result['base_ref']} → {result['head_ref']}"
+
+    @staticmethod
+    def _wilson_ci(rate: dict[str, Any]) -> CiValue:
+        """`result.json`'s `ci_low`/`ci_high` are `null` today -- computed
+        here from `value`/`n` instead, the same Wilson interval
+        `attribution.estimate` uses everywhere else in this codebase, so
+        `CiValue`'s contract ("an estimate never appears without one")
+        still holds without needing the gate to change."""
+        n = rate["n"]
+        successes = round(rate["value"] * n)
+        interval = wilson_interval(successes, n)
+        return CiValue(value=rate["value"], ci_low=interval.low, ci_high=interval.high)
+
+    def _pr_check_summary(self, check_id: str, result: dict[str, Any]) -> PrCheckSummary:
+        return PrCheckSummary(
+            check_id=check_id,
+            # `None`, never a fabricated number -- see schemas_pr.py.
+            pr_number=None,
+            title=self._pr_check_title(result),
+            is_regression=result["is_regression"],
+            base_pass_rate=result["base_pass_rate"]["value"],
+            head_pass_rate=result["head_pass_rate"]["value"],
+            p_value=result["p_value"],
+        )
+
     def pr_checks(self) -> tuple[PrCheckSummary, ...]:
-        raise DataNotAvailable("no PR checks have run yet (gate/action.py)")
+        gate_dir = self._runs_dir / _GATE_DIRNAME
+        if not gate_dir.is_dir():
+            raise DataNotAvailable("no PR checks have run yet (gate/action.py)")
+        summaries = []
+        for check_dir in sorted(p for p in gate_dir.iterdir() if p.is_dir()):
+            result = self._gate_result(check_dir.name)
+            if result is None:
+                continue
+            try:
+                summaries.append(self._pr_check_summary(check_dir.name, result))
+            except (KeyError, ValidationError):
+                continue  # a malformed result.json never takes the whole list down
+        return tuple(summaries)
 
     def pr_check_detail(self, check_id: str) -> PrCheckDetail:
-        raise DataNotAvailable("no PR checks have run yet (gate/action.py)")
+        result = self._gate_result(check_id)
+        if result is None:
+            raise KeyError(check_id)
+        try:
+            return PrCheckDetail(
+                check_id=check_id,
+                pr_number=None,
+                title=self._pr_check_title(result),
+                is_regression=result["is_regression"],
+                base_pass_rate=self._wilson_ci(result["base_pass_rate"]),
+                head_pass_rate=self._wilson_ci(result["head_pass_rate"]),
+                p_value=result["p_value"],
+                # Always `None` on head's side too, by the gate's own design
+                # (docs 0019): the decisive step is named on head only.
+                decisive_step_base=result["decisive_step_base"],
+                decisive_step_head=result["decisive_step_head"],
+                scenarios=tuple(
+                    ScenarioRow(
+                        scenario=row["scenario"],
+                        base_pass_rate=row["base_pass_rate"],
+                        head_pass_rate=row["head_pass_rate"],
+                        n=row["n"],
+                    )
+                    for row in result["scenarios"]
+                ),
+                comment_markdown=result["comment_markdown"],
+            )
+        except (KeyError, ValidationError) as exc:
+            # A malformed result.json reads the same as "never written".
+            raise KeyError(check_id) from exc
