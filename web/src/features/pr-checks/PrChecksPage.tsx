@@ -75,7 +75,7 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
   {
     id: 'pr',
     header: 'pr',
-    width: '5.5rem',
+    width: '4.5rem',
     sortValue: (row) => row.pr_number,
     cell: (row) => (
       <Link
@@ -90,13 +90,16 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
   {
     id: 'verdict',
     header: 'verdict',
-    width: '8rem',
+    width: '7rem',
     sortValue: (row) => (row.is_regression ? 0 : 1),
     cell: (row) => <VerdictChip check={row} />,
   },
   {
     id: 'suite',
     header: 'scenario suite',
+    // On a phone the row keeps the number, the verdict and the change with its
+    // interval — the columns the page exists for. The rest scroll away.
+    hideOnMobile: true,
     sortValue: (row) => row.title,
     cell: (row) => <span className="num text-ink">{row.title}</span>,
   },
@@ -104,7 +107,8 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
     id: 'base',
     header: 'base',
     numeric: true,
-    width: '5rem',
+    width: '4.5rem',
+    hideOnMobile: true,
     sortValue: (row) => row.base_pass_rate,
     cell: (row) => (
       <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
@@ -114,7 +118,8 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
     id: 'head',
     header: 'head',
     numeric: true,
-    width: '5rem',
+    width: '4.5rem',
+    hideOnMobile: true,
     sortValue: (row) => row.head_pass_rate,
     cell: (row) => (
       <span className={cn('num', row.is_regression ? 'text-fail' : 'text-ink')}>
@@ -126,7 +131,7 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
     id: 'delta',
     header: 'change · 95% CI',
     numeric: true,
-    width: '11rem',
+    width: '10rem',
     sortValue: (row) => change(row),
     cell: (row) => <DeltaCell check={row} />,
   },
@@ -134,7 +139,7 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
     id: 'p',
     header: 'p',
     numeric: true,
-    width: '5rem',
+    width: '4.5rem',
     hideOnMobile: true,
     sortValue: (row) => row.p_value,
     cell: (row) => <span className="num text-ink-muted">{formatPValue(row.p_value)}</span>,
@@ -142,7 +147,8 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
   {
     id: 'open',
     header: '',
-    width: '2.5rem',
+    width: '2rem',
+    hideOnMobile: true,
     cell: () => <ChevronRight aria-hidden="true" className="size-4 text-ink-muted" />,
   },
 ]
