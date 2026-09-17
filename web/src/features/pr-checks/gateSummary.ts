@@ -79,8 +79,18 @@ export function buildGateSummary(checks: readonly PrCheckSummary[]): GateSummary
   }
 }
 
-/** Symmetric axis bound, so zero sits in the middle and both sides are comparable. */
+/**
+ * Symmetric axis bound, so zero sits in the middle and both sides are
+ * comparable. It reaches the end of the widest *interval*, not the widest point
+ * estimate: an interval drawn past the axis is clipped at the edge, and a
+ * clipped whisker reads as an interval that stops there.
+ */
 export function deltaAxisBound(summary: GateSummary): number {
-  const widest = Math.max(Math.abs(summary.worstDelta), Math.abs(summary.bestDelta))
+  const reach = summary.deltas.flatMap((entry) =>
+    entry.interval
+      ? [Math.abs(entry.delta), Math.abs(entry.interval.low), Math.abs(entry.interval.high)]
+      : [Math.abs(entry.delta)],
+  )
+  const widest = reach.length === 0 ? 0 : Math.max(...reach)
   return widest > 0 ? widest : 1
 }
