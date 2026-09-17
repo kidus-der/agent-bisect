@@ -319,7 +319,7 @@ export interface components {
             by_position: components["schemas"]["PositionAccuracy"][];
             /** Cost Histogram */
             cost_histogram: components["schemas"]["CostBucket"][];
-            flaky_ablation: components["schemas"]["FlakyAblation"];
+            flaky_ablation: components["schemas"]["FlakyAblation"] | null;
             /** Heatmap */
             heatmap: components["schemas"]["HeatmapCell"][];
             /** Methods */
@@ -371,8 +371,10 @@ export interface components {
         CostAccuracyPoint: {
             /** Accuracy */
             accuracy: number;
+            /** Mean Calls */
+            mean_calls: number;
             /** Mean Cost Usd */
-            mean_cost_usd: number;
+            mean_cost_usd: number | null;
             /**
              * Method
              * @enum {string}
@@ -749,8 +751,10 @@ export interface components {
         Kpis: {
             /** Calls Spent */
             calls_spent: number;
+            /** Cost Per Diagnosis Calls */
+            cost_per_diagnosis_calls: number | null;
             /** Cost Per Diagnosis Usd */
-            cost_per_diagnosis_usd: number;
+            cost_per_diagnosis_usd: number | null;
             /** Failures Diagnosed */
             failures_diagnosed: number;
             /** Runs Recorded */
@@ -808,7 +812,7 @@ export interface components {
             /** Mean Calls */
             mean_calls: number;
             /** Mean Cost Usd */
-            mean_cost_usd: number;
+            mean_cost_usd: number | null;
             /**
              * Method
              * @enum {string}
@@ -840,6 +844,7 @@ export interface components {
             kpis: components["schemas"]["Kpis"];
             /** Recall At M */
             recall_at_m: components["schemas"]["RecallPoint"][];
+            recall_provenance: components["schemas"]["RecallProvenance"];
         };
         /** PositionAccuracy */
         PositionAccuracy: {
@@ -913,6 +918,22 @@ export interface components {
             m: number;
             /** Recall */
             recall: number;
+        };
+        /**
+         * RecallProvenance
+         * @description recall@m beyond `measured_to_m` was never confirmed by a re-run --
+         *     it is the judge's ranking alone (does its top-m contain the planted
+         *     step). Mirrors `bench.evaluate.build_report`'s own `recall_provenance`
+         *     document so the UI can label the unmeasured tail rather than imply it
+         *     was tested.
+         */
+        RecallProvenance: {
+            /** Beyond Is Judge Ranking Only */
+            beyond_is_judge_ranking_only: boolean;
+            /** Measured To M */
+            measured_to_m: number;
+            /** Note */
+            note: string;
         };
         /** RerunPage */
         RerunPage: {
