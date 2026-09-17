@@ -105,6 +105,7 @@ def _rerun_document(record: RerunRecord) -> dict[str, Any]:
         "passed": record.passed,
         "n_steps": record.n_steps,
         "calls": record.calls,
+        "unguarded_calls": record.unguarded_calls,
     }
 
 
@@ -150,6 +151,10 @@ def blame_document(
             "replay_calls": result.replay_calls,
             "total_calls": result.total_calls,
         },
+        # Non-zero only for the re-run-live baseline, whose prefix drifts by
+        # construction. A Bisect result with this above 0 is a bug, and
+        # `scripts/gates/p5.py` refuses one.
+        "unguarded_calls": result.unguarded_calls,
     }
 
 

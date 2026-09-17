@@ -20,6 +20,13 @@ Three things this layer adds on top of the driver:
    infrastructure has no outcome, and scoring it as a failed run would put
    an infra error into the treated arm. It is retried once with a fresh
    seed and then raised, for the caller to record as an unevaluated item.
+4. **The item's standing fault is re-installed on every fork.** A planted
+   fault is a faulty *tool*, not an edited recording
+   (`docs/decisions/0016-persistent-planted-fault.md`), and it rides in the
+   parent run's `RunManifest.params`. `FaultedForkDriver` puts it back
+   underneath the recorder and the replayer, which is what makes a control
+   forked before the planted step still reproduce the failure — the thing
+   `docs/findings/p5-control-fork.md` showed a one-shot fault could not do.
 """
 
 from __future__ import annotations
@@ -27,7 +34,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from agent_bisect.adapters.tau2_replay import InfraAbortError, Tau2ForkDriver
+from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
+from agent_bisect.adapters.tau2_fault_injector import injector_spec_from
+from agent_bisect.adapters.tau2_replay import InfraAbortError
 from agent_bisect.attribution.search import RerunOutcome, RerunRequest
 from agent_bisect.core.runner import ForkSpec, run_fork
 from agent_bisect.core.store import BlobStore
@@ -113,12 +122,13 @@ class Tau2ForkExecutor:
             prefix_tools=request.prefix_tools,
             seed=None,
         )
-        driver = Tau2ForkDriver(
+        driver = FaultedForkDriver(
             spec,
             store=self._store,
             reader=self._reader,
             tape=self._tape,
             live_completion=self._live(),
+            fault=self._fault_of(request.parent_run_id),
             unsafe_positional=request.unsafe_positional,
         )
         outcome = run_fork(driver, spec, request.intervention)
@@ -127,7 +137,12 @@ class Tau2ForkExecutor:
             passed=outcome.passed,
             n_steps=0 if result is None else result.steps,
             calls=0 if result is None else result.live_llm_calls,
+            unguarded_calls=0 if result is None else result.unguarded_llm_calls,
         )
+
+    def _fault_of(self, parent_run_id: str) -> Any:
+        """The standing fault the parent run was recorded under, if any."""
+        return injector_spec_from(self._reader.get_manifest(parent_run_id).params)
 
     def run(self, request: RerunRequest) -> RerunOutcome:
         """One fork: reused if the tape has it, otherwise run for real."""

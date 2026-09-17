@@ -59,6 +59,7 @@ class FaultedForkDriver:
         tape: TapeWriter,
         live_completion: Callable[..., Any],
         fault: FaultSpec | None = None,
+        unsafe_positional: bool = False,
     ) -> None:
         self._spec = spec
         self._store = store
@@ -66,6 +67,12 @@ class FaultedForkDriver:
         self._tape = tape
         self._live_completion = live_completion
         self._fault = fault
+        # Only the CAR-style re-run-live baseline sets this, and only
+        # because its prefix drifts by construction; see
+        # `core.replay.TapeLLM`. The count of responses served past the
+        # guard comes back on `result.unguarded_llm_calls`, so no Bisect
+        # arm can be produced with the guard off without it showing.
+        self._unsafe_positional = unsafe_positional
         self._fork_step = spec.fork_step
         self._intervention: Intervention = NoOpIntervention()
         self.result: ReplayResult | None = None
@@ -107,6 +114,7 @@ class FaultedForkDriver:
             tool_mode="snapshot" if self._spec.prefix_tools == "snapshot" else "rerun_live",
             intervention=self._intervention,
             live_completion=self._live_completion,
+            unsafe_positional=self._unsafe_positional,
         )
         simulation = self._drive(orchestrator, replayer, recorder)
         return self._outcome_of(simulation, recorder, replayer, parent.run_id)
@@ -158,6 +166,7 @@ class FaultedForkDriver:
             termination_reason=termination,
             tape_llm_calls=replayer.tape_llm_calls,
             live_llm_calls=replayer.live_llm_calls,
+            unguarded_llm_calls=replayer.unguarded_llm_calls,
         )
         if outcome is None:
             raise InfraAbortError(

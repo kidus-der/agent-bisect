@@ -99,11 +99,19 @@ class RerunRequest:
 
 @dataclass(frozen=True, slots=True)
 class RerunOutcome:
-    """What one fork produced. `calls` is the LLM calls its live suffix spent."""
+    """What one fork produced. `calls` is the LLM calls its live suffix spent.
+
+    `unguarded_calls` is how often a recorded reply was served to a request
+    the recording does not match. It is 0 for every Bisect arm by
+    construction and non-zero only for the re-run-live baseline, whose
+    prefix drifts; carrying it makes that weakness a number rather than a
+    footnote.
+    """
 
     passed: bool
     n_steps: int
     calls: int
+    unguarded_calls: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +128,7 @@ class RerunRecord:
     passed: bool
     n_steps: int
     calls: int
+    unguarded_calls: int = 0
 
 
 class ForkExecutor(Protocol):
@@ -190,6 +199,10 @@ class ForkRerunSampler:
     def replay_calls(self) -> int:
         return sum(record.calls for record in self._records)
 
+    @property
+    def unguarded_calls(self) -> int:
+        return sum(record.unguarded_calls for record in self._records)
+
     def _intervention_for(self, step: int, arm: Arm) -> Intervention:
         if arm == "control":
             return NoOpIntervention()
@@ -228,6 +241,7 @@ class ForkRerunSampler:
                     passed=outcome.passed,
                     n_steps=outcome.n_steps,
                     calls=outcome.calls,
+                    unguarded_calls=outcome.unguarded_calls,
                 )
             )
             outcomes.append(outcome.passed)
@@ -255,6 +269,9 @@ class BlameResult:
     judge_calls: int
     replay_calls: int
     config: BlameConfig
+    #: Responses served past the request-hash guard. Must be 0 for every
+    #: method but `rerun_live`; `scripts/gates/p5.py` checks it.
+    unguarded_calls: int = 0
 
     @property
     def total_calls(self) -> int:
@@ -348,4 +365,5 @@ def run_blame(
         judge_calls=verdict.calls,
         replay_calls=sampler.replay_calls,
         config=config,
+        unguarded_calls=sampler.unguarded_calls,
     )
