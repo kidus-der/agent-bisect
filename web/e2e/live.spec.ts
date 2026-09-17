@@ -37,6 +37,28 @@ test('the calls chart, gauge, ring, queue and feed all render', async ({ page })
   await expect(page.getByText(/peak .* · calls\/min/)).toHaveCount(2)
 })
 
+test('hovering one trace reads both of them at the same instant', async ({ page }) => {
+  await mockP6eApi(page)
+  await openLive(page)
+
+  const cursor = page.locator('[data-slot="trace-cursor"]')
+  await expect(cursor).toHaveCount(0)
+
+  // Arrange — the middle of the first trace, which is the only trace hovered.
+  const firstTrace = page.locator('svg[role="presentation"]').first()
+  const box = await firstTrace.boundingBox()
+  if (!box) throw new Error('the first trace has no box to hover')
+
+  // Act
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+
+  // Assert — the cursor lands on both traces, not just the hovered one.
+  await expect(cursor).toHaveCount(2)
+
+  await page.mouse.move(box.x + box.width / 2, box.y - 40)
+  await expect(cursor).toHaveCount(0)
+})
+
 test('the event feed is a keyboard-reachable, politely announced log', async ({ page }) => {
   await mockP6eApi(page)
   await openLive(page)

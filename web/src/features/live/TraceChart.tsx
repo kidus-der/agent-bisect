@@ -221,7 +221,7 @@ function Plot({
         {cursor ? null : <ValueBadge x={tipX} y={tipY} label={badgeLabel} side="right" />}
 
         {cursor ? (
-          <g>
+          <g data-slot="trace-cursor">
             <line
               x1={px(cursor)}
               x2={px(cursor)}
