@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from agent_bisect.attribution.trajectory import (
     MISSING_PAYLOAD,
@@ -10,7 +12,6 @@ from agent_bisect.attribution.trajectory import (
 )
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import RunManifest, Step, TapeReader, TapeWriter
-from datetime import UTC, datetime
 
 
 class Tape:
