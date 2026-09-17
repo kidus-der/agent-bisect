@@ -49,6 +49,21 @@ export class ApiError extends Error {
 }
 
 const API_PREFIX = '/api'
+const REQUEST_TIMEOUT_MS = 8000
+
+/** Bounds every request, so a server that accepts the socket and never answers still fails. */
+function withTimeout(signal: AbortSignal | null | undefined): AbortSignal | undefined {
+  if (typeof AbortSignal.timeout !== 'function' || typeof AbortSignal.any !== 'function') {
+    return signal ?? undefined
+  }
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
+
+function isTimeout(cause: unknown): boolean {
+  // Duck-typed: the DOMException class differs between realms (browser, jsdom, Node).
+  return isRecord(cause) && cause.name === 'TimeoutError'
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -131,9 +146,18 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<Api
   try {
     response = await fetch(url, {
       ...init,
+      signal: withTimeout(init?.signal),
       headers: { Accept: 'application/json', ...init?.headers },
     })
   } catch (cause) {
+    if (isTimeout(cause)) {
+      throw new ApiError({
+        kind: 'network',
+        code: 'timeout',
+        message: `The Bisect server did not answer within ${REQUEST_TIMEOUT_MS / 1000} s.`,
+        cause,
+      })
+    }
     throw new ApiError({
       kind: 'network',
       code: 'network_error',
