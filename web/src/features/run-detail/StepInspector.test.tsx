@@ -59,6 +59,22 @@ function renderInspector(): void {
 
 afterEach(() => vi.unstubAllGlobals())
 
+describe('StepInspector loading state', () => {
+  it('reserves height for the payload before it arrives, so the panel below does not jump', () => {
+    // Arrange: fetch never resolves within this test, so the skeleton is what renders.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    )
+
+    // Act
+    renderInspector()
+
+    // Assert: the loading region reserves the space a loaded step typically needs.
+    expect(screen.getByRole('status')).toHaveClass('min-h-[35rem]')
+  })
+})
+
 describe('StepInspector error handling', () => {
   it('says the intervention diff failed rather than "never intervened on"', async () => {
     // Arrange
