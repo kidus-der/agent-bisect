@@ -75,7 +75,7 @@ def test_run_estimate_carries_the_actual_estimator_config(client):
     assert config["conf"] == 0.95
     assert config["efficacy_boundary"] == "obf"
     assert config["control_mode"] == "shared"
-    assert config["shortlist_m"] == 5
+    assert config["shortlist_m"] == 3  # docs/decisions/0001-preregistration.md
 
 
 def test_brief_run_step_payload_shows_nm1vx1(client):

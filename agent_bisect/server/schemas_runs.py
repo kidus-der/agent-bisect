@@ -138,6 +138,23 @@ class StepEffectView(BaseModel):
     stop_reason: Literal["blameworthy", "cleared", "max_n"]
 
 
+class EstimatorConfig(BaseModel):
+    """The sampling plan that produced this blame result, taken verbatim from
+    the `attribution.estimate.SequentialConfig` instance actually used --
+    never hand-typed -- so a client (e.g. the Run detail page) never has to
+    hard-code delta or any other threshold."""
+
+    model_config = ConfigDict(frozen=True)
+
+    delta: float
+    batch: int
+    max_n: int
+    conf: float
+    efficacy_boundary: Literal["obf", "none"]
+    control_mode: Literal["shared", "per_step"]
+    shortlist_m: int
+
+
 class RunEstimateView(BaseModel):
     """DTO for `attribution.estimate.RunEstimate`."""
 
@@ -150,6 +167,7 @@ class RunEstimateView(BaseModel):
     treated_reruns: int
     control_reruns: int
     sampler_calls: int
+    config: EstimatorConfig
 
 
 class RerunRow(BaseModel):

@@ -20,7 +20,12 @@ def test_overview_headline_gap_matches_the_accuracy_difference(client):
     body = client.get("/api/overview").json()["data"]
     headline = body["headline"]
     expected = headline["bisect"]["value"] - headline["best_judge"]["value"]
-    assert headline["gap"]["value"] == round(expected, 4)
+    # `gap.value` is `correct_a.mean() - correct_b.mean()` rounded once, at
+    # full precision; `bisect.value`/`best_judge.value` are each rounded to
+    # 4dp independently first -- the two can differ in the last digit
+    # without either being wrong (round(a, 4) - round(b, 4) != round(a - b, 4)
+    # in general).
+    assert abs(headline["gap"]["value"] - expected) < 0.0002
 
 
 def test_gap_ci_is_a_paired_bootstrap_not_an_independent_proportions_interval():

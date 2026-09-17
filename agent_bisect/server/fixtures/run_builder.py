@@ -95,6 +95,12 @@ class RunPlan:
     # outcome. Only the two dedicated "still recording" edge-case runs in
     # `dataset.py` pass "recording" explicitly.
     status: RunStatus = "complete"
+    # The exact `SequentialConfig` passed to `estimate_run` for
+    # `estimate_shared`, carried alongside it so `serialize.py` can report
+    # the real sampling plan (`EstimatorConfig`) instead of a client having
+    # to hard-code delta or any other threshold. `None` iff `estimate_shared`
+    # is `None`.
+    estimator_config: SequentialConfig | None = None
 
     @property
     def n_steps(self) -> int:
@@ -222,4 +228,5 @@ def build_run_plan(
         estimate_per_step=estimate_per_step,
         base_pass_rate=float(rng.uniform(0.75, 1.0)) if plant else None,
         split=split if plant else None,
+        estimator_config=config,
     )

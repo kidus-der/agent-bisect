@@ -100,6 +100,7 @@ def _no_clear_run(master_seed: int) -> RunPlan:
         ),
         base_pass_rate=None,
         split=None,
+        estimator_config=config,
     )
 
 
@@ -138,6 +139,7 @@ def _brief_run() -> RunPlan:
         ),
         base_pass_rate=0.9,
         split="test",
+        estimator_config=config,
     )
 
 

@@ -12,14 +12,22 @@ from agent_bisect.attribution.fakes import FakeRunSpec
 from agent_bisect.server.fixtures.run_builder import RunPlan
 from agent_bisect.server.schemas_runs import JudgePanel, JudgeRankEntry
 
-_MAX_CANDIDATES = 5
+SHORTLIST_M = 3
+"""How many candidate steps a judge ranking includes. The pre-registered
+judge-shortlist size (`docs/decisions/0001-preregistration.md`: "judge
+shortlist m = 3") -- `attribution.search` will confirm exactly this many
+candidates by replay once it exists. Public: `serialize.py` reports it as
+`EstimatorConfig.shortlist_m`, and the Overview's recall@m curve reading
+flat for m > 3 is the honest consequence of a fixture judge ranking that
+never has a fourth candidate to offer, not a bug."""
+
 _MISS_PROB_ALL_AT_ONCE = 0.22
 _MISS_PROB_STEP_BY_STEP = 0.12
 
 
 def _rank(rng, spec: FakeRunSpec, tool_steps: tuple[int, ...], miss_prob: float, tag: str):
     candidates = sorted(tool_steps, key=lambda step: -spec.true_effect(step))
-    candidates = list(candidates[: min(_MAX_CANDIDATES, len(candidates))])
+    candidates = list(candidates[: min(SHORTLIST_M, len(candidates))])
     if rng.random() < miss_prob and spec.planted_step in candidates:
         candidates.remove(spec.planted_step)
         remaining = [step for step in tool_steps if step not in candidates]

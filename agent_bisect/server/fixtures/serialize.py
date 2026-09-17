@@ -11,7 +11,7 @@ under the 5 MB budget with 260+ runs.
 
 from __future__ import annotations
 
-from agent_bisect.attribution.estimate import ArmResult, RunEstimate, StepEffect
+from agent_bisect.attribution.estimate import ArmResult, RunEstimate, SequentialConfig, StepEffect
 from agent_bisect.server.fixtures.catalog import (
     BRIEF_FAULT_STEP,
     BRIEF_ORIGINAL_RESULT,
@@ -25,6 +25,7 @@ from agent_bisect.server.fixtures.catalog import (
     UNICODE_RUN_ID,
     UNICODE_STEP,
 )
+from agent_bisect.server.fixtures.judge import SHORTLIST_M
 from agent_bisect.server.fixtures.run_builder import (
     CALLS_PER_RERUN,
     COST_PER_CALL_USD,
@@ -36,6 +37,7 @@ from agent_bisect.server.schemas_runs import (
     ArmResultView,
     BlameCell,
     DiffEntry,
+    EstimatorConfig,
     InterventionDiff,
     JudgePanel,
     RerunPage,
@@ -74,9 +76,26 @@ def _to_step_effect_view(effect: StepEffect) -> StepEffectView:
     )
 
 
-def to_run_estimate_view(estimate: RunEstimate | None) -> RunEstimateView | None:
+def _to_estimator_config(config: SequentialConfig, control_mode: str) -> EstimatorConfig:
+    """The real `SequentialConfig` used, reshaped -- every field read off
+    `config` itself, never a separately typed-in copy of its values."""
+    return EstimatorConfig(
+        delta=config.delta,
+        batch=config.batch,
+        max_n=config.max_n,
+        conf=config.conf,
+        efficacy_boundary=config.efficacy_boundary,
+        control_mode=control_mode,  # type: ignore[arg-type]
+        shortlist_m=SHORTLIST_M,
+    )
+
+
+def to_run_estimate_view(
+    estimate: RunEstimate | None, estimator_config: SequentialConfig | None
+) -> RunEstimateView | None:
     if estimate is None:
         return None
+    assert estimator_config is not None  # every `RunPlan` with an estimate carries its config
     return RunEstimateView(
         step_effects=tuple(_to_step_effect_view(e) for e in estimate.step_effects),
         blamed_step=estimate.blamed_step,
@@ -85,6 +104,7 @@ def to_run_estimate_view(estimate: RunEstimate | None) -> RunEstimateView | None
         treated_reruns=estimate.treated_reruns,
         control_reruns=estimate.control_reruns,
         sampler_calls=estimate.sampler_calls,
+        config=_to_estimator_config(estimator_config, estimate.control_mode),
     )
 
 
@@ -203,7 +223,7 @@ def to_run_detail(plan: RunPlan, judge: JudgePanel | None) -> RunDetail:
         steps=to_step_views(plan),
         planted_step=plan.planted_step,
         fault_type=plan.fault_type,
-        estimate=to_run_estimate_view(plan.estimate_shared),
+        estimate=to_run_estimate_view(plan.estimate_shared, plan.estimator_config),
         judge=judge,
     )
 
