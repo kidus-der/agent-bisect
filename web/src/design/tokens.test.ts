@@ -29,14 +29,20 @@ interface Pair {
 const TEXT_ROLES = ROLE_NAMES.filter((role) => role !== 'tape')
 
 function textPairs(theme: ThemeTokens): readonly Pair[] {
-  const { ground, surface, elevated, text, muted } = theme.neutral
-  const backgrounds = { ground, surface, elevated }
+  const { ground, surface, elevated, recessed, text, muted } = theme.neutral
+  const backgrounds = { ground, surface, elevated, recessed }
+  /**
+   * Role-coloured *text* is not held to `recessed`: on a fill dark enough to
+   * read as a recess, light's role colours land at 4.2-4.4:1. Role text there
+   * always sits in a pill, on its own tint, which is checked below.
+   */
+  const textBackgrounds = { ground, surface, elevated }
   const neutralText = Object.entries(backgrounds).flatMap(([bgName, background]) => [
     { name: `text on ${bgName}`, foreground: text, background, minimum: AA_TEXT },
     { name: `muted on ${bgName}`, foreground: muted, background, minimum: AA_TEXT },
   ])
   const roleText = TEXT_ROLES.flatMap((role) =>
-    Object.entries(backgrounds).map(([bgName, background]) => ({
+    Object.entries(textBackgrounds).map(([bgName, background]) => ({
       name: `${role} on ${bgName}`,
       foreground: theme.role[role],
       background,
@@ -91,10 +97,12 @@ function textPairs(theme: ThemeTokens): readonly Pair[] {
 }
 
 function nonTextPairs(theme: ThemeTokens): readonly Pair[] {
-  const { ground, surface, elevated, focus } = theme.neutral
+  const { ground, surface, elevated, recessed, focus } = theme.neutral
   const marks = ROLE_NAMES.flatMap((role) =>
     // From-tape slate is specified for ground/surface only (direction.md §4).
-    Object.entries(role === 'tape' ? { ground, surface } : { ground, surface, elevated }).map(
+    Object.entries(
+      role === 'tape' ? { ground, surface } : { ground, surface, elevated, recessed },
+    ).map(
       ([bgName, background]) => ({
         name: `${role} mark on ${bgName}`,
         foreground: theme.role[role],
@@ -103,14 +111,22 @@ function nonTextPairs(theme: ThemeTokens): readonly Pair[] {
       }),
     ),
   )
-  const focusRing = Object.entries({ ground, surface, elevated }).map(([bgName, background]) => ({
-    name: `focus ring on ${bgName}`,
-    foreground: focus,
-    background,
-    minimum: AA_NON_TEXT,
-  }))
+  const focusRing = Object.entries({ ground, surface, elevated, recessed }).map(
+    ([bgName, background]) => ({
+      name: `focus ring on ${bgName}`,
+      foreground: focus,
+      background,
+      minimum: AA_NON_TEXT,
+    }),
+  )
   // Every step of the heat ramp is a data mark, not just the strongest: the
   // lowest one has to be separable from the card it sits on too.
+  /**
+   * Surface only, and that is a constraint on where a heat stripe may be drawn,
+   * not an omission: the ramp's lightest step clears 3:1 on white by 0.02, so it
+   * fails on any fill below it — 2.80:1 even on `#EFF1F5`, 2.58:1 on `recessed`,
+   * and 2.91:1 on dark's `elevated`. Heat cells belong on `surface` panels.
+   */
   const heatCells = sequentialScale(theme).map((fill, index) => ({
     name: `heat cell ${index + 1} of ${SEQUENTIAL_SCALE_STEPS} on surface`,
     foreground: fill,
