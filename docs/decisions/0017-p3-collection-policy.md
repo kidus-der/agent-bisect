@@ -119,3 +119,100 @@ at concurrency 3–12, far under the measured limiter (agent 108 rpm, user sim
 existing process-wide limiter, retry policy and ledger are unchanged and are
 what protect the account. The real rate is re-measured 30 minutes in and the
 projection re-run from it.
+
+## 7. Amendment, 2026-09-17 17:20 — after 0 of 9 candidates flipped
+
+**Written before the relaunch**, from the first collection's own record
+(`runs/p3/log.jsonl`). That run spent 17,184 calls in about two hours and kept
+**1 item from 12 candidates**. Two separate causes, one a bug and one a
+targeting failure. Thresholds, N, the keep rule, the fault types and the caps
+are **unchanged**; what changes is how work is scheduled and where faults are
+planted.
+
+### 7.1 The bug: stability was measured on a broken path
+
+Stability was four forks at step 0 with `Resample`. `Tau2Replayer.completion`
+returns early on the `LIVE` path without telling its sink, so `next_step_idx`
+never advances past the fork step and the tape keeps governing a run that has
+gone live — with the cursor one step ahead of reality. **68 of these forks died
+with `DivergenceError`**, the tape serving a recorded *agent* step to a
+*user-simulator* request (`expected nemotron-3-super … got
+nemotron-3.5-lightning`, airline tools vs `null`). Across three shards **one**
+base run was ever found stable. The base recordings themselves are fine:
+`airline-30-t0` replays offline in 17 steps at reward 1.0.
+
+The offline suite could not catch it. `ScriptedLLM` is a pure function of the
+message history, so a resampled turn returns exactly the recorded text and the
+cursor stays in lockstep by luck; the bug needs a model whose resampled answer
+differs.
+
+**Change:** stability is now **four fresh recordings** of the task. A fork at
+step 0 replays nothing, so it *is* a fresh run — with an extra request-hash
+check over its own resampled first turn, a check that can only fire falsely.
+Cost is identical and each re-run is now a first-class recording. (The engine
+bug is reported separately; `Resample` remains a first-class intervention and
+P5 uses it.)
+
+### 7.2 Infrastructure was allowed to decide
+
+138 tasks were dropped as "infra" and never retried — 68 divergences, 62
+transport failures (`504` / timeout), 7 duplicate run ids from retries
+re-deriving the same deterministic fork ids. Dropping a task because a provider
+had a bad minute contradicts `0004` §3, under which an infra failure decides
+nothing.
+
+**Changes:** infra failures go back on the queue for up to **three passes**
+with a backoff; tasks that never clear are **parked and counted**, never
+silently dropped; a collection that parked work short of its target reports
+that instead of `done`; the transport error mix is counted; work in flight
+halves under a storm and creeps back up (AIMD); and retried attempts claim
+fresh run ids.
+
+### 7.3 Targeting: faults were planted where they could not bite
+
+Of the three base runs that ever reached the candidate stage, **two (airline 26
+and 34) require no write actions and check no communicated facts** — they are
+scored almost entirely by the database being *unchanged*, so a misinformed
+agent still passes. A perception fault there has nothing to break.
+
+**Changes, all to *where* faults are planted, none to what is done to them:**
+
+1. **Dependency-aware salience.** A value that re-appears in the arguments of a
+   later call that *changes the world* outranks every other signal, because the
+   others guess what the agent might use and this one records what it did use.
+2. **Candidate order.** Attempts whose step carries such a value are tried
+   first, as a stable sort over the existing bucket round-robin — the order
+   changes, the set of attempts does not, and every stratum is still reached.
+3. **Task order.** Three bands: cheap-to-score tasks that require writes (43
+   airline, 73 retail), then cheap tasks that require none (8), then the 40
+   judged retail tasks.
+
+**Measured offline first, at zero API cost**, over the 183 recordings already on
+tape: **691 of 1,580 tool steps (44%) carry a value that reaches a later write**,
+and **115 of 183 recordings (63%)** have at least one such step. Under the old
+targeting, better than half of all attempts were spent on steps whose value
+never reached a write.
+
+### 7.4 Why this does not bias the evaluation — and the threat that remains
+
+The labels, the keep rule, N, the stability bar, δ, m and the split are
+untouched. Nothing downstream can see how a site was chosen: the judge
+baselines and Bisect both receive a failed recording and its steps, with no
+record of why that step was picked. Selection changes which *candidates are
+tried*, not how any of them is *scored*.
+
+The honest threat to validity is this: **kept faults are, by construction,
+consequential ones.** The dataset over-represents faults on values the run
+acted on, and under-represents faults that a robust agent shrugs off. That is
+what a planted-fault benchmark is for — a fault that changes nothing has no
+causal step to find — but it means accuracy here is accuracy *on consequential
+faults*, and it is not evidence about how often real agent failures are of that
+kind. This is stated in `docs/gates/P3.md` and in the final report, alongside
+the related point from `0016` that the shared control assumes a failure
+reproducible from the fork point.
+
+### 7.5 The clock
+
+The 10-hour budget counts **productive collection time from the relaunch**. The
+first two hours produced one item because of the `Resample` bug and the dropped
+tasks, not because of the protocol, and are reported separately as such.
