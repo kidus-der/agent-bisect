@@ -35,6 +35,7 @@ fields, so replaying the same script produces byte-identical payloads.
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -128,20 +129,28 @@ class ScriptedLLM:
         self._scripts = {model: tuple(turns) for model, turns in scripts.items()}
         self._calls_by_model: dict[str, int] = {}
         self._requests: list[dict[str, Any]] = []
+        # One instance serves a whole batch, and a batch may record
+        # several runs at once in tau2's worker threads. Which turn to
+        # serve is read off the request, so only the bookkeeping needs
+        # guarding.
+        self._lock = threading.Lock()
 
     @property
     def calls(self) -> int:
         """Total responses served — asserted to be 0 by every replay test."""
-        return len(self._requests)
+        with self._lock:
+            return len(self._requests)
 
     @property
     def calls_by_model(self) -> dict[str, int]:
-        return dict(self._calls_by_model)
+        with self._lock:
+            return dict(self._calls_by_model)
 
     @property
     def requests(self) -> list[dict[str, Any]]:
         """Every request received, in order, for assertions about prompts."""
-        return list(self._requests)
+        with self._lock:
+            return list(self._requests)
 
     def completion(self, *, model: str, messages: Any, **kwargs: Any) -> Any:
         import litellm
@@ -157,8 +166,9 @@ class ScriptedLLM:
             raise ScriptExhaustedError(
                 f"script for {name!r} has {len(script)} turns; turn {position} was asked for"
             )
-        self._calls_by_model[name] = self._calls_by_model.get(name, 0) + 1
-        self._requests.append({"model": model, "messages": messages, **kwargs})
+        with self._lock:
+            self._calls_by_model[name] = self._calls_by_model.get(name, 0) + 1
+            self._requests.append({"model": model, "messages": messages, **kwargs})
         return litellm.ModelResponse(
             id=f"fake-{name}-{position}",
             created=_FIXED_CREATED,
