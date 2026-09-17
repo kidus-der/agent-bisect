@@ -76,39 +76,43 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
         <span className="text-[12px] leading-4 text-pretty text-ink-muted">{meta.description}</span>
       </div>
 
-      {/* The numbers to the right carry the reading; this is its shape. */}
-      <div aria-hidden="true" className={cn(TRACK_CELL, 'relative min-w-0', focal ? 'h-9' : 'h-7')}>
+      {/*
+        The numbers to the right carry the reading; this is its shape. The
+        interval sits on its own track *below* the bar rather than across it:
+        drawn over a fill of nearly the same value, its lower cap disappeared.
+      */}
+      <div
+        aria-hidden="true"
+        className={cn(TRACK_CELL, 'relative min-w-0', focal ? 'h-10' : 'h-8')}
+      >
         <motion.span
           initial={reduced ? undefined : { scaleX: 0 }}
           whileInView={reduced ? undefined : { scaleX: 1 }}
           viewport={{ once: true, amount: 0.35 }}
           transition={enter}
           style={{ width: ratePercent(value, axisMax), background: fill, originX: 0 }}
-          className={cn(
-            'absolute top-1/2 left-0 -translate-y-1/2 rounded-r-step',
-            focal ? 'h-5' : 'h-3',
-          )}
+          className={cn('absolute top-1 left-0 rounded-r-step', focal ? 'h-5' : 'h-3.5')}
         />
         {meta.hatched ? (
           <span
             style={{ width: ratePercent(value, axisMax) }}
             className={cn(
-              'absolute top-1/2 left-0 -translate-y-1/2 rounded-r-step hatch opacity-80',
-              focal ? 'h-5' : 'h-3',
+              'absolute top-1 left-0 rounded-r-step hatch opacity-80',
+              focal ? 'h-5' : 'h-3.5',
             )}
           />
         ) : null}
         <span
           style={{ left: ratePercent(low, axisMax), width: rateSpanPercent(low, high, axisMax) }}
-          className="absolute top-1/2 h-px -translate-y-1/2 bg-ink"
+          className={cn('absolute h-[1.5px] bg-ink', focal ? 'top-8' : 'top-6')}
         />
         {[low, high].map((bound) => (
           <span
             key={bound}
             style={{ left: ratePercent(bound, axisMax) }}
             className={cn(
-              'absolute top-1/2 -ml-px w-px -translate-y-1/2 bg-ink',
-              focal ? 'h-4' : 'h-3',
+              'absolute -ml-px h-2 w-[1.5px] bg-ink',
+              focal ? 'top-[26px]' : 'top-[18px]',
             )}
           />
         ))}
@@ -207,29 +211,35 @@ interface VerdictProps {
   readonly bar: PreregisteredBar
 }
 
-/** The headline the page exists to state, and whether the fixed bar was met. */
+/**
+ * The headline the page exists to state, laid out along the panel's header row
+ * rather than in a nested card: as a full-width card it pushed four of the five
+ * method bars below the fold at 1440.
+ */
 function PreregisteredVerdict({ bar }: VerdictProps) {
   const { cleared } = bar
   return (
-    <div className="flex flex-wrap items-start gap-x-10 gap-y-5 rounded-card border border-line bg-surface p-4 sm:p-5">
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+      <div className="flex flex-col">
         <InstrumentLabel>bisect</InstrumentLabel>
-        <span className="num text-display font-semibold text-ink">
+        <span className="num text-display leading-none font-semibold text-ink">
           {formatPercent(bar.bisect.accuracy.value)}
         </span>
-        <span className="num text-small text-ink-muted">
+        <span className="num text-[12px] text-ink-muted">
           95% CI [{formatPercent(bar.bisect.accuracy.ci_low)},{' '}
           {formatPercent(bar.bisect.accuracy.ci_high)}]
         </span>
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col">
         <InstrumentLabel>vs best judge</InstrumentLabel>
-        <span className="num text-stat text-ink">{formatPoints(bar.marginOverBestJudge)}</span>
-        <span className="text-small text-ink-muted">
+        <span className="num text-stat leading-none text-ink">
+          {formatPoints(bar.marginOverBestJudge)}
+        </span>
+        <span className="text-[12px] text-ink-muted">
           over {methodMeta(bar.bestJudge.method).label.toLowerCase()}
         </span>
       </div>
-      <div className="flex min-w-[16rem] flex-1 flex-col items-start gap-1.5">
+      <div className="flex flex-col items-start gap-1">
         <InstrumentLabel>pre-registered bar</InstrumentLabel>
         <span
           className={cn(
@@ -241,11 +251,6 @@ function PreregisteredVerdict({ bar }: VerdictProps) {
         >
           <span aria-hidden="true">{cleared ? '✓' : '✕'}</span>
           {cleared ? 'met' : 'not met'} · {formatPercent(bar.threshold)}
-        </span>
-        <span className="max-w-prose text-[12px] leading-4 text-pretty text-ink-muted">
-          {bar.unattainable
-            ? 'Best judge + 15 points lands above 100%, so no method could clear it. The bar was fixed before measuring and is reported as it stands.'
-            : 'Best judge + 15 points, fixed before measuring.'}
         </span>
       </div>
     </div>
@@ -264,17 +269,17 @@ export function MethodComparison({ methods }: MethodComparisonProps) {
   const axisMax = accuracyAxisMax(bar?.threshold)
 
   return (
-    <Panel variant="canvas" bodyClassName="flex flex-col gap-5">
-      <header className="flex flex-col gap-2">
-        <InstrumentLabel>step_accuracy</InstrumentLabel>
-        <h2 className="text-h1 text-ink">Which method blames the right step</h2>
-        <p id={captionId} className="max-w-prose text-pretty text-ink-muted">
-          Share of labelled failures where the method named the planted step, with its 95% bootstrap
-          interval. Mean cost is per diagnosis.
-        </p>
+    <Panel variant="canvas" bodyClassName="flex flex-col gap-4">
+      {/* Title and verdict share one row: as stacked blocks they pushed four of
+          the five method bars below the fold at 1440. The caption moves to the
+          footnote under the axis, where it is read rather than scrolled past. */}
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <div className="flex flex-col gap-1">
+          <InstrumentLabel>step_accuracy</InstrumentLabel>
+          <h2 className="text-h1 text-ink">Which method blames the right step</h2>
+        </div>
+        {bar ? <PreregisteredVerdict bar={bar} /> : null}
       </header>
-
-      {bar ? <PreregisteredVerdict bar={bar} /> : null}
 
       <div className="relative pt-7">
         <ScaleOverlay bar={bar} axisMax={axisMax} />
@@ -292,11 +297,13 @@ export function MethodComparison({ methods }: MethodComparisonProps) {
         <AccuracyAxis axisMax={axisMax} />
       </div>
 
-      {axisMax > MAX_RATE ? (
-        <p className="text-[12px] text-ink-muted">
-          Hatched: above 100% accuracy, which no method can reach.
-        </p>
-      ) : null}
+      <p id={captionId} className="text-[12px] text-pretty text-ink-muted">
+        Share of labelled failures where the method named the planted step, with its 95% bootstrap
+        interval below each bar. Mean cost is per diagnosis.{' '}
+        {bar?.unattainable
+          ? 'The pre-registered bar (best judge + 15 points) lands above 100%, so no method could clear it; it was fixed before measuring and is reported as it stands.'
+          : 'The dashed rule is the pre-registered bar: best judge + 15 points, fixed before measuring.'}
+      </p>
     </Panel>
   )
 }

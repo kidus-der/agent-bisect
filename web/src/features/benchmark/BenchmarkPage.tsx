@@ -53,7 +53,7 @@ export function BenchmarkPage() {
       <PageHeader
         label="benchmark"
         title="Benchmark"
-        description="Blame accuracy against planted faults: method comparison with intervals, by fault type and step position, and what each diagnosis cost."
+        description="Blame accuracy against planted faults, by method, fault type, step position and cost."
       />
       <AsyncSection
         query={query}
