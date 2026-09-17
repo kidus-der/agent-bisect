@@ -585,6 +585,35 @@ export interface components {
             /** Message */
             message: string;
         };
+        /**
+         * EstimatorConfig
+         * @description The sampling plan that produced this blame result, taken verbatim from
+         *     the `attribution.estimate.SequentialConfig` instance actually used --
+         *     never hand-typed -- so a client (e.g. the Run detail page) never has to
+         *     hard-code delta or any other threshold.
+         */
+        EstimatorConfig: {
+            /** Batch */
+            batch: number;
+            /** Conf */
+            conf: number;
+            /**
+             * Control Mode
+             * @enum {string}
+             */
+            control_mode: "shared" | "per_step";
+            /** Delta */
+            delta: number;
+            /**
+             * Efficacy Boundary
+             * @enum {string}
+             */
+            efficacy_boundary: "obf" | "none";
+            /** Max N */
+            max_n: number;
+            /** Shortlist M */
+            shortlist_m: number;
+        };
         /** FlakyAblation */
         FlakyAblation: {
             /** Arms */
@@ -601,7 +630,9 @@ export interface components {
         };
         /**
          * HeadlineResult
-         * @description Bisect vs. the best judge, each with its own 95% CI.
+         * @description Bisect vs. the best judge, each with its own 95% CI, plus the gap
+         *     between them with its own paired-bootstrap CI (never a Newcombe interval
+         *     over the two accuracies -- they're measured on the same dataset).
          */
         HeadlineResult: {
             best_judge: components["schemas"]["CiValue"];
@@ -611,6 +642,7 @@ export interface components {
              */
             best_judge_method: "bisect" | "judge_all_at_once" | "judge_step_by_step" | "rerun_live" | "no_control";
             bisect: components["schemas"]["CiValue"];
+            gap: components["schemas"]["CiValue"];
         };
         /** HealthPayload */
         HealthPayload: {
@@ -940,6 +972,7 @@ export interface components {
         RunEstimateView: {
             /** Blamed Step */
             blamed_step: number | null;
+            config: components["schemas"]["EstimatorConfig"];
             /** Control Fork Step */
             control_fork_step: number | null;
             /**
