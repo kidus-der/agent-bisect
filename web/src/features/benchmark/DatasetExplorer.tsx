@@ -51,11 +51,20 @@ function RateCell({ rate }: { readonly rate: number }) {
   return <span className="num text-ink">{formatPercent(rate, 0)}</span>
 }
 
+/**
+ * The drop is the column the table is read for, so it carries full ink while the
+ * two rates stay quiet. The glyph follows the sign rather than assuming one: an
+ * injected fault that made the run *pass* more often is a finding, not a typo.
+ */
 function DropCell({ entry }: { readonly entry: DatasetEntry }) {
   const drop = entry.faulted_pass_rate - entry.base_pass_rate
+  const glyph = drop < 0 ? '▼' : drop > 0 ? '▲' : '·'
   return (
-    <span className="num whitespace-nowrap text-ink-muted">
-      <span aria-hidden="true">▼</span> {formatPoints(drop, 0)}
+    <span className="num font-medium whitespace-nowrap text-ink">
+      <span aria-hidden="true" className="text-ink-muted">
+        {glyph}
+      </span>{' '}
+      {formatPoints(drop, 0)}
     </span>
   )
 }
