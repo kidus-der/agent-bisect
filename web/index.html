@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="Bisect: counterfactual replay for LLM agent failures. Rewind a recorded run, change one step, measure the causal effect."
+    />
+    <title>Bisect</title>
+    <script>
+      // Set the theme before first paint. Keep in sync with src/design/theme.ts.
+      ;(function () {
+        var theme = null
+        try {
+          theme = window.localStorage.getItem('bisect.theme')
+        } catch (error) {
+          theme = null
+        }
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        }
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

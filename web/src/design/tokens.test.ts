@@ -1,0 +1,181 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+import { describe, expect, test } from 'vitest'
+
+import { contrastRatio } from './color'
+import {
+  CHART_SERIES_ORDER,
+  ROLE_NAMES,
+  THEME_NAMES,
+  type ThemeTokens,
+  roleTint,
+  sequentialScale,
+  themes,
+} from './tokens'
+import { buildTokensCss } from './tokens-css'
+
+const AA_TEXT = 4.5
+const AA_NON_TEXT = 3
+
+interface Pair {
+  readonly name: string
+  readonly foreground: string
+  readonly background: string
+  readonly minimum: number
+}
+
+const TEXT_ROLES = ROLE_NAMES.filter((role) => role !== 'tape')
+
+function textPairs(theme: ThemeTokens): readonly Pair[] {
+  const { ground, surface, elevated, text, muted } = theme.neutral
+  const backgrounds = { ground, surface, elevated }
+  const neutralText = Object.entries(backgrounds).flatMap(([bgName, background]) => [
+    { name: `text on ${bgName}`, foreground: text, background, minimum: AA_TEXT },
+    { name: `muted on ${bgName}`, foreground: muted, background, minimum: AA_TEXT },
+  ])
+  const roleText = TEXT_ROLES.flatMap((role) =>
+    Object.entries(backgrounds).map(([bgName, background]) => ({
+      name: `${role} on ${bgName}`,
+      foreground: theme.role[role],
+      background,
+      minimum: AA_TEXT,
+    })),
+  )
+  const roleOnOwnTint = TEXT_ROLES.map((role) => ({
+    name: `${role} on its tint (pills)`,
+    foreground: theme.role[role],
+    background: roleTint(theme, role),
+    minimum: AA_TEXT,
+  }))
+  const onSolidRole = TEXT_ROLES.map((role) => ({
+    name: `on-role text on solid ${role}`,
+    foreground: theme.on.onRole,
+    background: theme.role[role],
+    minimum: AA_TEXT,
+  }))
+  const tapeCell = [
+    {
+      name: 'on-tape text on solid tape',
+      foreground: theme.on.onTape,
+      background: theme.role.tape,
+      minimum: AA_TEXT,
+    },
+    {
+      name: 'muted on tape tint (TapeStep)',
+      foreground: muted,
+      background: roleTint(theme, 'tape'),
+      minimum: AA_TEXT,
+    },
+    {
+      name: 'text on tape tint (DiffBlock)',
+      foreground: text,
+      background: roleTint(theme, 'tape'),
+      minimum: AA_TEXT,
+    },
+    {
+      name: 'text on measure tint (DiffBlock)',
+      foreground: text,
+      background: roleTint(theme, 'measure'),
+      minimum: AA_TEXT,
+    },
+    {
+      name: 'text on blame tint (TapeStep)',
+      foreground: text,
+      background: roleTint(theme, 'blame'),
+      minimum: AA_TEXT,
+    },
+  ]
+  return [...neutralText, ...roleText, ...roleOnOwnTint, ...onSolidRole, ...tapeCell]
+}
+
+function nonTextPairs(theme: ThemeTokens): readonly Pair[] {
+  const { ground, surface, elevated, focus } = theme.neutral
+  const marks = ROLE_NAMES.flatMap((role) =>
+    // From-tape slate is specified for ground/surface only (direction.md §4).
+    Object.entries(role === 'tape' ? { ground, surface } : { ground, surface, elevated }).map(
+      ([bgName, background]) => ({
+        name: `${role} mark on ${bgName}`,
+        foreground: theme.role[role],
+        background,
+        minimum: AA_NON_TEXT,
+      }),
+    ),
+  )
+  const focusRing = Object.entries({ ground, surface, elevated }).map(([bgName, background]) => ({
+    name: `focus ring on ${bgName}`,
+    foreground: focus,
+    background,
+    minimum: AA_NON_TEXT,
+  }))
+  const topOfScale = sequentialScale(theme).at(-1) ?? surface
+  return [
+    ...marks,
+    ...focusRing,
+    {
+      name: 'strongest heat cell on surface',
+      foreground: topOfScale,
+      background: surface,
+      minimum: AA_NON_TEXT,
+    },
+  ]
+}
+
+describe.each(THEME_NAMES)('%s theme contrast', (themeName) => {
+  const theme = themes[themeName]
+
+  test.each(textPairs(theme))(
+    '$name clears AA text (4.5:1)',
+    ({ foreground, background, minimum }) => {
+      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(minimum)
+    },
+  )
+
+  test.each(nonTextPairs(theme))(
+    '$name clears AA non-text (3:1)',
+    ({ foreground, background, minimum }) => {
+      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(minimum)
+    },
+  )
+})
+
+describe('token invariants', () => {
+  test('blame amber is the last, reserved chart series', () => {
+    expect(CHART_SERIES_ORDER.at(-1)).toBe('blame')
+    expect(CHART_SERIES_ORDER.slice(0, -1)).not.toContain('blame')
+  })
+
+  test('the generator emits both themes and the Tailwind mapping', () => {
+    const css = buildTokensCss()
+    expect(css).toContain(':root[data-theme="dark"]')
+    expect(css).toContain(':root[data-theme="light"]')
+    expect(css).toContain('@theme inline')
+    expect(css).toContain(`--bx-ground: ${themes.dark.neutral.ground}`)
+    expect(css).toContain(`--bx-ground: ${themes.light.neutral.ground}`)
+    expect(css).toContain('--chart-1: var(--bx-measure)')
+  })
+
+  test('tokens.generated.css is in sync with tokens.ts (run `npm run tokens`)', () => {
+    const path = resolve(process.cwd(), 'src/design/tokens.generated.css')
+    expect(readFileSync(path, 'utf8')).toBe(buildTokensCss())
+  })
+})
+
+/** Printed by `npm test -- tokens` so the report can quote the worst ratios. */
+describe('worst ratios', () => {
+  test.each(THEME_NAMES)('%s theme', (themeName) => {
+    const theme = themes[themeName]
+    const worst = (pairs: readonly Pair[]): Pair & { ratio: number } =>
+      pairs
+        .map((pair) => ({ ...pair, ratio: contrastRatio(pair.foreground, pair.background) }))
+        .reduce((lowest, pair) => (pair.ratio < lowest.ratio ? pair : lowest))
+    const worstText = worst(textPairs(theme))
+    const worstMark = worst(nonTextPairs(theme))
+    process.stdout.write(
+      `[contrast] ${themeName}: worst text ${worstText.ratio.toFixed(2)} (${worstText.name}); ` +
+        `worst non-text ${worstMark.ratio.toFixed(2)} (${worstMark.name})\n`,
+    )
+    expect(worstText.ratio).toBeGreaterThanOrEqual(AA_TEXT)
+    expect(worstMark.ratio).toBeGreaterThanOrEqual(AA_NON_TEXT)
+  })
+})

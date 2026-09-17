@@ -30,3 +30,8 @@ web/node_modules/
 dist/
 .coverage
 htmlcov/
+
+# web: test and e2e artefacts (the release build in agent_bisect/server/static/ is committed deliberately, never by default)
+web/playwright-report/
+web/test-results/
+web/coverage/

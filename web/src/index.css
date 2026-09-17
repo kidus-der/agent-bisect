@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+@import './design/tokens.generated.css';
+
+/* `dark:` utilities (used by shadcn + Bklit sources) follow data-theme, not a class. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  /* shadcn radius ramp, kept so vendored ui/ components render as designed. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+
+  html {
+    @apply font-sans;
+    text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-ground text-body text-ink;
+    min-width: 320px;
+    min-height: 100dvh;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One focus treatment everywhere: measurement cyan, 2px ring, 2px offset. */
+  :focus-visible {
+    outline: 2px solid var(--bx-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--bx-measure-tint);
+    color: var(--bx-text);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/* Instrument label: mono, uppercase; the component appends the trailing underscore. */
+@utility label-instrument {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro--line-height);
+  font-weight: var(--text-micro--font-weight);
+  letter-spacing: var(--text-micro--letter-spacing);
+  text-transform: uppercase;
+  color: var(--bx-muted);
+}
+
+/* Every number that can change or align in a column. */
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1;
+}
+
+/* Blueprint canvas texture: a dot grid at the 24px rhythm. Headers and canvases only. */
+@utility blueprint-dots {
+  background-image: radial-gradient(circle, var(--bx-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+/* Hatch = "not measured". Shared by HeatStripe gaps and the simulated-data flag. */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--bx-line-strong) 0 1.5px,
+    transparent 1.5px 6px
+  );
+}
+
+@utility blame-gradient {
+  background-image: linear-gradient(90deg, var(--bx-blame), var(--bx-blame-coral));
+}
+
+/* Loading sweep: a translated overlay, so only transform animates. */
+@utility skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bx-elevated);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(100deg, transparent 30%, var(--bx-line) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: skeleton-sweep 1.6s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      display: none;
+    }
+  }
+}
+
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
