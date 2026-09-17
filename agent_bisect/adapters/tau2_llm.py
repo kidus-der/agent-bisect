@@ -114,6 +114,7 @@ class Tau2Router:
         phase: str,
         on_call: OnCall | None = None,
         config: RetryConfig | None = None,
+        run_id_for: Callable[[], str | None] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         rand: Callable[[], float] = random.random,
@@ -126,6 +127,10 @@ class Tau2Router:
         self._phase = phase
         self._on_call = on_call
         self._config = config or RetryConfig()
+        # Read per call, not pinned here: one routed context serves a whole
+        # batch, so which run a call belongs to is whatever the calling
+        # thread is recording at that moment.
+        self._run_id_for = run_id_for or (lambda: None)
         self._clock = clock
         self._sleep = sleep
         self._rand = rand
@@ -163,7 +168,9 @@ class Tau2Router:
     ) -> tuple[Any, int]:
         attempt = 0
         while True:
-            call_id = self._ledger.reserve(phase=self._phase, model=model, purpose=purpose)
+            call_id = self._ledger.reserve(
+                phase=self._phase, model=model, purpose=purpose, run_id=self._run_id_for()
+            )
             self.limiter_for(model).acquire_sync()
             call_start = self._clock()
             failure: TransportError | None = None
@@ -275,6 +282,7 @@ def route_tau2_llm(
     completion_fn: Callable[..., Any] | None = None,
     limiter_for: Callable[[str], Any] | None = None,
     config: RetryConfig | None = None,
+    run_id_for: Callable[[], str | None] | None = None,
 ) -> Iterator[Tau2Router]:
     """Route every τ² LLM call through `Tau2Router` for the duration of the block."""
     resolved = settings or (get_settings() if api_key is None or api_base is None else None)
@@ -303,6 +311,7 @@ def route_tau2_llm(
         phase=current_phase(phase),
         on_call=on_call,
         config=config,
+        run_id_for=run_id_for,
     )
     original_completion = llm_utils.completion
     original_generates = _patch_participants(modules)
