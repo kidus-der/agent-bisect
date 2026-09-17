@@ -4,7 +4,7 @@
  * becomes a two-line card instead of a sideways scroll.
  */
 import { motion } from 'motion/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { DataTable, type DataTableColumn } from '@/components/primitives/DataTable'
 import type { SortState } from '@/components/primitives/dataTableSort'
@@ -60,18 +60,28 @@ function useTableHeight(ref: React.RefObject<HTMLElement | null>, gutter: number
 
 const ROW_SELECTOR = 'tr[tabindex], li[tabindex]'
 
-/** Up and down move between rows; Enter and Space are the DataTable's own. */
-function useRowArrowKeys(): (event: React.KeyboardEvent<HTMLDivElement>) => void {
-  return useCallback((event) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-    const rows = [...event.currentTarget.querySelectorAll<HTMLElement>(ROW_SELECTOR)]
-    const index = rows.indexOf(document.activeElement as HTMLElement)
-    if (index === -1) return
-    const next = rows[index + (event.key === 'ArrowDown' ? 1 : -1)]
-    if (!next) return
-    event.preventDefault()
-    next.focus()
-  }, [])
+/**
+ * Up and down move between rows; Enter and Space are the DataTable's own. The
+ * listener is delegated to the container imperatively: the wrapper is not itself
+ * interactive, the rows are.
+ */
+function useRowArrowKeys(ref: React.RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const container = ref.current
+    if (!container) return undefined
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+      const rows = [...container.querySelectorAll<HTMLElement>(ROW_SELECTOR)]
+      const index = rows.indexOf(document.activeElement as HTMLElement)
+      if (index === -1) return
+      const next = rows[index + (event.key === 'ArrowDown' ? 1 : -1)]
+      if (!next) return
+      event.preventDefault()
+      next.focus()
+    }
+    container.addEventListener('keydown', onKeyDown)
+    return () => container.removeEventListener('keydown', onKeyDown)
+  }, [ref])
 }
 
 /** The chip the Run detail header morphs from. */
@@ -83,78 +93,76 @@ function RunIdChip({ runId }: { readonly runId: string }) {
   )
 }
 
-function columns(): ReadonlyArray<DataTableColumn<RunSummary>> {
-  return [
-    {
-      id: 'run_id',
-      header: 'Run',
-      width: '15rem',
-      cell: (run) => <RunIdChip runId={run.run_id} />,
-      sortValue: (run) => run.run_id,
-    },
-    {
-      id: 'task',
-      header: 'Task',
-      cell: (run) => <span className="text-ink-muted">{run.task_id}</span>,
-    },
-    {
-      id: 'domain',
-      header: 'Domain',
-      width: '7rem',
-      cell: (run) => <span className="text-ink-muted">{run.domain}</span>,
-      sortValue: (run) => run.domain,
-    },
-    {
-      id: 'n_steps',
-      header: 'Steps',
-      numeric: true,
-      width: '5rem',
-      cell: (run) => run.n_steps,
-      sortValue: (run) => run.n_steps,
-    },
-    {
-      id: 'spark',
-      header: 'Shape',
-      width: '7rem',
-      cell: (run) => <RunSparkline run={run} />,
-    },
-    {
-      id: 'blame_stripe',
-      header: 'Effect per step',
-      width: '10rem',
-      cell: (run) => <RunBlameStripe run={run} />,
-    },
-    {
-      id: 'decisive',
-      header: 'Decisive',
-      width: '11rem',
-      cell: (run) => <RunBlame run={run} />,
-    },
-    {
-      id: 'outcome',
-      header: 'Outcome',
-      width: '8rem',
-      cell: (run) => <RunOutcome run={run} />,
-      sortValue: (run) => run.outcome,
-    },
-    {
-      id: 'cost_usd',
-      header: 'Cost',
-      numeric: true,
-      width: '6rem',
-      cell: (run) => <RunNumber value={run.cost_usd} decimals={2} prefix="$" />,
-      sortValue: (run) => run.cost_usd,
-    },
-    {
-      id: 'calls',
-      header: 'Calls',
-      numeric: true,
-      width: '6rem',
-      cell: (run) => <RunNumber value={run.calls} />,
-      sortValue: (run) => run.calls,
-    },
-  ]
-}
+const RUN_COLUMNS: ReadonlyArray<DataTableColumn<RunSummary>> = [
+  {
+    id: 'run_id',
+    header: 'Run',
+    width: '15rem',
+    cell: (run) => <RunIdChip runId={run.run_id} />,
+    sortValue: (run) => run.run_id,
+  },
+  {
+    id: 'task',
+    header: 'Task',
+    cell: (run) => <span className="text-ink-muted">{run.task_id}</span>,
+  },
+  {
+    id: 'domain',
+    header: 'Domain',
+    width: '7rem',
+    cell: (run) => <span className="text-ink-muted">{run.domain}</span>,
+    sortValue: (run) => run.domain,
+  },
+  {
+    id: 'n_steps',
+    header: 'Steps',
+    numeric: true,
+    width: '5rem',
+    cell: (run) => run.n_steps,
+    sortValue: (run) => run.n_steps,
+  },
+  {
+    id: 'spark',
+    header: 'Shape',
+    width: '7rem',
+    cell: (run) => <RunSparkline run={run} />,
+  },
+  {
+    id: 'blame_stripe',
+    header: 'Effect per step',
+    width: '10rem',
+    cell: (run) => <RunBlameStripe run={run} />,
+  },
+  {
+    id: 'decisive',
+    header: 'Decisive',
+    width: '11rem',
+    cell: (run) => <RunBlame run={run} />,
+  },
+  {
+    id: 'outcome',
+    header: 'Outcome',
+    width: '8rem',
+    cell: (run) => <RunOutcome run={run} />,
+    sortValue: (run) => run.outcome,
+  },
+  {
+    id: 'cost_usd',
+    header: 'Cost',
+    numeric: true,
+    width: '6rem',
+    cell: (run) => <RunNumber value={run.cost_usd} decimals={2} prefix="$" />,
+    sortValue: (run) => run.cost_usd,
+  },
+  {
+    id: 'calls',
+    header: 'Calls',
+    numeric: true,
+    width: '6rem',
+    cell: (run) => <RunNumber value={run.calls} />,
+    sortValue: (run) => run.calls,
+  },
+]
 
 function CompactRun({ run }: { readonly run: RunSummary }) {
   return (
@@ -194,15 +202,13 @@ export function RunsTable({ rows, search, onSortChange, onOpen }: RunsTableProps
     containerRef,
     wide ? BOTTOM_GUTTER_PX.wide : BOTTOM_GUTTER_PX.narrow,
   )
-  const onKeyDown = useRowArrowKeys()
-  const tableColumns = useRef(columns()).current
+  useRowArrowKeys(containerRef)
   const sort: SortState = { columnId: search.sort, direction: search.dir }
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the rows are the interactive elements; this only routes arrow keys between them
-    <div ref={containerRef} onKeyDown={onKeyDown}>
+    <div ref={containerRef}>
       <DataTable
-        columns={tableColumns}
+        columns={RUN_COLUMNS}
         rows={rows}
         getRowId={(run) => run.run_id}
         caption="Recorded runs"

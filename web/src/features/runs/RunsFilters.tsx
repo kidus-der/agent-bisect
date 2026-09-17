@@ -85,9 +85,13 @@ interface SearchFieldProps {
 
 function SearchField({ value, onChange }: SearchFieldProps) {
   const [draft, setDraft] = useState(value)
+  const [lastValue, setLastValue] = useState(value)
 
   // The URL wins when it changes underneath us (back button, cleared filters).
-  useEffect(() => setDraft(value), [value])
+  if (lastValue !== value) {
+    setLastValue(value)
+    setDraft(value)
+  }
 
   useEffect(() => {
     if (draft === value) return undefined

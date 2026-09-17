@@ -3,7 +3,7 @@ import { Command } from 'cmdk'
 import { Radio, Search, Tag } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import {
   MIN_SEARCH_CHARS,
@@ -118,9 +118,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const hits = runHits(search.data?.data)
   const searching = query.trim().length >= MIN_SEARCH_CHARS
 
-  // The previous selection is usually gone once the list changes; clearing it
-  // lets cmdk select the new first row and report it back.
-  useEffect(() => setSelectedId(''), [debouncedQuery])
+  // The previous selection is usually gone once the results change, so it is
+  // dropped during render (not in an effect) and cmdk selects the new first row.
+  const [lastQuery, setLastQuery] = useState(debouncedQuery)
+  if (lastQuery !== debouncedQuery) {
+    setLastQuery(debouncedQuery)
+    setSelectedId('')
+  }
 
   const selectedHit = hits.find((hit) => `run:${hit.id}` === selectedId)
   const selectedItem = PALETTE_ITEMS.find((item) => item.id === selectedId)

@@ -15,7 +15,7 @@ test('lists the recorded runs with their marks', async ({ page }) => {
   await expect(page.getByText(`${RECORDED.runTotal} of ${RECORDED.runTotal} runs`)).toBeVisible()
 
   const first = page.getByRole('row').nth(1)
-  await expect(first.getByText(RECORDED.runs[0]!.run_id)).toBeVisible()
+  await expect(first.getByText(RECORDED.firstRunId)).toBeVisible()
   await expect(first.getByRole('img', { name: /^tokens per step/ })).toBeVisible()
   await expect(first.getByRole('img', { name: /^Effect per step/ })).toBeVisible()
 })
@@ -84,7 +84,7 @@ test('rows are reachable by keyboard: arrows move, Enter opens', async ({ page }
   await expect(firstRow).toBeFocused()
 
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(new RegExp(`/runs/${RECORDED.runs[0]!.run_id}$`))
+  await expect(page).toHaveURL(new RegExp(`/runs/${RECORDED.firstRunId}$`))
 })
 
 test('the list virtualizes: scrolling renders rows that were never in the DOM', async ({
@@ -94,7 +94,7 @@ test('the list virtualizes: scrolling renders rows that were never in the DOM', 
   const before = await page.getByRole('row').count()
   expect(before, 'far fewer rows than the corpus are rendered').toBeLessThan(RECORDED.runTotal)
 
-  const lastId = RECORDED.runs.at(-1)!.run_id
+  const lastId = RECORDED.lastRunId
   await expect(page.getByText(lastId, { exact: true })).toHaveCount(0)
   await page.getByRole('group', { name: /scrollable/ }).evaluate((node) => {
     node.scrollTop = node.scrollHeight

@@ -27,6 +27,9 @@ export const RECORDED = {
   heroDecisiveStep: fixtures.overview.data.hero_run.decisive_step,
   runTotal: fixtures.runs.meta.total,
   runs: fixtures.runs.data.runs,
+  /** First and last by the default `run_id` ascending sort. */
+  firstRunId: fixtures.runs.data.runs[0]?.run_id ?? '',
+  lastRunId: fixtures.runs.data.runs[fixtures.runs.data.runs.length - 1]?.run_id ?? '',
 } as const
 
 function envelope(data: unknown, meta: Record<string, unknown> = {}): Record<string, unknown> {

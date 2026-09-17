@@ -51,7 +51,9 @@ describe('sparkSeries', () => {
   })
 
   test('draws nothing rather than inventing a zero for a gap', () => {
-    const points = [POINTS[0]!, { ...POINTS[1]!, tokens: null, latency_ms: null }]
+    const points = POINTS.map((point, index) =>
+      index === 1 ? { ...point, tokens: null, latency_ms: null } : point,
+    )
     expect(sparkSeries(points)).toBeNull()
     expect(sparkSeries([])).toBeNull()
   })

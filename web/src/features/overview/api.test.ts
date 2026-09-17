@@ -45,13 +45,13 @@ describe('isOverviewPayload', () => {
   })
 
   test('rejects a headline with no interval for the gap', () => {
-    const { gap: _gap, ...headline } = PAYLOAD.headline
-    expect(isOverviewPayload({ ...PAYLOAD, headline })).toBe(false)
+    expect(
+      isOverviewPayload({ ...PAYLOAD, headline: { ...PAYLOAD.headline, gap: undefined } }),
+    ).toBe(false)
   })
 
   test('rejects a payload missing the pieces the page draws', () => {
-    const { hero_run: _heroRun, ...withoutHero } = PAYLOAD
-    expect(isOverviewPayload(withoutHero)).toBe(false)
+    expect(isOverviewPayload({ ...PAYLOAD, hero_run: undefined })).toBe(false)
     expect(isOverviewPayload({ ...PAYLOAD, recall_at_m: null })).toBe(false)
   })
 
