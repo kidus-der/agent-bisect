@@ -12,16 +12,16 @@ interface StatePanelProps {
 
 /**
  * Page-level error and not-found states. A message is ~400px of content, so its
- * card is capped at 560px and centred instead of stretching across the grid
- * with a hole in it.
+ * card is capped at 560px and centred, both ways, in the space the page has left.
  */
 export function StatePanel({ variant = 'card', children, className }: StatePanelProps) {
   return (
-    <Panel
-      variant={variant}
-      className={cn('mx-auto mt-4 w-full max-w-[560px] lg:mt-10', className)}
-    >
-      {children}
-    </Panel>
+    // The wrapper takes the height the page would otherwise leave blank, so the
+    // card sits in the middle of it instead of under the header with a void below.
+    <div className="grid min-h-[max(18rem,calc(100dvh-20rem))] place-items-center">
+      <Panel variant={variant} className={cn('w-full max-w-[560px]', className)}>
+        {children}
+      </Panel>
+    </div>
   )
 }
