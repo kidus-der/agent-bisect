@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { memo } from 'react'
 
 import { TapeStep, type TapeStepState } from '@/components/primitives/TapeStep'
-import { type SpringName, STAGGER_SECONDS, springTransition } from '@/design/motion'
+import { type SpringName, springTransition } from '@/design/motion'
 import { cn } from '@/lib/utils'
 
 import type { StepView } from './api'
@@ -16,8 +16,6 @@ const ACTOR_ICONS: Readonly<Record<StepView['actor'], LucideIcon>> = {
 }
 
 const BLAMED_SCALE = 1.08
-/** Caps the left-to-right rewind stagger so a 60-step tape still settles quickly. */
-const MAX_STAGGER_SECONDS = 0.6
 export const ACTOR_LANE_HEIGHT = 18
 
 interface TapeCellProps {
@@ -37,10 +35,6 @@ function springFor(state: TapeStepState): SpringName {
 
 const TapeCell = memo(function TapeCell({ step, actor, state, x, width, reduced }: TapeCellProps) {
   const Icon = ACTOR_ICONS[actor]
-  const delay =
-    reduced || state !== 'tape'
-      ? 0
-      : Math.min((step - 1) * STAGGER_SECONDS.rewind, MAX_STAGGER_SECONDS)
   return (
     <div
       className="absolute top-0 bottom-0 left-0 flex flex-col items-center"
@@ -63,7 +57,10 @@ const TapeCell = memo(function TapeCell({ step, actor, state, x, width, reduced 
         // Opacity is never used to dim a cell's own text: it would drop the step
         // number below AA. How far the replay has been scrubbed is the bar below.
         animate={{ opacity: 1, scale: state === 'blamed' ? BLAMED_SCALE : 1 }}
-        transition={{ ...springTransition(springFor(state), reduced), delay }}
+        // No per-cell delay: the band itself advances in slices, so the
+        // left-to-right march comes from the state machine, not from 54 queued
+        // animations starting in the same commit.
+        transition={springTransition(springFor(state), reduced)}
       >
         <TapeStep step={step} state={state} size="fluid" />
       </motion.div>

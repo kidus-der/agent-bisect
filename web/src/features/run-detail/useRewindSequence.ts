@@ -10,10 +10,11 @@ import { type RewindState, nextRewind } from './tapeState'
 /**
  * Cadence of the tail. This is a re-statement of a re-run that already happened,
  * not a live replay, so it is a presentation rhythm, not a measured latency --
- * no progress number is shown against it.
+ * no progress number is shown against it. `rewinding` is per band slice, not
+ * per phase, so the whole band still lands in roughly the same time.
  */
 const PHASE_MS: Readonly<Record<RewindState['phase'], number>> = {
-  rewinding: 700,
+  rewinding: 110,
   intervened: 800,
   replaying: 260,
   settled: 0,
@@ -32,8 +33,8 @@ export function useRewindSequence(nSteps: number, reduced: boolean): RewindContr
     (step: number, passed: boolean | null): void => {
       setRewind(
         reduced
-          ? { step, phase: 'settled', replayedThrough: nSteps, passed }
-          : { step, phase: 'rewinding', replayedThrough: step, passed },
+          ? { step, phase: 'settled', replayedThrough: nSteps, passed, bandedThrough: step - 1 }
+          : { step, phase: 'rewinding', replayedThrough: step, passed, bandedThrough: 0 },
       )
     },
     [nSteps, reduced],

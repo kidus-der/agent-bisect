@@ -15,6 +15,18 @@ export interface RewindState {
   readonly replayedThrough: number
   /** Outcome of the recorded treated re-run, once known. Never guessed. */
   readonly passed: boolean | null
+  /**
+   * How far the from-tape band has advanced during `rewinding`. Flipping a
+   * 54-step prefix in one commit costs a dropped frame, so it moves in slices.
+   */
+  readonly bandedThrough: number
+}
+
+/** Number of commits the band is spread over, whatever the prefix length. */
+const BAND_CHUNKS = 6
+
+function bandChunk(step: number): number {
+  return Math.max(1, Math.ceil((step - 1) / BAND_CHUNKS))
 }
 
 export interface TapeModel {
@@ -50,9 +62,11 @@ function recordedStates(model: TapeModel): readonly TapeStepState[] {
 function rewoundStates(model: TapeModel, rewind: RewindState): readonly TapeStepState[] {
   const last = model.nSteps
   const leadingEdge = rewind.phase === 'replaying' ? rewind.replayedThrough + 1 : 0
+  // The band only claims the prefix it has actually reached while it is moving.
+  const banded = rewind.phase === 'rewinding' ? rewind.bandedThrough : rewind.step - 1
   return Array.from({ length: model.nSteps }, (_, index) => {
     const step = index + 1
-    if (step < rewind.step) return 'tape'
+    if (step < rewind.step) return step <= banded ? 'tape' : 'ran'
     if (step === rewind.step) return rewind.phase === 'rewinding' ? 'ran' : 'blamed'
     if (step === leadingEdge) return 'live'
     if (step > rewind.replayedThrough) return 'pending'
@@ -68,7 +82,13 @@ export function tapeStepStates(model: TapeModel): readonly TapeStepState[] {
 /** One tick of the rewind sequence. Terminal state returns itself, so the caller can stop. */
 export function nextRewind(rewind: RewindState, nSteps: number): RewindState {
   if (rewind.phase === 'settled') return rewind
-  if (rewind.phase === 'rewinding') return { ...rewind, phase: 'intervened' }
+  if (rewind.phase === 'rewinding') {
+    const bandedThrough = rewind.bandedThrough + bandChunk(rewind.step)
+    if (bandedThrough >= rewind.step - 1) {
+      return { ...rewind, phase: 'intervened', bandedThrough: rewind.step - 1 }
+    }
+    return { ...rewind, bandedThrough }
+  }
   if (rewind.replayedThrough >= nSteps) return { ...rewind, phase: 'settled' }
   return { ...rewind, phase: 'replaying', replayedThrough: rewind.replayedThrough + 1 }
 }
