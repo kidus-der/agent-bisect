@@ -1943,8 +1943,15 @@
             "title": "Planted Step"
           },
           "reward": {
-            "title": "Reward",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward"
           },
           "run_id": {
             "title": "Run Id",
@@ -2093,12 +2100,26 @@
             "type": "array"
           },
           "calls": {
-            "title": "Calls",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls"
           },
           "cost_usd": {
-            "title": "Cost Usd",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
           },
           "decisive_step": {
             "anyOf": [
@@ -2328,16 +2349,30 @@
             "type": "string"
           },
           "latency_ms": {
-            "title": "Latency Ms",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
           },
           "step_idx": {
             "title": "Step Idx",
             "type": "integer"
           },
           "tokens": {
-            "title": "Tokens",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
           }
         },
         "required": [
