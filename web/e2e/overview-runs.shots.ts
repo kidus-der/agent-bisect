@@ -11,7 +11,7 @@ import { type Page, test } from '@playwright/test'
 
 import { mockApi } from './apiFixture'
 
-const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round1/', import.meta.url))
+const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round2/', import.meta.url))
 const THEME_KEY = 'bisect.theme'
 
 const THEMES = ['dark', 'light'] as const
