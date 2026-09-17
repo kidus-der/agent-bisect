@@ -57,7 +57,11 @@ interface WhiskerProps {
   readonly delay: number
 }
 
-/** The 95% interval on the same scale as the bar, in its own lane under it. */
+/**
+ * The 95% interval, on the same scale as the bar and tied to it: a 1px riser
+ * drops from the bar's end to the interval's point estimate, so the whisker
+ * reads as this bar's interval rather than a detached rule under it.
+ */
 function Whisker({ bar, reduced, delay }: WhiskerProps) {
   const transition = { ...springTransition('settle', reduced), delay: reduced ? 0 : delay }
   return (
@@ -68,6 +72,10 @@ function Whisker({ bar, reduced, delay }: WhiskerProps) {
       transition={transition}
       className={cn('relative h-3', ROLE_TEXT[bar.role])}
     >
+      <span
+        className="absolute top-0 h-1/2 w-px -translate-x-1/2 bg-current opacity-45"
+        style={{ left: percent(bar.value) }}
+      />
       <span
         className="absolute top-1/2 h-px -translate-y-1/2 bg-current"
         style={{ left: percent(bar.low), width: percent(bar.high - bar.low) }}
@@ -96,7 +104,7 @@ function BarRow({ bar, index }: BarRowProps) {
   const reduced = useReducedMotion() ?? false
   const delay = reduced ? 0 : index * BAR_DELAY_SECONDS
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
         <h3 className="text-h3 text-ink">{bar.label}</h3>
         <TickingPercent value={bar.value} className={cn('num text-stat', ROLE_TEXT[bar.role])} />
@@ -114,7 +122,7 @@ function BarRow({ bar, index }: BarRowProps) {
         />
       </div>
       <Whisker bar={bar} reduced={reduced} delay={delay} />
-      <p className="num text-small text-ink-muted">
+      <p className="-mt-0.5 num text-small text-ink-muted">
         95% CI {formatPercent(bar.low)} – {formatPercent(bar.high)}
       </p>
     </div>
