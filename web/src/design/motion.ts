@@ -92,6 +92,12 @@ export function useNumberTicker<T extends HTMLElement>(
   value: number,
   format: (current: number) => string,
   delaySeconds = 0,
+  /**
+   * Holds the number at its start until the caller says it is being looked at.
+   * A ticker that runs on mount finishes behind the page's own enter animation,
+   * so the number is already final by the time anyone can read it.
+   */
+  play = true,
 ): React.RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previous = useRef(0)
@@ -103,6 +109,10 @@ export function useNumberTicker<T extends HTMLElement>(
     if (reduced) {
       node.textContent = format(value)
       previous.current = value
+      return undefined
+    }
+    if (!play) {
+      node.textContent = format(previous.current)
       return undefined
     }
     const controls = animate(previous.current, value, {
@@ -118,7 +128,7 @@ export function useNumberTicker<T extends HTMLElement>(
     })
     previous.current = value
     return () => controls.stop()
-  }, [value, format, reduced, delaySeconds])
+  }, [value, format, reduced, delaySeconds, play])
 
   return ref
 }
