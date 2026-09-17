@@ -72,6 +72,8 @@ REQUIRED_RUNS = 20
 #: The shape of an NVIDIA key, built rather than written out so this file
 #: never contains a key-shaped literal of its own.
 KEY_PATTERN = re.compile((r"nvapi" + r"-") + r"[A-Za-z0-9_\-]{32,}")
+#: The `-a<n>` suffix `tau2_batch.free_run_id` gives a retried attempt.
+_RETRY_SUFFIX = re.compile(r"a\d+")
 #: Files whose bytes are scanned as-is. Blobs are decompressed first.
 SCANNED_SUFFIXES = (".json", ".jsonl", ".log", ".txt", ".sqlite", ".sqlite-wal", ".sqlite-shm")
 
@@ -283,6 +285,51 @@ def _calls_by_model(runs_dir: Path, phase: str) -> list[tuple[str, str]]:
     return [(f"`{model}`", str(count)) for model, count in rows] + [("**total**", f"**{total}**")]
 
 
+def _infra_section(runs_dir: Path, phase: str) -> str:
+    """What the provider did to this batch, from what survives on disk.
+
+    A checkpoint's `.error.json` is deleted once the task eventually
+    succeeds -- it is no longer a failure to explain -- so the evidence of
+    a retry is the run id it got (`-a2`, because the tape is append-only
+    and a retry may not overwrite a crashed attempt) and the ledger rows
+    whose retry budget ran out.
+    """
+    import sqlite3
+
+    reader = TapeReader(runs_dir)
+    # A retry's id is the base id plus an `-a<n>` attempt suffix
+    # (`tau2_batch.free_run_id`), so the last segment identifies one.
+    retried = [
+        manifest.run_id
+        for manifest in _finished_runs(reader, runs_dir)
+        if _RETRY_SUFFIX.fullmatch(manifest.run_id.rsplit("-", 1)[-1])
+    ]
+    exhausted = 0
+    ledger = runs_dir / "ledger.sqlite"
+    if ledger.exists():
+        connection = sqlite3.connect(f"file:{ledger}?mode=ro", uri=True)
+        try:
+            exhausted = connection.execute(
+                "SELECT COUNT(*) FROM calls WHERE phase = ? AND status = 'exhausted'", (phase,)
+            ).fetchone()[0]
+        finally:
+            connection.close()
+    if not retried and not exhausted:
+        return "No run needed a retry."
+    return (
+        f"{len(retried)} of the 20 runs first died on provider infrastructure (HTTP 504 "
+        f"gateway timeouts past our retry budget: {exhausted} ledger rows with status "
+        "`exhausted`) and were re-run. An infra failure is never scored as an agent "
+        "failure: the attempt got no outcome row, stayed outstanding, and the resumed "
+        "batch recorded it again under a fresh run id, because the tape is append-only "
+        "and a retry may not overwrite the evidence of the attempt that crashed.\n\n"
+        + render_table(
+            ("Re-run", "Run id"),
+            [(str(index + 1), f"`{run_id}`") for index, run_id in enumerate(retried)],
+        )
+    )
+
+
 def _stats_section(runs_dir: Path) -> str:
     """The numbers P3's planning needs, from the runs this gate just checked."""
     stats = summarise_runs(TapeReader(runs_dir), BlobStore(runs_dir), runs_dir)
@@ -330,6 +377,7 @@ def write_evidence(runs_dir: Path, criteria: list[Criterion], path: Path) -> Pat
                 "Calls spent (ledger, phase P1)": render_table(
                     ("Model", "Calls"), _calls_by_model(runs_dir, PHASE)
                 ),
+                "Infrastructure failures": _infra_section(runs_dir, PHASE),
                 "What the recordings look like (for P3)": _stats_section(runs_dir),
             },
             commit=current_commit(),
