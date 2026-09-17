@@ -87,9 +87,10 @@ export function HeatStripe({
           >
             <line x1={0} y1={0} x2={0} y2={HATCH_SIZE} stroke="var(--bx-tape)" strokeWidth={2} />
           </pattern>
+          {/* The blamed cell is a fill: vivid amber to coral in both themes. */}
           <linearGradient id={blameId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="var(--bx-blame)" />
-            <stop offset="1" stopColor="var(--bx-blame-coral)" />
+            <stop offset="0" stopColor="var(--bx-blame-fill)" />
+            <stop offset="1" stopColor="var(--bx-blame-coral-fill)" />
           </linearGradient>
         </defs>
         {steps.map((entry, index) => {
@@ -110,7 +111,7 @@ export function HeatStripe({
               height={cellHeight - 1}
               rx={CELL_RADIUS}
               fill={fill}
-              stroke={isBlamed ? 'var(--bx-blame)' : 'var(--bx-line-strong)'}
+              stroke={isBlamed ? 'var(--bx-blame-fill)' : 'var(--bx-line-strong)'}
             >
               <title>
                 {entry.effect === null
