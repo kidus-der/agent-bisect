@@ -39,6 +39,8 @@ const SETTLE_MS = 2200
 /** One frame of a signature moment, sampled fast enough to read the easing. */
 const FRAME_MS = 70
 const FRAME_COUNT = 10
+/** Milliseconds after the rewind click at which the tape is worth a still. */
+const REWIND_SAMPLE_MS = [250, 600, 1200, 2400] as const
 
 /** Runs chosen for what they make the UI do, not for their contents. */
 const RUNS = {
@@ -236,9 +238,12 @@ test('rewind sequence dark 1440', async ({ page }) => {
   const tape = page.getByTestId('tape-lane')
   await tape.scrollIntoViewIfNeeded()
   await page.getByRole('button', { name: /Rewind to k=/ }).click()
-  for (const [index, delay] of [250, 600, 1200, 2400].entries()) {
-    await page.waitForTimeout(index === 0 ? delay : delay - [250, 600, 1200, 2400][index - 1])
-    await shoot(page, `rewind-dark-1440-t${delay}`)
+  // Milliseconds since the click, and the wait that gets from the previous one to it.
+  let elapsedMs = 0
+  for (const sinceClickMs of REWIND_SAMPLE_MS) {
+    await page.waitForTimeout(sinceClickMs - elapsedMs)
+    elapsedMs = sinceClickMs
+    await shoot(page, `rewind-dark-1440-t${sinceClickMs}`)
   }
   await page.reload()
   await page.getByRole('heading', { level: 1 }).waitFor()
