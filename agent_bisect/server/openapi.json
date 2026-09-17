@@ -2450,7 +2450,8 @@
             "enum": [
               "agent",
               "user",
-              "tool"
+              "tool",
+              "evaluator"
             ],
             "title": "Actor",
             "type": "string"
@@ -2632,7 +2633,8 @@
             "enum": [
               "agent",
               "user",
-              "tool"
+              "tool",
+              "evaluator"
             ],
             "title": "Actor",
             "type": "string"
@@ -3034,6 +3036,40 @@
                 }
               ],
               "title": "Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fault_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(wrong_value|missing_field|stale_record|tool_error|none)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fault Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           },
           {
