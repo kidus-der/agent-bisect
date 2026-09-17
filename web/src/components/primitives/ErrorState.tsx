@@ -24,7 +24,7 @@ export function ErrorState({
     <div
       role="alert"
       data-slot="error-state"
-      className={cn('flex flex-col items-start gap-4 py-6 sm:py-10', className)}
+      className={cn('flex flex-col items-start gap-4 py-2 sm:py-4', className)}
     >
       <div className="flex max-w-prose flex-col gap-1.5">
         <InstrumentLabel>{code ? `error · ${code}` : 'error'}</InstrumentLabel>
