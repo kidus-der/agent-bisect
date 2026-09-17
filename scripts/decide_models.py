@@ -92,6 +92,34 @@ def limiter_rpm(measured: float) -> int:
     return max(1, int(measured * (1 - SAFETY_MARGIN)))
 
 
+def retry_rates(ledger_path: Path) -> dict[str, tuple[int, int]]:
+    """Per model: (attempts that had to be retried, attempts that succeeded).
+
+    Retries here are the provider rejecting an in-flight request, not our rate
+    bucket overflowing -- the bucket is what stops us exceeding the measured
+    rpm. A model with a high retry share is telling us the probe ran it at more
+    concurrent requests than it will accept, which is the real limit on
+    sustainable concurrency.
+    """
+    import sqlite3
+
+    if not ledger_path.exists():
+        return {}
+    conn = sqlite3.connect(ledger_path)
+    rows = conn.execute(
+        "SELECT model, status, COUNT(*) FROM calls "
+        "WHERE purpose IN ('agent', 'user') GROUP BY model, status"
+    ).fetchall()
+    out: dict[str, list[int]] = {}
+    for model, status, count in rows:
+        entry = out.setdefault(model, [0, 0])
+        if status == "retrying":
+            entry[0] += count
+        elif status == "ok":
+            entry[1] += count
+    return {model: (retried, ok) for model, (retried, ok) in out.items()}
+
+
 def throughput(summaries: list[ModelProbeSummary], results: dict[str, list[TaskProbeResult]],
                concurrency: int) -> dict:
     """Projected calls/hour from what the probe actually achieved, not from the limiter."""
@@ -247,8 +275,18 @@ def render_doc(decision: dict) -> str:
             parts.append(f"| `{model}` | {note} |")
     parts += [
         "",
-        f"Sustainable concurrency: {d['concurrency']} (the probe ran at this and the limiter, "
-        "not 429s, was the binding constraint).",
+        f"**Sustainable concurrency.** The probe ran {d['concurrency']} tasks at once, "
+        "spread round-robin across the agent candidates. Retried attempts per model over "
+        "the whole phase (a retry means the provider rejected an in-flight request, not "
+        "that our rate bucket overflowed):",
+        "",
+        "| Model | Retried attempts | Successful | Retry share |",
+        "|---|---|---|---|",
+    ]
+    for model, (retried, ok) in sorted(d["retry_rates"].items()):
+        share = retried / (retried + ok) if (retried + ok) else 0.0
+        parts.append(f"| `{model}` | {retried} | {ok} | {share:.1%} |")
+    parts += [
         "",
         "## 3. Agent probe — 20 airline tasks, 1 trial each",
         "",
@@ -392,6 +430,7 @@ def build_decision(concurrency: int) -> dict:
         "concurrency": concurrency,
         "throughput": throughput(summaries, results, concurrency),
         "calls_per_model": ledger.totals_per_model(),
+        "retry_rates": retry_rates(REPO_ROOT / "runs" / "ledger.sqlite"),
     }
 
 

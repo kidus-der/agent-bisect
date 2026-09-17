@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import random
 import re
 import time
@@ -66,6 +67,7 @@ PARTICIPANT_PURPOSE = {
 }
 
 _purpose: ContextVar[str] = ContextVar("bisect_tau2_purpose", default=DEFAULT_PURPOSE)
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -195,6 +197,14 @@ class Tau2Router:
             self._record(model, purpose, "exhausted", call_start)
             raise exc
         self._record(model, purpose, "retrying", call_start)
+        # Without this the ledger shows a "retrying" row with no reason, and a
+        # run that is quietly burning a third of its calls on retries looks
+        # identical to one that is merely slow. The message is already redacted
+        # by TransportError.
+        _log.warning(
+            "retrying %s (%s) after status=%s attempt=%d: %s",
+            model, purpose, exc.status_code, attempt + 1, exc,
+        )
         if exc.retry_after is not None:
             return exc.retry_after
         return compute_backoff_s(

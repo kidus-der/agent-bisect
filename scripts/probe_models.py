@@ -42,7 +42,7 @@ from agent_bisect.adapters.tau2_llm import route_tau2_llm, tool_checker_for
 from agent_bisect.adapters.tau2_probe import ProbeCollector, TaskProbeResult
 from agent_bisect.core.budget import BudgetLedger
 from agent_bisect.core.config import get_settings, redact
-from agent_bisect.core.limits import get_shared_limiter
+from agent_bisect.core.limits import get_limiter_settings, get_shared_limiter
 from agent_bisect.core.llm import LiteLLMTransport, LLMClient, LLMClientConfig, LLMRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -379,17 +379,23 @@ def stage_judge(ledger: BudgetLedger) -> dict:
 
 
 def configure_logging() -> None:
+    """τ²'s loguru output down to errors; our own retry warnings up to visible."""
+    import logging
+
     from loguru import logger
 
     logger.remove()
     logger.add(sys.stderr, level="ERROR")
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", default="all",
                         choices=("all", "toolcheck", "usersim", "probe", "judge"))
-    parser.add_argument("--concurrency", type=int, default=12)
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help="Task pool size. Defaults to limiter.max_concurrency "
+                             "from config/limits.toml.")
     parser.add_argument("--tasks", type=int, default=N_TASKS)
     parser.add_argument("--models", nargs="*", default=None,
                         help="Agent candidates to probe (default: the usable ones).")
@@ -447,6 +453,8 @@ def run_usersim_stage(ledger: BudgetLedger, tasks: list[Any], checker, concurren
 
 def main() -> None:
     args = parse_args()
+    if args.concurrency is None:
+        args.concurrency = get_limiter_settings().max_concurrency
     ensure_tau2_data_dir()
     configure_logging()
     settings = get_settings()
