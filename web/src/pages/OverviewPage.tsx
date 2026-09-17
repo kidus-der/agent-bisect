@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { availableOrNull } from '@/api/client'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
+import { NotMeasuredState } from '@/components/primitives/NotMeasuredState'
 import { Panel } from '@/components/primitives/Panel'
 import { StatePanel } from '@/components/primitives/StatePanel'
 import { LoadingRegion } from '@/components/primitives/Skeleton'
@@ -128,7 +129,24 @@ export function OverviewPage() {
           </div>
         </div>
 
-        <HeroRewind run={payload.hero_run} />
+        {/*
+          The featured run is the only part of this page that can be missing on
+          its own: P5 has real results, but the run the hero would replay is not
+          in the tape index. Everything else still stands, so the card reports
+          the gap rather than the page going dark.
+        */}
+        {payload.hero_run === null ? (
+          <Panel variant="canvas">
+            <NotMeasuredState
+              label="rewind"
+              title="No indexed run to replay"
+              reason="The featured run is not in the tape index, so there is no tape to rewind. Every figure above is measured."
+              command="bisect runs index"
+            />
+          </Panel>
+        ) : (
+          <HeroRewind run={payload.hero_run} />
+        )}
 
         <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
           <RecallCurve points={payload.recall_at_m} provenance={payload.recall_provenance} />
