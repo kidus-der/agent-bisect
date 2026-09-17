@@ -1,4 +1,4 @@
-import { Bot, type LucideIcon, User, Wrench } from 'lucide-react'
+import { Bot, Gavel, type LucideIcon, User, Wrench } from 'lucide-react'
 import { motion } from 'motion/react'
 import { memo } from 'react'
 
@@ -13,6 +13,7 @@ const ACTOR_ICONS: Readonly<Record<StepView['actor'], LucideIcon>> = {
   agent: Bot,
   user: User,
   tool: Wrench,
+  evaluator: Gavel,
 }
 
 const BLAMED_SCALE = 1.08
