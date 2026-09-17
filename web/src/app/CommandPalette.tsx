@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Command } from 'cmdk'
-import { Radio, Search, Tag } from 'lucide-react'
+import { Command, defaultFilter } from 'cmdk'
+import { Filter, Radio, Search, Voicemail } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
 import { useState } from 'react'
@@ -20,8 +20,14 @@ import { copyText } from '@/lib/useCopy'
 import { cn } from '@/lib/utils'
 
 import { PALETTE_GROUPS, PALETTE_ITEMS, type PaletteItem } from './paletteItems'
+import { RunPreview } from './RunPreview'
 
 const DETAIL_FADE_SECONDS = 0.1
+
+const GROUP_HEADING =
+  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:label-instrument'
+const ITEM_ROW =
+  'flex h-10 cursor-pointer items-center gap-2.5 rounded-control px-2 text-[14px] text-ink-muted data-[selected=true]:bg-surface data-[selected=true]:text-ink'
 
 interface CommandPaletteProps {
   readonly open: boolean
@@ -36,6 +42,8 @@ interface DetailContent {
   readonly label: string
   readonly detail: string
   readonly token: string
+  /** Set for run results: the pane then shows the run itself, not a sentence about it. */
+  readonly runId?: string
 }
 
 function paletteDetail(item: PaletteItem): DetailContent {
@@ -46,13 +54,28 @@ function runDetail(hit: SearchHit): DetailContent {
   const recording = hit.status === 'recording'
   return {
     id: `run:${hit.id}`,
-    icon: recording ? Radio : Tag,
+    icon: recording ? Radio : Voicemail,
     group: 'Runs',
     label: hit.title,
     detail: recording
       ? `${hit.subtitle ?? 'A recorded run'} — still recording, so it has no outcome yet.`
       : (hit.subtitle ?? 'A recorded run.'),
     token: hit.href,
+    runId: hit.id,
+  }
+}
+
+const FILTER_RUNS_ID = 'action:filter-runs'
+
+function filterRunsDetail(query: string): DetailContent {
+  return {
+    id: FILTER_RUNS_ID,
+    icon: Filter,
+    group: 'Actions',
+    label: `Filter Runs by “${query}”`,
+    detail:
+      'Opens the Runs table with this text as its filter, so every match is listed, sortable and shareable by URL.',
+    token: `/runs?q=${encodeURIComponent(query)}`,
   }
 }
 
@@ -67,7 +90,7 @@ function DetailPane({ item }: { readonly item: DetailContent | undefined }) {
       animate={{ opacity: 1 }}
       transition={{ duration: DETAIL_FADE_SECONDS }}
       aria-hidden="true"
-      className="hidden w-64 shrink-0 flex-col gap-3 border-l border-line p-4 md:flex"
+      className="hidden w-72 shrink-0 flex-col gap-3 border-l border-line p-4 md:flex"
     >
       <span className="inline-flex size-10 items-center justify-center rounded-kpi border border-line-strong bg-surface text-ink">
         <Icon className="size-5" />
@@ -77,6 +100,7 @@ function DetailPane({ item }: { readonly item: DetailContent | undefined }) {
         <span className="text-h3 text-ink">{item.label}</span>
       </div>
       <p className="text-small text-pretty text-ink-muted">{item.detail}</p>
+      {item.runId ? <RunPreview runId={item.runId} /> : null}
       <code className="rounded-control border border-line bg-ground px-2 py-1.5 font-mono text-small break-all text-ink">
         {item.token}
       </code>
@@ -87,13 +111,14 @@ function DetailPane({ item }: { readonly item: DetailContent | undefined }) {
 /** A run from `/api/search`. Recording runs carry their own glyph, never an outcome. */
 function RunHitItem({ hit, onRun }: { readonly hit: SearchHit; readonly onRun: () => void }) {
   const recording = hit.status === 'recording'
-  const Icon = recording ? Radio : Tag
+  // A recorded run is a tape; one still being recorded is live.
+  const Icon = recording ? Radio : Voicemail
   return (
     <Command.Item
       value={`run:${hit.id}`}
       keywords={[hit.title, hit.subtitle ?? '']}
       onSelect={onRun}
-      className="flex h-10 cursor-pointer items-center gap-2.5 rounded-control px-2 text-[14px] text-ink-muted data-[selected=true]:bg-surface data-[selected=true]:text-ink"
+      className={ITEM_ROW}
     >
       <Icon aria-hidden="true" className={cn('size-4 shrink-0', recording && 'text-measure')} />
       <span className="truncate num">{hit.title}</span>
@@ -103,6 +128,19 @@ function RunHitItem({ hit, onRun }: { readonly hit: SearchHit; readonly onRun: (
       {recording ? <span className="ml-auto shrink-0 label-instrument">recording</span> : null}
     </Command.Item>
   )
+}
+
+function selectionStillListed(
+  selectedId: string,
+  query: string,
+  hits: readonly SearchHit[],
+): boolean {
+  if (selectedId === '') return false
+  if (selectedId === FILTER_RUNS_ID) return true
+  if (hits.some((hit) => `run:${hit.id}` === selectedId)) return true
+  const item = PALETTE_ITEMS.find((candidate) => candidate.id === selectedId)
+  if (!item) return false
+  return query.trim() === '' || defaultFilter(item.id, query, [item.label, ...item.keywords]) > 0
 }
 
 /** ⌘K. Raycast layout: filter input, result list, detail preview. Filtering is instant. */
@@ -126,13 +164,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     setSelectedId('')
   }
 
-  const selectedHit = hits.find((hit) => `run:${hit.id}` === selectedId)
-  const selectedItem = PALETTE_ITEMS.find((item) => item.id === selectedId)
+  // A selection can outlive its row: Enter inside the debounce window would otherwise
+  // run an item cmdk has already filtered out. Then the search falls back to its one
+  // guaranteed row, or to the first run once hits arrive.
+  const firstHit = hits[0]
+  const fallbackId = firstHit ? `run:${firstHit.id}` : FILTER_RUNS_ID
+  const activeId =
+    selectionStillListed(selectedId, query, hits) || !searching ? selectedId : fallbackId
+  const selectedHit = hits.find((hit) => `run:${hit.id}` === activeId)
+  const selectedItem = PALETTE_ITEMS.find((item) => item.id === activeId)
+  const trimmedQuery = query.trim()
   const selected = selectedHit
     ? runDetail(selectedHit)
     : selectedItem
       ? paletteDetail(selectedItem)
-      : undefined
+      : activeId === FILTER_RUNS_ID
+        ? filterRunsDetail(trimmedQuery)
+        : undefined
 
   const run = (item: PaletteItem): void => {
     onOpenChange(false)
@@ -162,7 +210,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           >
             <Command
               label="Command palette"
-              value={selectedId}
+              value={activeId}
               onValueChange={setSelectedId}
               loop
               className="flex flex-col"
@@ -178,15 +226,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 <Kbd>esc</Kbd>
               </div>
               <div className="flex min-h-0">
-                <Command.List className="max-h-[min(420px,56vh)] min-w-0 flex-1 overflow-y-auto p-2">
+                {/* 8px pad + 34px heading + nine 40px rows + 8px pad: results never end mid-row. */}
+                <Command.List className="max-h-[min(410px,56vh)] min-w-0 flex-1 scroll-pb-10 overflow-y-auto p-2">
                   <Command.Empty className="px-3 py-8 text-center text-small text-ink-muted">
                     Nothing matches. Try a run id, a page name or “copy”.
                   </Command.Empty>
                   {searching ? (
-                    <Command.Group
-                      heading="Runs"
-                      className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:label-instrument"
-                    >
+                    <Command.Group heading="Runs" className={GROUP_HEADING}>
                       {hits.length === 0 ? (
                         <p className="px-2 py-1.5 text-small text-ink-muted">
                           {search.isPending ? 'Searching…' : 'No run matches.'}
@@ -206,18 +252,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     </Command.Group>
                   ) : null}
                   {PALETTE_GROUPS.map((group) => (
-                    <Command.Group
-                      key={group}
-                      heading={group}
-                      className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:label-instrument"
-                    >
+                    <Command.Group key={group} heading={group} className={GROUP_HEADING}>
                       {PALETTE_ITEMS.filter((item) => item.group === group).map((item) => (
                         <Command.Item
                           key={item.id}
                           value={item.id}
                           keywords={[item.label, ...item.keywords]}
                           onSelect={() => run(item)}
-                          className="flex h-10 cursor-pointer items-center gap-2.5 rounded-control px-2 text-[14px] text-ink-muted data-[selected=true]:bg-surface data-[selected=true]:text-ink"
+                          className={ITEM_ROW}
                         >
                           <item.icon aria-hidden="true" className="size-4 shrink-0" />
                           <span className="truncate">{item.label}</span>
@@ -229,6 +271,29 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                       ))}
                     </Command.Group>
                   ))}
+                  {/* Last, so a page or command that matches the text still wins Enter. */}
+                  {searching ? (
+                    <Command.Group heading="Actions" forceMount className={GROUP_HEADING}>
+                      <Command.Item
+                        value={FILTER_RUNS_ID}
+                        // Always offered while searching: cmdk must not filter it against the query.
+                        forceMount
+                        onSelect={() => {
+                          onOpenChange(false)
+                          void navigate({ to: '/runs', search: { q: trimmedQuery } })
+                        }}
+                        className={ITEM_ROW}
+                      >
+                        <Filter aria-hidden="true" className="size-4 shrink-0" />
+                        <span className="truncate">Filter Runs by “{trimmedQuery}”</span>
+                      </Command.Item>
+                    </Command.Group>
+                  ) : null}
+                  {/* Bottom fade: the list dissolves instead of being sliced by the footer. */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none sticky bottom-0 -mb-2 h-8 bg-linear-to-t from-elevated to-transparent"
+                  />
                 </Command.List>
                 <DetailPane item={selected} />
               </div>
