@@ -4,12 +4,12 @@
  * becomes a two-line card instead of a sideways scroll.
  */
 import { ChevronRight } from 'lucide-react'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 
 import { DataTable, type DataTableColumn } from '@/components/primitives/DataTable'
 import type { SortState } from '@/components/primitives/dataTableSort'
-import { layoutIds } from '@/design/motion'
+import { layoutIds, useSpringTransition } from '@/design/motion'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 
 import type { RunSummary, SortableRunField } from './api'
@@ -85,10 +85,24 @@ function useRowArrowKeys(ref: React.RefObject<HTMLElement | null>): void {
   }, [ref])
 }
 
-/** The chip the Run detail header morphs from. */
+/**
+ * The chip the Run detail header morphs from (signature moment §7.4).
+ *
+ * `inline-block` is load-bearing: a plain `<span>` is `display: inline`, and CSS
+ * transforms do not apply to non-replaced inline boxes — the shared-layout
+ * animation ran and moved nothing. Under reduced motion the id carries no
+ * `layoutId` at all, so the two pages swap instantly.
+ */
 function RunIdChip({ runId }: { readonly runId: string }) {
+  const reduced = useReducedMotion() ?? false
+  const transition = useSpringTransition('glide')
+  if (reduced) return <span className="num font-medium text-ink">{runId}</span>
   return (
-    <motion.span layoutId={layoutIds.runRow(runId)} className="num font-medium text-ink">
+    <motion.span
+      layoutId={layoutIds.runRow(runId)}
+      transition={transition}
+      className="inline-block num font-medium text-ink"
+    >
       {runId}
     </motion.span>
   )
@@ -207,11 +221,20 @@ interface RunsTableProps {
   readonly search: RunsSearch
   readonly onSortChange: (column: SortableRunField) => void
   readonly onOpen: (run: RunSummary) => void
+  /** Warms the run's detail data on hover or focus, before any click. */
+  readonly onIntent: (run: RunSummary) => void
   /** What the footer reports, e.g. "40 of 266 shown". */
   readonly footer: string
 }
 
-export function RunsTable({ rows, search, onSortChange, onOpen, footer }: RunsTableProps) {
+export function RunsTable({
+  rows,
+  search,
+  onSortChange,
+  onOpen,
+  onIntent,
+  footer,
+}: RunsTableProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wide = useMediaQuery(WIDE_QUERY)
   const height = useTableHeight(
@@ -234,6 +257,7 @@ export function RunsTable({ rows, search, onSortChange, onOpen, footer }: RunsTa
             if (SORTABLE.has(columnId)) onSortChange(columnId as SortableRunField)
           }}
           onRowActivate={onOpen}
+          onRowIntent={onIntent}
           maxHeight={height}
           rowHeight={ROW_HEIGHT}
           compactRowHeight={COMPACT_ROW_HEIGHT}
