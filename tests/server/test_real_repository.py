@@ -425,3 +425,39 @@ def test_fault_type_specific_value_matches_no_real_run(two_runs_one_with_a_tool_
     repo = RealRepository(runs_dir=two_runs_one_with_a_tool_dir)
     runs, total = repo.list_runs(RunFilter(fault_type="wrong_value"))
     assert total == 0
+
+
+def test_evaluator_actor_step_is_reported_not_rejected(tmp_path):
+    """`core.tape.Actor` includes "evaluator" (judge/evaluation steps); the
+    server's own `Actor` type must be able to represent whatever a real
+    recording can actually contain."""
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    writer.start_run(
+        RunManifest(
+            run_id="evaluated-run",
+            domain="airline",
+            task_id="refund_after_cancellation",
+            agent_model="m",
+            user_model="u",
+            tau2_commit="c",
+            created_at=datetime.now(UTC),
+        )
+    )
+    writer.append_step(
+        Step(
+            run_id="evaluated-run",
+            step_idx=0,
+            actor="evaluator",
+            state_before="a",
+            state_after="a",
+            state_hash="h",
+        )
+    )
+    writer.record_outcome(Outcome(run_id="evaluated-run", reward=1.0))
+
+    repo = RealRepository(runs_dir=runs_dir)
+    runs, _ = repo.list_runs(RunFilter())
+    assert runs[0].sparkline[0].actor == "evaluator"
+    detail = repo.run_detail("evaluated-run")
+    assert detail.steps[0].actor == "evaluator"
