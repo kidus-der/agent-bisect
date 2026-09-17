@@ -65,7 +65,7 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
       )}
     >
       {kpiSpecs(kpis).map((spec) => (
-        <div key={spec.id} className="flex min-h-22 flex-col justify-center px-4 py-3">
+        <div key={spec.id} className="flex min-h-21 flex-col justify-center px-4 py-3">
           <StatTicker
             label={spec.label}
             value={spec.value}

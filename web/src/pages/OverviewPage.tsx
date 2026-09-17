@@ -10,6 +10,7 @@ import { CostAccuracyScatter, toScatterPoints } from '@/features/overview/CostAc
 import { HeadlineBars } from '@/features/overview/HeadlineBars'
 import { HeroRewind } from '@/features/overview/HeroRewind'
 import { KpiRow } from '@/features/overview/KpiRow'
+import { ProvenancePanel } from '@/features/overview/ProvenancePanel'
 import { RecallCurve } from '@/features/overview/RecallCurve'
 import { RunsStrip } from '@/features/overview/RunsStrip'
 import {
@@ -120,11 +121,11 @@ export function OverviewPage() {
             simulated={overview.data.meta.simulated}
             sampleSize={payload.kpis.failures_diagnosed}
           />
-          {/* A single rail beside the hero: four equal rows, filling its height. */}
-          <KpiRow
-            kpis={payload.kpis}
-            className="lg:h-full lg:auto-rows-fr lg:grid-cols-1 lg:gap-4"
-          />
+          {/* The rail beside the hero: the four figures, then what produced them. */}
+          <div className="flex flex-col gap-3 lg:gap-4">
+            <KpiRow kpis={payload.kpis} className="lg:grid-cols-1" />
+            <ProvenancePanel />
+          </div>
         </div>
 
         <HeroRewind run={payload.hero_run} />
