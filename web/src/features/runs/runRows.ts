@@ -34,12 +34,23 @@ export interface RunFacets {
   readonly models: readonly string[]
 }
 
+export const EMPTY_FACETS: RunFacets = { domains: [], models: [] }
+
 export function runFacets(pages: readonly RunsPageResult[]): RunFacets {
   const runs = pages.flatMap((page) => availableOrNull(page.data)?.runs ?? [])
   return {
     domains: [...new Set(runs.map((run) => run.domain))].sort(),
     models: [...new Set(runs.map((run) => run.model))].sort(),
   }
+}
+
+/**
+ * Facets are derived from the runs on screen, so a filter that matches nothing
+ * would empty the filter bar that produced it. Keeping the last non-empty set
+ * stops the chrome vanishing at exactly the moment it is needed to recover.
+ */
+export function stableFacets(current: RunFacets, previous: RunFacets): RunFacets {
+  return current.domains.length === 0 && current.models.length === 0 ? previous : current
 }
 
 /**

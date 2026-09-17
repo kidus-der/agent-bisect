@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
@@ -10,7 +10,14 @@ import { RunsFilters } from '@/features/runs/RunsFilters'
 import { RunsTable } from '@/features/runs/RunsTable'
 import type { RunSummary, SortableRunField } from '@/features/runs/api'
 import { useRunsQuery } from '@/features/runs/api'
-import { narrowRuns, resultSummary, runFacets } from '@/features/runs/runRows'
+import type { RunFacets } from '@/features/runs/runRows'
+import {
+  EMPTY_FACETS,
+  narrowRuns,
+  resultSummary,
+  runFacets,
+  stableFacets,
+} from '@/features/runs/runRows'
 import {
   type RunsSearch,
   clearFilters,
@@ -68,7 +75,15 @@ export function RunsPage() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, pageCount])
 
   const narrowed = useMemo(() => narrowRuns(pages), [pages])
-  const facets = useMemo(() => runFacets(pages), [pages])
+  // A filter that matches nothing must not empty the bar that produced it, so
+  // the last non-empty set is remembered. `loadedFacets` is stable per page
+  // set, so this settles in one extra render rather than looping.
+  const loadedFacets = useMemo(() => runFacets(pages), [pages])
+  const [rememberedFacets, setRememberedFacets] = useState<RunFacets>(EMPTY_FACETS)
+  const facets = stableFacets(loadedFacets, rememberedFacets)
+  if (facets === loadedFacets && rememberedFacets !== loadedFacets) {
+    setRememberedFacets(loadedFacets)
+  }
   const summary = resultSummary(narrowed, search)
   const filtered = hasActiveFilters(search)
 
