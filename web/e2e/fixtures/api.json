@@ -9,11 +9,16 @@
           "ci_high": 0.9881
         },
         "best_judge": {
-          "value": 0.8721,
-          "ci_low": 0.7853,
-          "ci_high": 0.9271
+          "value": 0.814,
+          "ci_low": 0.7189,
+          "ci_high": 0.8821
         },
-        "best_judge_method": "judge_step_by_step"
+        "best_judge_method": "judge_step_by_step",
+        "gap": {
+          "value": 0.1512,
+          "ci_low": 0.0581,
+          "ci_high": 0.2442
+        }
       },
       "kpis": {
         "runs_recorded": 266,
@@ -32,35 +37,35 @@
         },
         {
           "m": 3,
-          "recall": 0.8372
+          "recall": 0.8721
         },
         {
           "m": 4,
-          "recall": 0.907
+          "recall": 0.8721
         },
         {
           "m": 5,
-          "recall": 0.9651
+          "recall": 0.8721
         },
         {
           "m": 6,
-          "recall": 0.9651
+          "recall": 0.8721
         },
         {
           "m": 7,
-          "recall": 0.9651
+          "recall": 0.8721
         },
         {
           "m": 8,
-          "recall": 0.9651
+          "recall": 0.8721
         },
         {
           "m": 9,
-          "recall": 0.9651
+          "recall": 0.8721
         },
         {
           "m": 10,
-          "recall": 0.9651
+          "recall": 0.8721
         }
       ],
       "cost_vs_accuracy": [
@@ -77,7 +82,7 @@
         {
           "method": "judge_step_by_step",
           "mean_cost_usd": 0.5937,
-          "accuracy": 0.8721
+          "accuracy": 0.814
         },
         {
           "method": "rerun_live",
@@ -278,9 +283,9 @@
         {
           "method": "judge_step_by_step",
           "accuracy": {
-            "value": 0.8721,
-            "ci_low": 0.7853,
-            "ci_high": 0.9271
+            "value": 0.814,
+            "ci_low": 0.7189,
+            "ci_high": 0.8821
           },
           "mean_cost_usd": 0.5937,
           "mean_calls": 19.79
@@ -9515,7 +9520,16 @@
         "control_fork_step": 1,
         "treated_reruns": 184,
         "control_reruns": 16,
-        "sampler_calls": 47
+        "sampler_calls": 47,
+        "config": {
+          "delta": 0.1,
+          "batch": 4,
+          "max_n": 16,
+          "conf": 0.95,
+          "efficacy_boundary": "obf",
+          "control_mode": "shared",
+          "shortlist_m": 3
+        }
       },
       "judge": {
         "all_at_once": [

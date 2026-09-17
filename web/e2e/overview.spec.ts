@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 test('the hero leads with the result, in points, at display size', async ({ page }) => {
   await page.goto('/')
   const headline = page.getByRole('heading', { level: 1 })
-  await expect(headline).toContainText('+9.3 pts')
+  await expect(headline).toContainText('+15.1 pts')
   const fontSize = await headline.evaluate((node) => getComputedStyle(node).fontSize)
   expect(fontSize, 'the hero uses the 44px display size').toBe('44px')
 })
@@ -22,12 +22,13 @@ test('both methods are shown with their own 95% intervals', async ({ page }) => 
   await expect(page.getByRole('heading', { name: 'Bisect', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Judge · step by step' })).toBeVisible()
   await expect(page.getByText('95% CI 90.2% – 98.8%')).toBeVisible()
-  await expect(page.getByText('95% CI 78.5% – 92.7%')).toBeVisible()
+  await expect(page.getByText('95% CI 71.9% – 88.2%')).toBeVisible()
 })
 
-test('the gap is reported without an interval, and says so', async ({ page }) => {
+test('the gap carries its own paired interval, and says it clears zero', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText(/no interval is reported for the gap itself/i)).toBeVisible()
+  await expect(page.getByText('+5.8 pts to +24.4 pts')).toBeVisible()
+  await expect(page.getByText(/which clears zero/)).toBeVisible()
 })
 
 test('simulated data is admitted in the hero, not just in the top bar', async ({ page }) => {
@@ -117,7 +118,7 @@ test('an unreachable API shows the error state and retry recovers', async ({ pag
   await page.unroute('**/api/overview')
   await mockApi(page)
   await page.getByRole('button', { name: 'Retry' }).click()
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('+9.3 pts')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('+15.1 pts')
 })
 
 test('390px lays out without scrolling sideways', async ({ page }) => {
