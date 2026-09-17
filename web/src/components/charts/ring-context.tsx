@@ -15,7 +15,10 @@ export const ringCssVars = {
   foreground: "var(--chart-foreground)",
   foregroundMuted: "var(--chart-foreground-muted)",
   label: "var(--chart-label)",
-  ringBackground: "var(--border)",
+  // Local change: the unfilled arc is what shows the remaining portion, so it
+  // is a data mark and needs 3:1 (WCAG 1.4.11). `--border` is a hairline at
+  // ~1.2:1 on white; from-tape slate clears 3:1 in both themes.
+  ringBackground: "var(--bx-tape)",
   // Default ring colors from chart palette
   ring1: "var(--chart-1)",
   ring2: "var(--chart-2)",

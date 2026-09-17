@@ -9,6 +9,7 @@ import { formatNumber } from '@/lib/format'
 import { formatPercent } from '@/lib/stats'
 
 import type { BudgetStatus } from './api'
+import { REMAINING_MARK } from './marks'
 
 /** The arc gauge is drawn for a 21:16 box; anything else letterboxes or overflows. */
 const GAUGE_ASPECT = 21 / 16
@@ -74,9 +75,7 @@ export function BudgetGauge({ budget }: BudgetGaugeProps) {
               defaultLabel={`of ${formatNumber(cap, { decimals: 0 })} calls`}
               totalNotches={NOTCH_COUNT}
               activeFill={activeFill}
-              // The unfilled ticks ARE the remaining budget, so they are a data
-              // mark and need 3:1 (WCAG 1.4.11); chart-grid is ~1.3:1 on white.
-              inactiveFill="var(--bx-line-strong)"
+              inactiveFill={REMAINING_MARK}
               width={size.width}
               height={size.height}
               enterTransition={reduced ? NO_MOTION : undefined}
