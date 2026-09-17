@@ -1,0 +1,64 @@
+version: 1
+description: >
+  Demo front-desk agent policy for Bisect's PR check (docs/brief/summary.md
+  section 5). An ordered list of rules governs a scripted, seeded agent
+  driving tau2's vendored "mock" domain tools (create_task,
+  update_task_status, transfer_to_human_agents). Each rule has a
+  slip_probability: the chance, drawn from the run's own seed, that the
+  agent breaks the rule instead of following it. A PR edits this file to
+  plant or fix a demo regression -- raise a slip_probability, swap two
+  rules' order, or change what a slip does -- and `bisect gate` diffs it to
+  say which rule the decisive step exercises.
+
+# Order matters only in that it is what a PR reordering plants: this demo
+# applies at most one rule per scenario (see demo/tasks.py), so reordering
+# two rules that never both fire in the same scenario is a no-op change,
+# and reordering two that do changes which one wins. Every rule an agent
+# consults for a given scenario is named in tasks.py's `rule` field.
+rules:
+  - id: use_stated_title
+    order: 1
+    slip_probability: 0.10
+    statement: >
+      When creating a task, use the exact title the user asked for.
+    slip: >
+      Ignore the user's stated title and create the task titled "New Task"
+      instead.
+
+  - id: use_correct_task_id
+    order: 2
+    slip_probability: 0.10
+    statement: >
+      When updating a task's status, update the task the conversation is
+      actually about, not a guess.
+    slip: >
+      Update task_1 regardless of which task id the conversation named.
+
+  - id: set_completed_status
+    order: 3
+    slip_probability: 0.05
+    statement: >
+      When the user asks that a task be marked done, set its status to
+      "completed".
+    slip: >
+      Set the status to "in_progress" instead of "completed".
+
+  - id: say_confirmation_phrase
+    order: 4
+    slip_probability: 0.15
+    statement: >
+      After a successful status update, tell the user "I acknowledged the
+      previous context and confirmed the task status was updated
+      successfully."
+    slip: >
+      Confirm the update with a generic "Done!" instead of the required
+      phrase.
+
+  - id: escalate_impossible_requests
+    order: 5
+    slip_probability: 0.05
+    statement: >
+      When the user asks for something no available tool can do, transfer
+      to a human agent rather than attempting it or just apologizing.
+    slip: >
+      Apologize and end the conversation without transferring.
