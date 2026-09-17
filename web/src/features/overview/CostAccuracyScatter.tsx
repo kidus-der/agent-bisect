@@ -13,6 +13,7 @@ import { motion, useInView, useReducedMotion } from 'motion/react'
 import { useRef } from 'react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
+import { PercentYAxis } from '@/components/chart-theme/PercentYAxis'
 import { chartColours } from '@/components/chart-theme/chartTheme'
 import { springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
@@ -110,22 +111,14 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
   return (
     <svg width={width} height={height} aria-hidden="true">
       <Group left={MARGIN.left} top={MARGIN.top}>
-        {Y_TICKS.map((tick) => (
-          <g key={tick}>
-            <line x1={0} x2={innerWidth} y1={y(tick)} y2={y(tick)} stroke={chartColours.grid} />
-            <text
-              x={-10}
-              y={y(tick)}
-              dy="0.32em"
-              textAnchor="end"
-              fontSize={11}
-              fill={chartColours.label}
-              className="num"
-            >
-              {Math.round(tick * 100)}
-            </text>
-          </g>
-        ))}
+        <PercentYAxis
+          ticks={Y_TICKS}
+          scale={y}
+          width={innerWidth}
+          title="step accuracy (%)"
+          height={innerHeight}
+          titleOffset={MARGIN.left - 12}
+        />
 
         {X_TICKS.map((tick) => (
           <text
@@ -148,14 +141,6 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
           fill={chartColours.label}
         >
           mean cost per diagnosis (USD, log scale)
-        </text>
-        <text
-          transform={`translate(${-MARGIN.left + 12} ${innerHeight / 2}) rotate(-90)`}
-          textAnchor="middle"
-          fontSize={11}
-          fill={chartColours.label}
-        >
-          step accuracy (%)
         </text>
 
         {points.map((point, index) => {

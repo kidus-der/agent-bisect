@@ -13,6 +13,7 @@ import { motion, useInView, useReducedMotion } from 'motion/react'
 import { useId, useRef } from 'react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
+import { PercentYAxis } from '@/components/chart-theme/PercentYAxis'
 import { chartColours } from '@/components/chart-theme/chartTheme'
 import { formatPercent } from '@/lib/stats'
 
@@ -83,29 +84,7 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
         </clipPath>
       </defs>
       <Group left={MARGIN.left} top={MARGIN.top}>
-        {Y_TICKS.map((tick) => (
-          <g key={tick}>
-            <line
-              x1={0}
-              x2={innerWidth}
-              y1={y(tick)}
-              y2={y(tick)}
-              stroke={chartColours.grid}
-              strokeWidth={1}
-            />
-            <text
-              x={-10}
-              y={y(tick)}
-              dy="0.32em"
-              textAnchor="end"
-              className="num"
-              fontSize={11}
-              fill={chartColours.label}
-            >
-              {Math.round(tick * 100)}
-            </text>
-          </g>
-        ))}
+        <PercentYAxis ticks={Y_TICKS} scale={y} width={innerWidth} />
 
         {preregistered ? (
           <g>
