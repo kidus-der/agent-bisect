@@ -63,6 +63,39 @@ def test_edge_case_runs_present():
     assert "run-edge-long-payload" in ids
     assert "run-edge-unicode" in ids
     assert "brief-12-step" in ids
+    assert "run-edge-recording-1" in ids
+    assert "run-edge-recording-2" in ids
+
+
+def test_recording_runs_have_no_fabricated_outcome():
+    """A still-recording fixture run must report status="recording" and
+    outcome/reward=None -- never a fake "fail"/0.0."""
+    bundle = build_bundle(SEED)
+    by_id = {s.run_id: s for s in bundle.run_summaries}
+    for run_id in ("run-edge-recording-1", "run-edge-recording-2"):
+        summary = by_id[run_id]
+        assert summary.status == "recording"
+        assert summary.outcome is None
+
+    plan = bundle.plan_by_id("run-edge-recording-1")
+    detail_judge = bundle.judge_by_run.get(plan.run_id)
+    from agent_bisect.server.fixtures.serialize import to_run_detail
+
+    detail = to_run_detail(plan, detail_judge)
+    assert detail.status == "recording"
+    assert detail.outcome is None
+    assert detail.reward is None
+
+
+def test_recording_runs_excluded_from_failure_accounting():
+    """A recording run hasn't failed, so it must not count toward the
+    Overview's `failures_diagnosed`/cost-per-diagnosis denominator."""
+    bundle = build_bundle(SEED)
+    recording_ids = {"run-edge-recording-1", "run-edge-recording-2"}
+    labelled_ids = {
+        p.run_id for p in bundle.plans if p.fault_type is not None
+    }
+    assert not (recording_ids & labelled_ids)
 
 
 def test_brief_run_matches_worked_example():

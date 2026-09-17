@@ -125,3 +125,29 @@ def test_state_diff_for_mutating_step(client):
     # step 7 of brief-12-step is book_reservation, a mutating tool.
     body = client.get("/api/runs/brief-12-step/steps/7/state-diff").json()["data"]
     assert body["step_idx"] == 7
+
+
+def test_recording_run_detail_has_no_fabricated_outcome(client):
+    body = client.get("/api/runs/run-edge-recording-1").json()["data"]
+    assert body["status"] == "recording"
+    assert body["outcome"] is None
+    assert body["reward"] is None
+
+
+def test_status_filter_selects_only_recording_runs(client):
+    body = client.get("/api/runs?status=recording&limit=200").json()["data"]["runs"]
+    assert len(body) == 2
+    assert {r["run_id"] for r in body} == {"run-edge-recording-1", "run-edge-recording-2"}
+    assert all(r["outcome"] is None for r in body)
+
+
+def test_outcome_filter_excludes_recording_runs(client):
+    body = client.get("/api/runs?outcome=fail&limit=200").json()["data"]["runs"]
+    assert len(body) > 0
+    assert all(r["status"] == "complete" for r in body)
+
+
+def test_search_reports_status_for_a_recording_run(client):
+    body = client.get("/api/search?q=run-edge-recording-1").json()["data"]
+    hit = next(h for h in body["hits"] if h["id"] == "run-edge-recording-1")
+    assert hit["status"] == "recording"
