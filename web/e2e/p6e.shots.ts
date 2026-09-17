@@ -4,7 +4,9 @@ import { type Page, test } from '@playwright/test'
 
 import { mockP6eApi, applyTheme } from './p6e.fixtures'
 
-const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round1/', import.meta.url))
+const OUT_DIR = fileURLToPath(
+  new URL(`../../docs/screenshots/${process.env.EVAL_ROUND ?? 'round2'}/`, import.meta.url),
+)
 
 const THEMES = ['dark', 'light'] as const
 const VIEWPORTS = [
