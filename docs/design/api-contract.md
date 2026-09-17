@@ -164,7 +164,33 @@ and not drift-checked)
 ```json
 {"data": {"calls_series": [{"ts": "2026-09-17T08:33:00+00:00", "model": "nvidia/llama-3.1-nemotron-70b-instruct",
  "calls_per_minute": 17.2}, "..."], "budget": {"used": 6421, "cap": 12000},
- "rate_limit": {"limiter_rpm": 40, "current_rpm": 22.0, "headroom_rpm": 18.0}, "jobs": ["..."], "events": ["..."]}}
+ "rate_limit": {"limiter_rpm": 40, "current_rpm": 22.0, "headroom_rpm": 18.0},
+ "jobs": [{"job_id": "job-0", "kind": "blame", "state": "running", "progress": 0.64,
+  "phase": "P5", "label": "step-by-step blame search", "items_done": 10, "items_total": 16,
+  "model": "nvidia/llama-3.1-nemotron-70b-instruct", "calls_spent": 80,
+  "started_at": "2026-09-17T18:48:57Z", "finished_at": null, "eta_seconds": 236.2,
+  "last_checkpoint_at": "2026-09-17T18:55:57Z", "error": null}, "..."], "events": ["..."]}}
+```
+`state` and `progress`/`started_at`/`finished_at`/`error` are validated
+together (`schemas_live.JobStatus`): `queued` ⇒ `progress=0`, no
+`started_at`; `running` ⇒ `0 < progress < 1`; `done` ⇒ `progress=1` and
+`finished_at` set; `failed` ⇒ `error` set. Every field past `state` is
+`null` when unknown, never invented.
+
+**Real mode's `runs/<phase>/status.json` convention.** A long-running job
+(the P1 recorder, a P3/P5 batch, …) may write its own progress to
+`runs/<phase>/status.json` (e.g. `runs/p1/status.json`); `RealRepository`
+reads one such file per phase directory present and reports it as a
+`JobStatus` with `job_id`/`phase` taken from the directory name (`phase`
+upper-cased) unless the file overrides them. A missing, unreadable,
+invalid-JSON, or invariant-violating file is skipped, not fatal to the
+rest of the snapshot; no job is invented for a phase with no file. Shape
+(all keys but `kind`/`state`/`progress` optional):
+```json
+{"kind": "record", "state": "running", "progress": 0.45, "label": "tau2 run recording",
+ "items_done": 9, "items_total": 20, "model": "nvidia/nemotron-3-super-120b-a12b",
+ "calls_spent": 812, "started_at": "2026-09-17T09:00:00Z", "finished_at": null,
+ "eta_seconds": 640.0, "last_checkpoint_at": "2026-09-17T09:12:00Z", "error": null}
 ```
 
 **`GET /api/pr-checks`**
