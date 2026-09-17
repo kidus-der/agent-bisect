@@ -67,13 +67,18 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
       whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.35 }}
       transition={enter}
-      className={cn(ROW_GRID, 'items-center gap-y-2 border-b border-line py-3.5 last:border-b-0')}
+      className={cn(
+        ROW_GRID,
+        'items-center gap-y-1.5 border-b border-line py-2.5 last:border-b-0 sm:gap-y-2 sm:py-3.5',
+      )}
     >
       <div className="col-span-2 flex min-w-0 flex-col gap-0.5 sm:col-span-1">
         <span className={cn('truncate text-ink', focal ? 'text-h2' : 'text-h3', 'font-semibold')}>
           {meta.label}
         </span>
-        <span className="text-[12px] leading-4 text-pretty text-ink-muted">{meta.description}</span>
+        <span className="hidden text-[12px] leading-4 text-pretty text-ink-muted sm:block">
+          {meta.description}
+        </span>
       </div>
 
       {/*
@@ -212,6 +217,27 @@ interface VerdictProps {
 }
 
 /**
+ * The same verdict as one mono line. Below `sm` the stacked form costs about
+ * 200px of a 844px viewport, which is the difference between three method bars
+ * above the fold and none.
+ */
+function CompactVerdict({ bar }: VerdictProps) {
+  const { cleared } = bar
+  return (
+    <p className="num text-small text-pretty text-ink sm:hidden">
+      <span className="text-h3 font-semibold">{formatPercent(bar.bisect.accuracy.value)}</span>{' '}
+      <span className="text-ink-muted">
+        [{formatPercent(bar.bisect.accuracy.ci_low)}, {formatPercent(bar.bisect.accuracy.ci_high)}]
+      </span>{' '}
+      · {formatPoints(bar.marginOverBestJudge)} vs best judge ·{' '}
+      <span className={cleared ? 'text-pass' : 'text-fail'}>
+        <span aria-hidden="true">{cleared ? '✓' : '✕'}</span> bar {formatPercent(bar.threshold)}
+      </span>
+    </p>
+  )
+}
+
+/**
  * The headline the page exists to state, laid out along the panel's header row
  * rather than in a nested card: as a full-width card it pushed four of the five
  * method bars below the fold at 1440.
@@ -219,7 +245,7 @@ interface VerdictProps {
 function PreregisteredVerdict({ bar }: VerdictProps) {
   const { cleared } = bar
   return (
-    <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+    <div className="hidden flex-wrap items-end gap-x-8 gap-y-4 sm:flex">
       <div className="flex flex-col">
         <InstrumentLabel>bisect</InstrumentLabel>
         <span className="num text-display leading-none font-semibold text-ink">
@@ -273,13 +299,14 @@ export function MethodComparison({ methods }: MethodComparisonProps) {
       {/* Title and verdict share one row: as stacked blocks they pushed four of
           the five method bars below the fold at 1440. The caption moves to the
           footnote under the axis, where it is read rather than scrolled past. */}
-      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="flex flex-col gap-1">
           <InstrumentLabel>step_accuracy</InstrumentLabel>
-          <h2 className="text-h1 text-ink">Which method blames the right step</h2>
+          <h2 className="text-h2 text-ink sm:text-h1">Which method blames the right step</h2>
         </div>
         {bar ? <PreregisteredVerdict bar={bar} /> : null}
       </header>
+      {bar ? <CompactVerdict bar={bar} /> : null}
 
       <div className="relative pt-7">
         <ScaleOverlay bar={bar} axisMax={axisMax} />
