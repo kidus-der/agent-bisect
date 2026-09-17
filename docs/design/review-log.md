@@ -218,3 +218,213 @@ specific and useful; reduced motion verifiably lands on final state at 120ms.
 | 6 | `features/overview/RecallCurve.tsx:82` uses `{ duration, ease: 'easeOut' }` instead of a `settle`/`drift` spring. Springs only for UI state (§4). | [polish] |
 | 7 | Every ⌘K result carries the same tag icon and the only group is `RUNS`. Add page and action groups with distinct icons so the palette is a command palette, not a run search. | [polish] |
 | 8 | Light theme: `surface` `#FFFFFF` cards on `ground` `#F5F6F8` with a `#DEE2E9` hairline give very little separation, which is why the light KPI rail reads as four empty boxes. Use `elevated` `#FBFBFD` for secondary cards so the fill step actually steps (§2). | [polish] |
+
+---
+
+## Round 2 — 2026-09-17
+
+195 captures in `docs/screenshots/round2/eval/`, same matrix as round 1 plus the
+⌘K run-preview pane, the `retrying… (n of 3)` state, the treated **and** control
+re-run views at both widths, the PR-checks table, and Live waited on real SSE
+frames from the fixture server.
+
+### Scores
+
+| Page | hierarchy | type | colour | motion | data | polish | orig. | **score** | Δ |
+|---|---|---|---|---|---|---|---|---|---|
+| Overview | 8.0 | 8.5 | 8.0 | 8.0 | 7.5 | 8.0 | 8.5 | **8.1** | +0.6 |
+| Runs | 8.5 | 8.5 | 8.5 | 8.0 | 7.0 | 8.5 | 8.0 | **8.1** | +0.5 |
+| Run detail | 8.0 | 9.0 | 7.5 | 8.5 | 8.0 | 7.5 | 9.0 | **8.2** | +0.6 |
+| Benchmark | 7.5 | 8.5 | 8.0 | 8.0 | 8.5 | 8.0 | 8.5 | **8.1** | +0.6 |
+| Live | 8.5 | 8.5 | 7.5 | 8.0 | 8.0 | 8.0 | 8.0 | **8.1** | +1.0 |
+| PR checks | 8.0 | 8.5 | 8.5 | 7.5 | 7.5 | 8.0 | 8.0 | **8.0** | +0.9 |
+| Global | 8.5 | 9.0 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | **8.6** | +0.6 |
+
+**Global has reached 8.5.** The six content pages sit at 8.0–8.2 — every one is
+now a polished professional product with a clear identity, which is the 8.5
+anchor's description, held just below it by a small number of specific faults
+rather than by anything systemic. The three systemic faults named in round 1 are
+gone: the dead space is largely filled, both amber breaches are repaired, and
+every estimate now carries its interval.
+
+### Verification of round-1 [blocking-8.5] items
+
+| Page | Item | Result |
+|---|---|---|
+| Overview | 1 stripes right-aligned | fixed — shared left origin, comparable down the column |
+| Overview | 2 TASK centre-aligned | fixed |
+| Overview | 3 four identical KPI cards | fixed — one hairline-divided rail, plus a new `PROVENANCE_` panel that fills the rail's old dead space |
+| Overview | 4 scatter labels collide at 390 | fixed — numbered points with a legend below |
+| Overview | 5 run IDs truncate at 390 | fixed — the task truncates instead |
+| Overview | 6 CI whisker floats untied | **not fixed** |
+| Runs | 1 light blame fill reads brick red | fixed on Runs — now a clear amber→coral, separable from fail red |
+| Runs | 2 light heat cells ≈1.4:1 | fixed — solid mid-teal, clears 3:1 |
+| Runs | 3 only 8 rows above the fold | fixed — one filter row + `More filters`, 12 rows |
+| Runs | 4 last row sliced, no fade | fixed — fade plus a sticky `266 of 266` |
+| Runs | 5 two segments both labelled "All" | fixed — `OUTCOME_` / `STATUS_` |
+| Run detail | 1 reset button says "Recording" | fixed — "Reset" |
+| Run detail | 2 blamed forest row has no whisker | fixed — amber whisker with caps |
+| Run detail | 3 blamed tape cell has no glow | fixed for the glow; the 1.08× scale is not detectable |
+| Run detail | 4 tape centred with 150px gutters | fixed — spans the panel, cells grow |
+| Run detail | 5 dot matrix 300 of 1400px | fixed — counts adjacent, column ticks added |
+| Run detail | 6 dot matrix clipped at 390 | fixed |
+| Run detail | 7 h2 truncated at 390 | fixed — wraps |
+| Benchmark | 1 whiskers drawn over the bars | fixed — own track below each bar |
+| Benchmark | 2 focal bars below the fold | fixed at 1440; **not fixed at 390** |
+| Benchmark | 3 `FAULTED PASS` coloured red | fixed — neutral, with a new `DROP` column carrying a ▼ glyph |
+| Benchmark | 4 position chart 85% empty | fixed — axis rescaled to the CI envelope |
+| Benchmark | 5 sankey has no counts | fixed — every node labelled, `· none · 3` visible |
+| Live | 1 amber WARN | fixed — `text-ink` |
+| Live | 2 amber live-status dot | fixed — `bg-ink-muted` |
+| Live | 3 no y-axis on the traces | fixed — axes plus `SCALE 0–40 SHARED` in the header |
+| Live | 4 done job at 0% | fixed — 100% |
+| Live | 5 ring fills the free portion | fixed — fills used, centre reads free |
+| Live | 6 job-queue panel half empty | fixed — three cards across the width |
+| PR checks | 1 delta without its interval | fixed — `CHANGE · 95% CI` on every row |
+| PR checks | 2 scenario bars all one width | fixed — they scale |
+| PR checks | 3 six identical cards, 600px hole | fixed — a sortable table |
+| PR checks | 4 implementation-note paragraph | fixed — `EFFECT NOT RETURNED HERE · SEE THE COMMENT BELOW_` |
+| PR checks | 5 unlabelled base/head bars | fixed — BASE / HEAD columns |
+| PR checks | 6 decisive-step panel dead weight when clean | fixed — one line |
+| Global | 1 dead server looks slow for 20s | fixed — `RETRYING… (2 OF 3)` with the reason |
+| Global | 2 ⌘K detail pane 90% empty | fixed — outcome, step count, hatched stripe, `0 of 14 steps tested` |
+| Global | 3 ⌘K list sliced mid-row | fixed — fades |
+| Global | 4 error/404 cards 1376px wide | fixed — ~560px, centred |
+
+Round-1 polish items also closed: skeleton KPI slot count, `BrandMark` no longer
+spends blame coral, `RecallCurve` now uses the `drift` spring, the palette has
+`Pages` / `Commands` / `Copy CLI command` groups, the histogram's dashed rule is
+labelled, the heatmap headers fit one line, and a clean check no longer paints
+its head bar green against a non-significant delta.
+
+### Rule guards
+
+| Guard | Result |
+|---|---|
+| Amber = blame only, both themes | pass in code (`EventFeed`, `LiveStatus`, `BrandMark` all cleared); light blame still reads rust on the run-detail heat stripe |
+| Estimate never without its interval | pass — PR list, forest plot, method bars, ablation, gate verdict all carry theirs |
+| Meaning never by colour alone | pass — ✓/✕ glyphs, ▼ on deltas, `!` on WARN, hatching on untested and on the ablation bar |
+| Simulated data labelled | pass — badge on every page, `Simulated traffic` on Live, `Simulated data` on run detail |
+| No horizontal overflow at 390 | pass on every page captured |
+| Heat-ramp steps legible in both themes | **fail** — legible, but the ramp no longer varies (below) |
+
+### The one regression
+
+Fixing the light-theme heat-stripe contrast flattened the ramp in **both**
+themes. In round 1 the `EFFECT PER STEP` cells varied; in round 2 every tested
+non-blame cell is one teal, on Runs, on Overview and on the run-detail tape. The
+cause is visible in the data: `brief-12-step` has effects from −0.06 to +0.25
+plus a blamed +0.88, so a linear ramp anchored on the maximum puts every ordinary
+step inside the bottom 28% of the scale, where the steps are indistinguishable. A
+column titled "effect per step" now encodes only tested / blamed / untested.
+
+---
+
+### Overview — 8.1 (+0.6)
+
+Works: the fold is now dense and correctly ranked — headline, bars with intervals,
+KPI rail, provenance; the new `PROVENANCE_` panel (agent, user sim, τ² commit,
+generated-at) is exactly the instrument-panel move the direction asks for; the
+recent-runs stripes finally share an origin, so blame position reads down the column.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/overview/RunsStrip.tsx` + `features/runs/cells.tsx` + `features/run-detail/heatScale.ts` — the effect ramp is anchored on the blamed step, so every ordinary step collapses to one value. Build the ramp's domain from the tested effects **excluding** the blamed step (or use a quantile scale over them) and keep the blamed cell on its own amber→coral treatment outside the ramp. | [blocking-8.5] |
+| 2 | `features/overview/HeadlineBars.tsx` — the CI whisker still floats ~28px below its bar with nothing tying them. Put the whisker on the bar's own centreline as a 1px rule with 6px caps drawn over the fill, or add a 1px vertical connector from the bar's end to the whisker. | [blocking-8.5] |
+| 3 | The rewind strip panel has ~430px of empty canvas between the tape (ends x≈630) and the step-7 diff block (starts x≈1060) at 1440. Either let the tape's cells grow into it as the run-detail tape now does, or move the diff block directly under the tape and halve the panel's height. | [blocking-8.5] |
+| 4 | The blueprint dot texture still runs through the hero paragraph and the `Bisect` / `Judge · step by step` bar labels. Mask the dots behind text blocks. | [polish] |
+| 5 | `features/overview/labelPlacement.ts` at 390 — the point index digits are drawn on top of their own CI whisker stroke. Offset the digit 6px to the right of the whisker, or give it a 2px `ground` halo. | [polish] |
+| 6 | The hero bars' remainder track renders as a distinctly lighter block butted against the fill, so a 96.5% bar reads as two segments. Drop the track to `line` at 40% or remove it and let the axis carry the scale. | [polish] |
+| 7 | The KPI rail still has no micro-viz; a 48px `@bklit/area-chart` sparkline per tile would let the four numbers show direction as well as level (§6). | [polish] |
+
+### Runs — 8.1 (+0.5)
+
+Works: the densest, most confident view in the product — 12 rows above the fold,
+one filter row with instrument-labelled groups, a sticky `266 of 266`, a chevron
+per row, and a fade instead of a slice; light-theme blame is now unmistakably
+amber→coral and no longer confusable with fail red.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/runs/cells.tsx` — same ramp flattening as Overview fix 1. `EFFECT PER STEP` must vary with the effect, or the column should be renamed to what it actually shows. | [blocking-8.5] |
+| 2 | The heat stripe's cell width is constant, so a 27-step run's stripe is more than twice as wide as an 11-step run's and the column is ragged. Fix the stripe's total width and divide it by `n_steps`, so every stripe spans the same track and step *position* stays comparable. | [blocking-8.5] |
+| 3 | `SHAPE` and `EFFECT PER STEP` are two adjacent step-indexed marks for the same run with no shared x. Align them to the same track, or drop `SHAPE` and give the freed ~120px to the stripe. | [polish] |
+| 4 | `More filters` gives no indication of how many filters are hidden behind it or whether any are active. Add a count badge when the disclosure holds an active filter. | [polish] |
+| 5 | Sort affordances are on `DOMAIN / STEPS / OUTCOME / COST / CALLS` but not `TASK`, `SHAPE`, `EFFECT PER STEP`, `DECISIVE`. Either make `TASK` and `DECISIVE` sortable or drop the carets so the header does not imply a capability it lacks. | [polish] |
+
+### Run detail — 8.2 (+0.6)
+
+Works: all eight round-1 blockers closed; the tape now spans its panel and the
+blamed cell glows; the forest plot has a uniform axis, a zero line, a δ line and
+an amber interval on the blamed row; the new recorded-vs-re-run side-by-side on
+the rerun page, with its closing sentence, is the clearest thing in the product.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/run-detail/RerunView.tsx` — a **control** re-run's fork step is labelled `fork · intervention applied here`. The control arm is defined by having nothing replaced; this sentence contradicts the product's central claim. Render `control · nothing replaced` when `arm === 'control'`, and change the closing line to say the control differs from the recording only by its seed. | [blocking-8.5] |
+| 2 | Light theme: the run-detail heat stripe's blamed cell renders rust/brick (`#9C5B08` at full fill) while the header's `STEP 7` chip beside it is bright amber, so the same role has two readings on one screen. Use the same amber→coral gradient Runs now uses for the blamed cell. | [blocking-8.5] |
+| 3 | `features/run-detail/DotMatrix.tsx` — the matrix plus counts now ends at x≈700 inside a 1360px panel, leaving half of it empty. Put the state diff (currently a tab inside the inspector) beside it, or halve the panel and let it sit next to the forest plot. | [blocking-8.5] |
+| 4 | Same ramp flattening on the tape's heat stripe as Overview fix 1. | [blocking-8.5] |
+| 5 | `features/run-detail/TimelineMinimap.tsx` — on the 60-step run the minimap marks the viewport with a single 1px line rather than a window, so it does not show how much of the tape is off-screen. Draw the visible range as a bordered window. | [polish] |
+| 6 | The caption `step 7 effect +0.88 [+0.47, +0.96]` sits at the panel's far left while step 7 is at x≈595. Anchor it under the playhead, or move it into the `BLAME_` rail where the same numbers already live. | [polish] |
+| 7 | The step actor glyphs above each tape cell (person / robot / wrench) are never explained. Add a one-line mono legend in the tape header: `user · agent · tool`. | [polish] |
+| 8 | `components/primitives/TapeStep.tsx` — the `scale: 1.08` on the blamed cell called for by §7.1 is not visible in any frame. Confirm it is applied and raise it if the border is absorbing it. | [polish] |
+
+### Benchmark — 8.1 (+0.6)
+
+Works: the CI whiskers now have their own track and read cleanly against the
+fills; the sankey names every node with its `n`; the histogram carries a labelled
+`Bisect · 780 calls` rule and a mean-calls footer for all five methods; the
+dataset table's new `DROP` column shows the fall with a ▼ rather than colour.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | At 390 the fold is still all preamble: page title, panel title, description and a stacked `96.5% / +15.1 pts / met · 96.4%` strip consume ~700px and not one bar is visible. Below 700px render the summary strip as a single mono line (`96.5% [90.2, 98.8] · +15.1 pts vs best judge · pre-registered 96.4% ✓`) so the bars clear the fold, as §5 requires. | [blocking-8.5] |
+| 2 | The `0% … 100%` axis under the bars ends at x≈1150 while the plot's right edge is x≈1128, so the last tick sits outside the plot. Align the axis to the plot's scale. | [polish] |
+| 3 | The right-hand numbers use two right-alignment axes 110px apart (accuracy at x≈1272, cost/calls at x≈1385) with nothing between. Close the gap or give cost its own labelled column header. | [polish] |
+| 4 | The 5-way method segmented control on the histogram and the 2-way `Matrix / Table` toggle are styled identically, so they read as one control system. Vary them per §4 (pills vs. a bordered segment). | [polish] |
+| 5 | The sankey's `· none · 3` node is still only a few pixels tall. Give every node a minimum height of 12px so a small-but-real outcome stays clickable and visible. | [polish] |
+
+### Live — 8.1 (+1.0)
+
+Works: the biggest jump of the round — both amber breaches repaired, both traces
+given y-axes with `SCALE 0–40 SHARED` stated in the header so the two are
+honestly comparable, the ring now fills what is used, and the job queue became
+three cards across the full width instead of a half-empty column.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/live/JobQueue.tsx` — `job-0 · BLAME_ · queued · 87%` shows a queued job with a mostly-full progress bar. A queued job has not started; show a dash or an empty track and put the 87% behind whatever it actually measures. | [blocking-8.5] |
+| 2 | Light theme: the budget gauge's unfilled ticks and the headroom ring's track are roughly 1.2:1 on white. Both are data marks showing the remaining portion and need 3:1 (WCAG 1.4.11). Darken the light-theme track token. | [blocking-8.5] |
+| 3 | `features/live/EventFeed.tsx` — every line reads `simulated: <phase> batch <id> progressed`, so eight rows carry about one row of information. Show the phase as a mono chip, the batch id once per group, and the event's own detail in the message. | [polish] |
+| 4 | `50.4 CALLS / MIN · SCALE 0–40 SHARED` — the total is 50.4 while the shared axis tops out at 40, so the headline number is off the scale it sits above. Either label the total as a sum across models or extend the axis. | [polish] |
+| 5 | The two traces are stacked with no shared time cursor. A single hover crosshair across both would let a spike be read against the other model at the same instant. | [polish] |
+
+### PR checks — 8.0 (+0.9)
+
+Works: the list is now a sortable table where every row carries `−38 pts` **with**
+`[−48 pts, −25 pts]`; a clean check's decisive-step panel has collapsed to one
+line and its bars stay slate against a non-significant delta — the restraint is
+right; the `bisect-bot` comment preview remains the clearest artefact in the app.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | At 390 the table drops the `SCENARIO SUITE` column, so six rows read `#1002 · regression · −38 pts` with no indication of which suite regressed. The suite name is the row's identity — keep it and drop `P` instead, or stack it under the PR number. | [blocking-8.5] |
+| 2 | `features/pr-checks/ScenarioTable.tsx` — the CHANGE bars now scale, but they grow leftward from a fixed right edge with no zero line and no axis, so a bar's length has no reference. Anchor them on a centre zero line with the axis labelled once in the header. | [blocking-8.5] |
+| 3 | The list page is one 400px panel on a 900px viewport with ~260px of empty page under it. Add the thing a reviewer wants next to the table — a small base-vs-head distribution across all six checks, or the most recent gate comment — or let the table fill the height. | [blocking-8.5] |
+| 4 | The detail page's `DECISIVE_STEP_` panel is 540px wide holding two chips and two short lines, against a 790px comment preview beside it. Give the comment preview the wider share. | [polish] |
+| 5 | At 390 the rows have no chevron and no `BASE`/`HEAD`, so the table reads as a static list rather than something to open. Add the chevron the Runs table now has. | [polish] |
+
+### Global — 8.6 (+0.6) — at the bar
+
+Works: `RETRYING… (2 OF 3)` with the reason means a dead server no longer looks
+like a slow one; the ⌘K detail pane now previews the run — outcome, step count,
+hatched stripe, `0 of 14 steps tested`, `Not bisected yet.`; error and 404 are
+sized cards rather than banners in a 1376px void; the logo no longer spends blame
+coral, and the palette has real `Pages` / `Commands` / `Copy CLI command` groups.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | The error and 404 cards are centred horizontally but pinned near the top, leaving ~440px of empty page below. Centre them in the remaining content height. | [polish] |
+| 2 | The ⌘K footer's `⏎ run` reads as a verb. `⏎ open` says what the key does. | [polish] |
+| 3 | Light theme: secondary cards are still `#FFFFFF` on `#F5F6F8`, so the fill step barely steps. Move secondary panels to `elevated` `#FBFBFD` (§2). | [polish] |
