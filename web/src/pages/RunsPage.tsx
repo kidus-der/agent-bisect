@@ -47,7 +47,8 @@ export function RunsPage() {
   const pages = useMemo(() => query.data?.pages ?? [], [query.data])
 
   const apply = useCallback(
-    (next: RunsSearch) => void navigate({ to: '/runs', search: toSearchParams(next), replace: true }),
+    (next: RunsSearch) =>
+      void navigate({ to: '/runs', search: toSearchParams(next), replace: true }),
     [navigate],
   )
   const onSortChange = useCallback(

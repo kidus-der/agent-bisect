@@ -77,10 +77,7 @@ function useRowArrowKeys(): (event: React.KeyboardEvent<HTMLDivElement>) => void
 /** The chip the Run detail header morphs from. */
 function RunIdChip({ runId }: { readonly runId: string }) {
   return (
-    <motion.span
-      layoutId={layoutIds.runRow(runId)}
-      className="num font-medium text-ink"
-    >
+    <motion.span layoutId={layoutIds.runRow(runId)} className="num font-medium text-ink">
       {runId}
     </motion.span>
   )
@@ -172,7 +169,12 @@ function CompactRun({ run }: { readonly run: RunSummary }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <RunBlameStripe run={run} />
         <RunBlame run={run} />
-        <RunNumber value={run.cost_usd} decimals={2} prefix="$" className="text-small text-ink-muted" />
+        <RunNumber
+          value={run.cost_usd}
+          decimals={2}
+          prefix="$"
+          className="text-small text-ink-muted"
+        />
       </div>
     </>
   )
@@ -188,7 +190,10 @@ interface RunsTableProps {
 export function RunsTable({ rows, search, onSortChange, onOpen }: RunsTableProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wide = useMediaQuery(WIDE_QUERY)
-  const height = useTableHeight(containerRef, wide ? BOTTOM_GUTTER_PX.wide : BOTTOM_GUTTER_PX.narrow)
+  const height = useTableHeight(
+    containerRef,
+    wide ? BOTTOM_GUTTER_PX.wide : BOTTOM_GUTTER_PX.narrow,
+  )
   const onKeyDown = useRowArrowKeys()
   const tableColumns = useRef(columns()).current
   const sort: SortState = { columnId: search.sort, direction: search.dir }

@@ -108,12 +108,18 @@ interface Builder {
   readonly recordMs: number
 }
 
-function stepsFrom(builder: Builder, stateOf: (step: number) => TapeStepState): readonly TapeStepState[] {
+function stepsFrom(
+  builder: Builder,
+  stateOf: (step: number) => TapeStepState,
+): readonly TapeStepState[] {
   return builder.steps.map(stateOf)
 }
 
 /** After the rewind: 1..k-1 come from tape, k is the intervention, the rest depend on `tail`. */
-function replayedSteps(builder: Builder, tail: (step: number) => TapeStepState): readonly TapeStepState[] {
+function replayedSteps(
+  builder: Builder,
+  tail: (step: number) => TapeStepState,
+): readonly TapeStepState[] {
   const { targetStep } = builder.spec
   return stepsFrom(builder, (step) => {
     if (step < targetStep) return 'tape'

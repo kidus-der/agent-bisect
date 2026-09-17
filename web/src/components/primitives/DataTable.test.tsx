@@ -19,7 +19,13 @@ const ROWS: readonly Run[] = [
 
 const COLUMNS: ReadonlyArray<DataTableColumn<Run>> = [
   { id: 'id', header: 'Run', cell: (row) => row.id, sortValue: (row) => row.id },
-  { id: 'steps', header: 'Steps', cell: (row) => row.steps, numeric: true, sortValue: (row) => row.steps },
+  {
+    id: 'steps',
+    header: 'Steps',
+    cell: (row) => row.steps,
+    numeric: true,
+    sortValue: (row) => row.steps,
+  },
 ]
 
 const WIDE = '(min-width: 768px)'

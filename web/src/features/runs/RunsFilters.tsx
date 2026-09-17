@@ -54,7 +54,7 @@ function ChipGroup<T extends string>({ label, options, value, onChange }: ChipGr
   if (options.length === 0) return null
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
-      <span className="label-instrument mr-1">{label}_</span>
+      <span className="mr-1 label-instrument">{label}_</span>
       {options.map((option) => {
         const active = option.value === value
         return (

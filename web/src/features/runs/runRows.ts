@@ -25,19 +25,14 @@ export interface NarrowedRuns {
 function matchesText(run: RunSummary, query: string): boolean {
   if (query === '') return true
   const needle = query.toLowerCase()
-  return (
-    run.run_id.toLowerCase().includes(needle) || run.task_id.toLowerCase().includes(needle)
-  )
+  return run.run_id.toLowerCase().includes(needle) || run.task_id.toLowerCase().includes(needle)
 }
 
 function matchesFault(run: RunSummary, search: RunsSearch): boolean {
   return search.fault === null || run.fault_type === search.fault
 }
 
-export function narrowRuns(
-  pages: readonly RunsPageResult[],
-  search: RunsSearch,
-): NarrowedRuns {
+export function narrowRuns(pages: readonly RunsPageResult[], search: RunsSearch): NarrowedRuns {
   const payloads = pages.map((page) => availableOrNull(page.data))
   const notAvailable = pages.length > 0 && payloads.every((payload) => payload === null)
   const all = payloads.flatMap((payload) => payload?.runs ?? [])

@@ -328,7 +328,11 @@ export function DataTable<Row>({
       role={virtualized ? 'group' : undefined}
       aria-label={virtualized ? `${caption} (scrollable)` : undefined}
       style={virtualized ? { maxHeight } : undefined}
-      className={cn('min-w-0', compact ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto', className)}
+      className={cn(
+        'min-w-0',
+        compact ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto',
+        className,
+      )}
     >
       {body}
     </div>

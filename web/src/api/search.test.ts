@@ -27,10 +27,7 @@ const RESULTS: SearchResults = {
 
 describe('runHits', () => {
   test('keeps runs and drops the static page hits', () => {
-    expect(runHits(RESULTS).map((hit) => hit.id)).toEqual([
-      'brief-12-step',
-      'run-edge-recording-1',
-    ])
+    expect(runHits(RESULTS).map((hit) => hit.id)).toEqual(['brief-12-step', 'run-edge-recording-1'])
   })
 
   test('keeps a recording run, with its status, rather than hiding it', () => {

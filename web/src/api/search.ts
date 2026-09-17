@@ -17,9 +17,7 @@ export const searchKeys = {
   query: (query: string) => ['search', query] as const,
 }
 
-export function useSearchQuery(
-  query: string,
-): UseQueryResult<ApiResult<SearchResults>, ApiError> {
+export function useSearchQuery(query: string): UseQueryResult<ApiResult<SearchResults>, ApiError> {
   const trimmed = query.trim()
   return useQuery<ApiResult<SearchResults>, ApiError>({
     queryKey: searchKeys.query(trimmed),

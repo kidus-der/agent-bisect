@@ -76,7 +76,9 @@ describe('RewindLoop (full motion)', () => {
 
 describe('RewindLoop driven by a real run', () => {
   test('plays the run it was given and names it in the text alternative', () => {
-    render(<RewindLoop spec={REAL_RUN} label="rewind · brief-12-step" runLabel="Run brief-12-step" />)
+    render(
+      <RewindLoop spec={REAL_RUN} label="rewind · brief-12-step" runLabel="Run brief-12-step" />,
+    )
     expect(screen.getByText(/Run brief-12-step: a 5-step run/)).toHaveClass('sr-only')
     expect(screen.getByText(/re-run live 16 times/)).toBeInTheDocument()
   })

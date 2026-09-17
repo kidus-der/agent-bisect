@@ -95,17 +95,12 @@ function RunHitItem({ hit, onRun }: { readonly hit: SearchHit; readonly onRun: (
       onSelect={onRun}
       className="flex h-10 cursor-pointer items-center gap-2.5 rounded-control px-2 text-[14px] text-ink-muted data-[selected=true]:bg-surface data-[selected=true]:text-ink"
     >
-      <Icon
-        aria-hidden="true"
-        className={cn('size-4 shrink-0', recording && 'text-measure')}
-      />
-      <span className="num truncate">{hit.title}</span>
+      <Icon aria-hidden="true" className={cn('size-4 shrink-0', recording && 'text-measure')} />
+      <span className="truncate num">{hit.title}</span>
       {hit.subtitle ? (
         <span className="truncate text-[12px] text-ink-muted">{hit.subtitle}</span>
       ) : null}
-      {recording ? (
-        <span className="ml-auto shrink-0 label-instrument">recording</span>
-      ) : null}
+      {recording ? <span className="ml-auto shrink-0 label-instrument">recording</span> : null}
     </Command.Item>
   )
 }

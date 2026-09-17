@@ -122,7 +122,5 @@ interface NumericProps {
 
 export function RunNumber({ value, decimals = 0, prefix, className }: NumericProps) {
   if (value === null) return <NotMeasured />
-  return (
-    <span className={cn('num', className)}>{formatNumber(value, { decimals, prefix })}</span>
-  )
+  return <span className={cn('num', className)}>{formatNumber(value, { decimals, prefix })}</span>
 }

@@ -66,7 +66,12 @@ describe('RunsFilters', () => {
   })
 
   test('clears every filter but keeps the chosen sort', async () => {
-    const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, q: 'a', fault: 'tool_error', sort: 'calls' }
+    const search: RunsSearch = {
+      ...DEFAULT_RUNS_SEARCH,
+      q: 'a',
+      fault: 'tool_error',
+      sort: 'calls',
+    }
     const { onChange, user } = setup(search)
     await user.click(screen.getByRole('button', { name: /clear filters/i }))
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_RUNS_SEARCH, sort: 'calls', dir: 'asc' })

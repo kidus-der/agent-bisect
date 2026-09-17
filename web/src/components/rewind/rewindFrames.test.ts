@@ -88,9 +88,9 @@ describe('rewind frames for a real run', () => {
   test('follows the run it was given rather than the illustration', () => {
     real.forEach((frame) => expect(frame.steps).toHaveLength(SPEC.stepCount))
     expect(real.filter((frame) => frame.phase === 'rewind')).toHaveLength(SPEC.targetStep - 1)
-    expect(real.filter((frame) => frame.phase === 'replay').map((frame) => frame.playhead)).toEqual([
-      4, 5,
-    ])
+    expect(real.filter((frame) => frame.phase === 'replay').map((frame) => frame.playhead)).toEqual(
+      [4, 5],
+    )
   })
 
   test('names the replaced field and both values, and the re-run count', () => {
