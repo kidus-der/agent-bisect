@@ -198,6 +198,31 @@ describe('StepTimeline playhead', () => {
     expect(onPlayheadChange).toHaveBeenCalledExactlyOnceWith(1)
   })
 
+  it('labels the undo control Reset, not Recording', () => {
+    // Arrange / Act: "Recording" reads as a run status, not as an action.
+    render(
+      <StepTimeline
+        steps={STEPS}
+        states={['tape', 'tape', 'blamed', 'pending']}
+        cells={CELLS}
+        blamedStep={3}
+        playhead={3}
+        onPlayheadChange={() => undefined}
+        rewind={{ step: 3, phase: 'settled', replayedThrough: 4, passed: true, bandedThrough: 2 }}
+        onRewind={() => undefined}
+        onResetRewind={() => undefined}
+        canRewind
+        rerunCount={8}
+        intervention={null}
+      />,
+    )
+
+    // Assert
+    const reset = screen.getByRole('button', { name: 'Reset' })
+    expect(reset).toHaveAttribute('title', 'Back to the recorded tape')
+    expect(screen.queryByRole('button', { name: 'Recording' })).not.toBeInTheDocument()
+  })
+
   it('offers a rewind control that names the step it would rewind to', async () => {
     const onRewind = vi.fn()
     render(
