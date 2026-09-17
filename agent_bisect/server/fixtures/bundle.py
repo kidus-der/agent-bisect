@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from agent_bisect.bench.evaluate import RECALL_PROVENANCE
 from agent_bisect.server.fixtures.benchmark_builder import build_benchmark, build_paired_gap_ci
 from agent_bisect.server.fixtures.catalog import BRIEF_RUN_ID
 from agent_bisect.server.fixtures.dataset import build_all_plans, build_dataset_entries
-from agent_bisect.server.fixtures.judge import build_judge_panel
+from agent_bisect.server.fixtures.judge import SHORTLIST_M, build_judge_panel
 from agent_bisect.server.fixtures.pr_checks import build_pr_checks
 from agent_bisect.server.fixtures.run_builder import RunPlan
 from agent_bisect.server.fixtures.serialize import to_run_summary
@@ -24,6 +25,7 @@ from agent_bisect.server.schemas_overview import (
     Kpis,
     OverviewPayload,
     RecallPoint,
+    RecallProvenance,
 )
 from agent_bisect.server.schemas_pr import PrCheckDetail
 from agent_bisect.server.schemas_runs import JudgePanel, RunSummary
@@ -95,12 +97,24 @@ def _build_overview(
             runs_recorded=len(plans),
             failures_diagnosed=len(labelled),
             calls_spent=total_calls,
-            cost_per_diagnosis_usd=round(total_cost / len(failing), 4) if failing else 0.0,
+            cost_per_diagnosis_usd=round(total_cost / len(failing), 4) if failing else None,
+            cost_per_diagnosis_calls=round(total_calls / len(failing), 2) if failing else None,
         ),
         recall_at_m=_recall_at_m(plans, judge_by_run),
+        # Fixture mode's own shortlist size and provenance text, mirroring
+        # `bench.evaluate.build_report`'s real one (`RECALL_PROVENANCE`
+        # shared, not a second hand-typed copy).
+        recall_provenance=RecallProvenance(
+            measured_to_m=SHORTLIST_M,
+            beyond_is_judge_ranking_only=True,
+            note=RECALL_PROVENANCE,
+        ),
         cost_vs_accuracy=tuple(
             CostAccuracyPoint(
-                method=m.method, mean_cost_usd=m.mean_cost_usd, accuracy=m.accuracy.value
+                method=m.method,
+                mean_cost_usd=m.mean_cost_usd,
+                mean_calls=m.mean_calls,
+                accuracy=m.accuracy.value,
             )
             for m in benchmark.methods
         ),

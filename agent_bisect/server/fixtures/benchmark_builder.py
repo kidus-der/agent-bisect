@@ -24,6 +24,7 @@ from agent_bisect.attribution.fakes import FakeRunSpec, ScriptedSampler
 from agent_bisect.server.fixtures.run_builder import CALLS_PER_RERUN, COST_PER_CALL_USD, RunPlan
 from agent_bisect.server.fixtures.synth import seeded_rng
 from agent_bisect.server.schemas_benchmark import (
+    COST_BUCKET_WIDTH_CALLS,
     AblationArm,
     BenchmarkSummary,
     CiValue,
@@ -47,7 +48,6 @@ _METHODS: tuple[Method, ...] = (
 )
 _JUDGE_METHODS = ("judge_all_at_once", "judge_step_by_step")
 _DRIFT = 0.08
-_COST_BUCKET_WIDTH = 400
 
 
 def _labelled(plans: tuple[RunPlan, ...]) -> tuple[RunPlan, ...]:
@@ -302,12 +302,12 @@ def build_cost_histogram(plans: tuple[RunPlan, ...]) -> tuple[CostBucket, ...]:
     buckets: dict[int, int] = defaultdict(int)
     for plan in labelled:
         _, calls = _cost_for(plan, "bisect")
-        bucket = calls // _COST_BUCKET_WIDTH
+        bucket = calls // COST_BUCKET_WIDTH_CALLS
         buckets[bucket] += 1
     return tuple(
         CostBucket(
-            calls_low=int(bucket * _COST_BUCKET_WIDTH),
-            calls_high=int((bucket + 1) * _COST_BUCKET_WIDTH),
+            calls_low=int(bucket * COST_BUCKET_WIDTH_CALLS),
+            calls_high=int((bucket + 1) * COST_BUCKET_WIDTH_CALLS),
             count=count,
         )
         for bucket, count in sorted(buckets.items())
