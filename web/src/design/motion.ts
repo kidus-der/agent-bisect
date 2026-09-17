@@ -123,6 +123,8 @@ export function useNumberTicker<T extends HTMLElement>(
 
 /** Shared-layout ids so list rows can morph into their detail-page equivalents. */
 export const layoutIds = {
+  /** The whole Runs row -> Run detail header morph target. */
+  runRow: (runId: string): string => `run-row-${runId}`,
   runIdChip: (runId: string): string => `run-${runId}-id`,
   runBlameStripe: (runId: string): string => `run-${runId}-blame-stripe`,
   runStatus: (runId: string): string => `run-${runId}-status`,
