@@ -1,9 +1,10 @@
 import { Link } from '@tanstack/react-router'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion, useInView, useReducedMotion } from 'motion/react'
+import { useRef } from 'react'
 
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
-import { STAGGER_SECONDS, springTransition } from '@/design/motion'
+import { forestDotMotion, forestRowDelay, forestWhiskerMotion } from '@/design/forestEntrance'
 import { formatPoints } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 
@@ -30,27 +31,27 @@ interface DeltaRowProps {
   readonly entry: CheckDelta
   readonly bound: number
   readonly index: number
+  readonly total: number
+  /** Held until the panel is actually looked at, so the entrance is not missed. */
+  readonly entered: boolean
 }
 
 /**
  * One check's change with its interval, on the axis every other check shares.
  * A forest plot, in the product's own idiom: point, whiskers, zero rule.
  */
-function DeltaRow({ entry, bound, index }: DeltaRowProps) {
+function DeltaRow({ entry, bound, index, total, entered }: DeltaRowProps) {
   const reduced = useReducedMotion() ?? false
   const colour = !entry.decisive ? 'bg-tape' : entry.delta < 0 ? 'bg-fail' : 'bg-pass'
   const low = entry.interval?.low ?? entry.delta
   const high = entry.interval?.high ?? entry.delta
+  // The flagged checks arrive after the clean ones: "found", not "one of many".
+  const delay = forestRowDelay({ index, total, deferred: entry.isRegression, reduced })
+  const whisker = forestWhiskerMotion(delay, reduced)
+  const dot = forestDotMotion(delay, reduced)
+  const estimateLeft = axisPercent(entry.delta, bound)
   return (
-    <motion.li
-      initial={reduced ? undefined : { opacity: 0, x: -4 }}
-      animate={reduced ? undefined : { opacity: 1, x: 0 }}
-      transition={{
-        ...springTransition('settle', reduced),
-        delay: reduced ? 0 : index * STAGGER_SECONDS.forest,
-      }}
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[4rem_minmax(0,1fr)_5.5rem]"
-    >
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_5rem]">
       <Link
         to="/pr-checks/$checkId"
         params={{ checkId: entry.checkId }}
@@ -63,27 +64,40 @@ function DeltaRow({ entry, bound, index }: DeltaRowProps) {
         className="relative order-last col-span-2 sm:order-none sm:col-span-1"
         style={{ height: ROW_HEIGHT }}
       >
-        <span className="absolute inset-y-1 left-1/2 w-px bg-line-strong" />
-        <span
-          className={cn('absolute top-1/2 h-px -translate-y-1/2', colour)}
-          style={{
-            left: axisPercent(Math.min(low, high), bound),
-            right: `calc(100% - ${axisPercent(Math.max(low, high), bound)})`,
-          }}
-        />
-        {[low, high].map((bound_) => (
+        <span className="absolute inset-y-0 left-1/2 w-px bg-line-strong" />
+        {/* The interval draws outward from the estimate (§7.3). */}
+        <motion.span
+          className="absolute inset-0"
+          style={{ transformOrigin: `${estimateLeft} 50%` }}
+          initial={whisker.initial}
+          animate={entered || reduced ? whisker.animate : whisker.initial || undefined}
+          transition={whisker.transition}
+        >
           <span
-            key={bound_}
-            className={cn('absolute top-1/2 -ml-px w-px -translate-y-1/2', colour)}
-            style={{ left: axisPercent(bound_, bound), height: CAP_HALF * 2 }}
+            className={cn('absolute top-1/2 h-px -translate-y-1/2', colour)}
+            style={{
+              left: axisPercent(Math.min(low, high), bound),
+              right: `calc(100% - ${axisPercent(Math.max(low, high), bound)})`,
+            }}
           />
-        ))}
-        <span
+          {[low, high].map((edge) => (
+            <span
+              key={edge}
+              className={cn('absolute top-1/2 -ml-px w-px -translate-y-1/2', colour)}
+              style={{ left: axisPercent(edge, bound), height: CAP_HALF * 2 }}
+            />
+          ))}
+        </motion.span>
+        {/* Then the estimate pops in, outlined so it reads against its own interval. */}
+        <motion.span
           className={cn(
-            'absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-[1px]',
+            'absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-[1px] ring-1 ring-ground',
             colour,
           )}
-          style={{ left: axisPercent(entry.delta, bound) }}
+          style={{ left: estimateLeft }}
+          initial={dot.initial}
+          animate={entered || reduced ? dot.animate : dot.initial || undefined}
+          transition={dot.transition}
         />
       </span>
       <span
@@ -91,7 +105,7 @@ function DeltaRow({ entry, bound, index }: DeltaRowProps) {
       >
         {formatPoints(entry.delta, 0)}
       </span>
-    </motion.li>
+    </li>
   )
 }
 
@@ -126,6 +140,8 @@ interface GateSummaryPanelProps {
  * Every number here is derived; nothing is fetched or assumed.
  */
 export function GateSummaryPanel({ checks }: GateSummaryPanelProps) {
+  const plotRef = useRef<HTMLDivElement>(null)
+  const entered = useInView(plotRef, { once: true, amount: 0.4 })
   const summary: GateSummary = buildGateSummary(checks)
   const bound = deltaAxisBound(summary)
   if (summary.deltas.length === 0) return null
@@ -160,15 +176,36 @@ export function GateSummaryPanel({ checks }: GateSummaryPanelProps) {
         </p>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex items-center justify-between text-[12px] text-ink-muted">
-          <span className="num">{formatPoints(-bound, 0)}</span>
-          <span className="label-instrument">change per check · 95% CI</span>
-          <span className="num">{formatPoints(bound, 0)}</span>
+      <div ref={plotRef} className="flex min-w-0 flex-col gap-2">
+        <span className="label-instrument">change per check · 95% CI</span>
+        {/* The axis, with zero labelled: a forest plot is read against zero. */}
+        <div
+          aria-hidden="true"
+          className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_5rem]"
+        >
+          <span className="hidden sm:block" />
+          <span className="relative col-span-2 h-4 sm:col-span-1">
+            <span className="absolute left-0 num text-[12px] text-ink-muted">
+              {formatPoints(-bound, 0)}
+            </span>
+            <span className="absolute left-1/2 -translate-x-1/2 num text-[12px] text-ink-muted">
+              0
+            </span>
+            <span className="absolute right-0 num text-[12px] text-ink-muted">
+              {formatPoints(bound, 0)}
+            </span>
+          </span>
         </div>
         <ul className="m-0 flex list-none flex-col gap-1 p-0">
           {summary.deltas.map((entry, index) => (
-            <DeltaRow key={entry.checkId} entry={entry} bound={bound} index={index} />
+            <DeltaRow
+              key={entry.checkId}
+              entry={entry}
+              bound={bound}
+              index={index}
+              total={summary.deltas.length}
+              entered={entered}
+            />
           ))}
         </ul>
       </div>
