@@ -68,7 +68,13 @@ const TapeCell = memo(function TapeCell({ step, actor, state, x, width, reduced 
           size="fluid"
           // Signature moment (direction.md §7.1): the blamed cell is the one
           // glowing element on this view - a 2px amber->coral ring, not a hairline.
-          className={cn(state === 'blamed' && 'p-0.5 shadow-[0_0_30px_-6px_var(--bx-blame)]')}
+          // The one glowing element on this view: a 2px gradient ring, an amber
+          // halo and the fill-token glow. The 1.08 scale alone was absorbed by
+          // the border, so the emphasis is carried by the ring, not by size.
+          className={cn(
+            state === 'blamed' &&
+              'p-0.5 shadow-[0_0_36px_-4px_var(--bx-blame-fill)] ring-2 ring-blame/45 ring-offset-2 ring-offset-ground',
+          )}
         />
       </motion.div>
     </div>
