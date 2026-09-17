@@ -28,7 +28,7 @@ HTTP 422. Both still carry the envelope shape.
 | GET | `/api/meta` | global | build/data-source info |
 | GET | `/api/search?q=` | global | runs + static pages, ⌘K palette |
 | GET | `/api/overview` | 1 Overview | headline, KPIs, recall@m, cost-vs-accuracy, hero run |
-| GET | `/api/runs` | 2 Runs | `domain`, `outcome`, `status` (`recording`\|`complete`), `model`, `sort` (`-`-prefixed = desc), `page`, `limit` (≤200) |
+| GET | `/api/runs` | 2 Runs | `domain`, `outcome`, `status` (`recording`\|`complete`), `model`, `fault_type` (4 types\|`none`), `q` (≤100 chars), `sort` (`-`-prefixed = desc), `page`, `limit` (≤200) |
 | GET | `/api/runs/{run_id}` | 3 Run detail | manifest, outcome, steps, estimate, judge panel |
 | GET | `/api/runs/{run_id}/steps/{step_idx}` | 3 | step inspector payload |
 | GET | `/api/runs/{run_id}/steps/{step_idx}/intervention-diff` | 3 | `null` data if the step was never intervened on |
@@ -46,7 +46,11 @@ HTTP 422. Both still carry the envelope shape.
 `limit` ≤ 200. `sort` is checked against `run_sorting.SORTABLE_RUN_FIELDS`
 (`run_id`, `n_steps`, `cost_usd`, `calls`, `outcome`, `domain`; `-` prefix =
 descending) — one allow-list shared by both repositories; an unrecognized
-value falls back to `run_id` rather than erroring.
+value falls back to `run_id` rather than erroring. `q`/`fault_type` are
+applied server-side by `run_filtering.filter_runs` (also shared by both
+repositories) — `q` is a case-insensitive substring over run_id/task_id/
+model/tool names, `fault_type` is exact match with `"none"` meaning
+unplanted; `meta.total` always reflects the filtered count.
 
 **Nullable, honestly:** `RunSummary.cost_usd`/`calls`, `SparkPoint.latency_ms`/
 `tokens`, and `RunDetail.reward` are `T | null` — fixture mode always has a
@@ -56,10 +60,9 @@ step that never recorded telemetry, or a run with no outcome row yet.
 
 **Run status:** `RunSummary`/`RunDetail` carry `status: "recording" |
 "complete"`. No outcome row → `"recording"`, `outcome`/`reward` null (never
-a fabricated `"fail"`/`0.0`); still listed and searchable
-(`SearchHit.status`); `outcome=pass|fail` excludes it for free (`null`
-never matches), `status=recording` selects only it; excluded from the
-Overview's failure accounting.
+`"fail"`/`0.0`); still listed and searchable (`SearchHit.status`);
+`outcome=pass|fail` excludes it for free (`null` never matches);
+`status=recording` selects only it; excluded from Overview failures.
 
 ## Example responses
 
@@ -188,14 +191,11 @@ shape, but `"status": "recording", "outcome": null` — never `"fail"`.)
 
 ## Security
 
-Binds `127.0.0.1` by default (`agent_bisect/server/runserver.py`); a
-non-loopback `--host` is refused unless explicitly passed, and prints a
-warning when it is. CORS allows only `http://127.0.0.1:5173` /
-`http://localhost:5173` (the Vite dev origin), GET only, no wildcard.
-Every response carries `X-Content-Type-Options: nosniff` and a CSP
-(`default-src 'self'; frame-ancestors 'none'`). All SQLite access in
-`real_repository.py` opens `mode=ro`; nothing in `server/` ever writes.
-Every route except `/api/live/stream` is a plain `def` (FastAPI's
-threadpool); that one's async generator offloads its blocking call
-(`repository.live_snapshot()`) via `asyncio.to_thread` and closes promptly
-(no lingering task) on client disconnect.
+Binds `127.0.0.1` by default (`runserver.py`); non-loopback `--host` needs
+an explicit flag and prints a warning. CORS: only the Vite dev origins,
+GET only, no wildcard. Every response carries `X-Content-Type-Options:
+nosniff` and a CSP (`default-src 'self'; frame-ancestors 'none'`). SQLite
+in `real_repository.py` opens `mode=ro`; nothing in `server/` ever writes.
+Every route but `/api/live/stream` is a plain `def` (FastAPI's
+threadpool); that one offloads its blocking call via `asyncio.to_thread`
+and closes promptly on client disconnect.
