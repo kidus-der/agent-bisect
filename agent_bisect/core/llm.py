@@ -39,6 +39,8 @@ import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,6 +53,11 @@ DEFAULT_MAX_ELAPSED_S = 300.0
 DEFAULT_BASE_DELAY_S = 1.0
 DEFAULT_MAX_DELAY_S = 30.0
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+#: Credentials rejected. Never retried: the key will not become valid by
+#: waiting, and retrying just burns the elapsed budget on every call.
+AUTH_STATUS_CODES = frozenset({401, 403})
+#: A Retry-After far in the future would otherwise stall a whole run.
+MAX_RETRY_AFTER_S = 120.0
 
 
 class LLMRequest(BaseModel):
@@ -99,6 +106,74 @@ class TransportError(Exception):
         self.retry_after = retry_after
 
 
+AUTH_GUIDANCE = (
+    "credentials rejected by the provider (HTTP {status}). NVIDIA_API_KEY is "
+    "missing, revoked or has been rotated. Fix the key and re-run: finished "
+    "work is checkpointed and will be skipped, so the run resumes where it "
+    "stopped."
+)
+
+
+class AuthenticationError(TransportError):
+    """The provider rejected the credential (401/403).
+
+    A subclass of `TransportError` so existing handlers still catch it,
+    but it is never retried and it carries the operator instructions: a
+    long job should stop on the first one rather than spend its whole
+    retry budget re-sending a key that will not start working.
+    """
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    """RFC 9110 `Retry-After`: delay-seconds **or** an HTTP-date.
+
+    Returns seconds to wait, clamped to `MAX_RETRY_AFTER_S` so one bad
+    header cannot stall a run, and floored at 0 for a date already past.
+    `None` when the value is absent or unparseable, so the caller falls
+    back to its own backoff.
+    """
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return min(max(0.0, float(text)), MAX_RETRY_AFTER_S)
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(text)
+    except (TypeError, ValueError):
+        return None
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+    delay = (when - datetime.now(UTC)).total_seconds()
+    return min(max(0.0, delay), MAX_RETRY_AFTER_S)
+
+
+def terminal_error(exc: TransportError) -> TransportError:
+    """The exception to raise when giving up, upgrading 401/403 on the way.
+
+    A `TransportError` can reach the client from anywhere (a custom
+    transport, a fake, a layer that built one by hand), so the auth
+    upgrade is applied where the decision to stop is made rather than only
+    where the provider exception is first normalised.
+    """
+    if isinstance(exc, AuthenticationError) or exc.status_code not in AUTH_STATUS_CODES:
+        return exc
+    error = AuthenticationError(
+        f"{AUTH_GUIDANCE.format(status=exc.status_code)} [{exc}]",
+        status_code=exc.status_code,
+        retry_after=exc.retry_after,
+    )
+    error.__cause__ = None
+    error.__context__ = None
+    error.__suppress_context__ = True
+    return error
+
+
 def transport_error_from(
     exc: BaseException,
     *,
@@ -116,9 +191,16 @@ def transport_error_from(
     redacted message are folded into the new message so the error stays
     diagnosable. Raise the result with `from None`.
     """
-    error = TransportError(
-        redact(f"{type(exc).__name__}: {exc}"),
-        status_code=status_code if status_code is not None else getattr(exc, "status_code", None),
+    resolved_status = (
+        status_code if status_code is not None else getattr(exc, "status_code", None)
+    )
+    cls = AuthenticationError if resolved_status in AUTH_STATUS_CODES else TransportError
+    message = redact(f"{type(exc).__name__}: {exc}")
+    if cls is AuthenticationError:
+        message = f"{AUTH_GUIDANCE.format(status=resolved_status)} [{message}]"
+    error = cls(
+        message,
+        status_code=resolved_status,
         retry_after=retry_after if retry_after is not None else _extract_retry_after(exc),
     )
     error.__cause__ = None
@@ -191,13 +273,7 @@ def _extract_retry_after(exc: BaseException) -> float | None:
     headers = getattr(headers, "headers", None) if headers is not None else None
     if not headers:
         return None
-    value = headers.get("Retry-After") or headers.get("retry-after")
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
+    return parse_retry_after(headers.get("Retry-After") or headers.get("retry-after"))
 
 
 def compute_backoff_s(
@@ -358,7 +434,7 @@ class LLMClient:
                 failure, call_id, call_start, start, attempt
             )
             if delay is None:
-                raise failure
+                raise terminal_error(failure)
             attempt += 1
             await self._sleep(delay)
 

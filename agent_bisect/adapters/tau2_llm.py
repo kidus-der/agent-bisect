@@ -50,6 +50,7 @@ from agent_bisect.core.llm import (
     RETRYABLE_STATUS_CODES,
     TransportError,
     compute_backoff_s,
+    terminal_error,
     transport_error_from,
 )
 
@@ -183,7 +184,7 @@ class Tau2Router:
                 # Raised OUTSIDE the except block: `raise` inside one re-links
                 # __context__ to the provider exception, whose text is
                 # unredacted. See core.llm.transport_error_from.
-                raise failure
+                raise terminal_error(failure)
             attempt += 1
             self._sleep(delay)
 
