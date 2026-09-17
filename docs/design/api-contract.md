@@ -60,6 +60,18 @@ unknown. `calls` is real in real mode (the ledger's `run_id` column, P1b);
 yet); so does a step's telemetry the run never recorded, or a run with no
 outcome row yet.
 
+**Real mode's blame results.** `RunDetail.estimate`/`.judge`,
+`RunSummary.decisive_step`/`.blame_stripe`, and `GET
+/api/runs/{run_id}/reruns` read `runs/blame/<run_id>.json` (P5's primary
+`"bisect"` result, `agent_bisect.attribution.blame_store`, read-only) when
+it exists; a run never diagnosed still reads as `null`/`DataNotAvailable`,
+exactly as before. `estimate` is `null` even once a result exists, when the
+judge never answered and no re-run was bought — a real outcome ("no step
+blamed"), never a fabricated zero; `reruns` is then an empty list rather
+than unavailable, since the diagnosis did run. `rerun_steps` stays
+`DataNotAvailable` regardless — the store keeps each re-run's outcome, not
+its step-by-step trace.
+
 **Run status:** `RunSummary`/`RunDetail` carry `status: "recording" |
 "complete"`. No outcome row → `"recording"`, `outcome`/`reward` null (never
 `"fail"`/`0.0`); still listed and searchable (`SearchHit.status`);
