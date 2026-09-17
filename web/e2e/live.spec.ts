@@ -41,8 +41,11 @@ test('hovering one trace reads both of them at the same instant', async ({ page 
   await mockP6eApi(page)
   await openLive(page)
 
+  // At rest the cursor is parked at the newest sample on both traces, so it is
+  // visible before anyone thinks to hover.
   const cursor = page.locator('[data-slot="trace-cursor"]')
-  await expect(cursor).toHaveCount(0)
+  await expect(cursor).toHaveCount(2)
+  await expect(page.locator('[data-slot="trace-cursor"][data-resting="true"]')).toHaveCount(2)
 
   // Arrange — the middle of the first trace, which is the only trace hovered.
   const firstTrace = page.locator('svg[role="presentation"]').first()
@@ -52,11 +55,29 @@ test('hovering one trace reads both of them at the same instant', async ({ page 
   // Act
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
 
-  // Assert — the cursor lands on both traces, not just the hovered one.
-  await expect(cursor).toHaveCount(2)
+  // Assert — the hover drives the cursor on both traces, not just the hovered one.
+  await expect(page.locator('[data-slot="trace-cursor"][data-resting="false"]')).toHaveCount(2)
 
   await page.mouse.move(box.x + box.width / 2, box.y - 40)
-  await expect(cursor).toHaveCount(0)
+  await expect(page.locator('[data-slot="trace-cursor"][data-resting="true"]')).toHaveCount(2)
+})
+
+test('the traces are one focus stop and the arrow keys drive the cursor', async ({ page }) => {
+  await mockP6eApi(page)
+  await openLive(page)
+
+  // Arrange
+  const group = page.getByRole('group', { name: /Left and right arrows/ })
+  await group.focus()
+  await expect(group).toBeFocused()
+
+  // Act
+  await page.keyboard.press('ArrowLeft')
+
+  // Assert — the keyboard drives the same shared cursor a pointer does.
+  await expect(page.locator('[data-slot="trace-cursor"][data-resting="false"]')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-slot="trace-cursor"][data-resting="true"]')).toHaveCount(2)
 })
 
 test('the event feed is a keyboard-reachable, politely announced log', async ({ page }) => {
