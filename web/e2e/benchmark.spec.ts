@@ -132,6 +132,11 @@ for (const theme of ['dark', 'light'] as const) {
     // otherwise sample text mid-fade and report it as low contrast.
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await openBenchmark(page, theme)
+    // Reduced motion should make this unnecessary, but under load the page can
+    // still be painting its last panel when axe starts, and a half-painted cell
+    // reports as low contrast. Waiting for the last row makes the run honest
+    // about what it measured rather than intermittently red.
+    await page.getByText('No control (ablation)').first().waitFor()
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze()
