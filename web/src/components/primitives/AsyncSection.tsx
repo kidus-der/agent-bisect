@@ -40,7 +40,15 @@ export function AsyncSection<T>({
   children,
 }: AsyncSectionProps<T>) {
   if (query.isPending) {
-    return <LoadingRegion subject={subject}>{skeleton}</LoadingRegion>
+    return (
+      <LoadingRegion
+        subject={subject}
+        failureCount={query.failureCount}
+        failureMessage={query.failureReason?.message}
+      >
+        {skeleton}
+      </LoadingRegion>
+    )
   }
   if (query.isError) {
     return (
