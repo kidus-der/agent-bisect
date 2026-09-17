@@ -8,7 +8,12 @@
  * has loaded and says so in the result count rather than pretending the server
  * did it.
  */
-import { type UseInfiniteQueryResult, useInfiniteQuery } from '@tanstack/react-query'
+import {
+  type UseInfiniteQueryResult,
+  type UseQueryResult,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query'
 
 import {
   type ApiError,
@@ -71,6 +76,22 @@ export function runsQueryString(filters: ServerRunFilters, page: number): string
 
 export const runsKeys = {
   list: (filters: ServerRunFilters) => ['runs', filters] as const,
+  sample: (limit: number) => ['runs', 'sample', limit] as const,
+}
+
+/**
+ * A short slice of the run list for the Overview strip. `/api/runs` has no
+ * recency sort — there is no timestamp among `SORTABLE_RUN_FIELDS` — so this is
+ * a stable sample by id, and the UI does not claim these are the latest runs.
+ */
+export function useRunSampleQuery(
+  limit: number,
+): UseQueryResult<ApiResult<RunListPage | NotAvailable>, ApiError> {
+  return useQuery<ApiResult<RunListPage | NotAvailable>, ApiError>({
+    queryKey: runsKeys.sample(limit),
+    queryFn: ({ signal }) =>
+      apiFetch<RunListPage | NotAvailable>(`/runs?limit=${limit}&sort=-n_steps`, { signal }),
+  })
 }
 
 type RunsPage = ApiResult<RunListPage | NotAvailable>
