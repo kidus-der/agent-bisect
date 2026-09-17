@@ -17,6 +17,12 @@ interface SegmentedControlProps<T extends string> {
   readonly label: string
   /** `sm` for a secondary control beside a primary one (direction.md §4). */
   readonly size?: 'sm' | 'md'
+  /**
+   * `segment` is one bordered control with a sliding indicator; `pills` is a
+   * row of separate chips. Two controls on one page should not share a
+   * treatment, or they read as one system (direction.md §4).
+   */
+  readonly variant?: 'segment' | 'pills'
   readonly className?: string
 }
 
@@ -27,13 +33,19 @@ export function SegmentedControl<T extends string>({
   onChange,
   label,
   size = 'md',
+  variant = 'segment',
   className,
 }: SegmentedControlProps<T>) {
+  const pills = variant === 'pills'
   const groupId = useId()
   const transition = useSpringTransition('snap')
   return (
     <fieldset
-      className={cn('inline-flex rounded-control border border-line bg-ground p-0.5', className)}
+      className={cn(
+        'inline-flex',
+        pills ? 'gap-1' : 'rounded-control border border-line bg-ground p-0.5',
+        className,
+      )}
     >
       <legend className="sr-only">{label}</legend>
       {options.map((option) => {
@@ -42,9 +54,11 @@ export function SegmentedControl<T extends string>({
           <label
             key={option.value}
             className={cn(
-              'relative inline-flex cursor-pointer items-center rounded-[4px] font-medium',
-              size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-3 text-small',
+              'relative inline-flex cursor-pointer items-center font-medium',
+              pills ? 'rounded-pill border' : 'rounded-[4px]',
+              size === 'sm' ? 'h-6 px-2.5 text-[12px]' : 'h-7 px-3 text-small',
               'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus',
+              pills && (checked ? 'border-ink-muted bg-elevated' : 'border-line'),
               checked ? 'text-ink' : 'text-ink-muted hover:text-ink',
             )}
           >
@@ -56,7 +70,7 @@ export function SegmentedControl<T extends string>({
               onChange={() => onChange(option.value)}
               className="sr-only"
             />
-            {checked ? (
+            {checked && !pills ? (
               <motion.span
                 layoutId={layoutIds.segmentIndicator(groupId)}
                 transition={transition}

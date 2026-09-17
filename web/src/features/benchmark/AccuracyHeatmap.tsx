@@ -219,6 +219,7 @@ export function AccuracyHeatmap({ cells }: AccuracyHeatmapProps) {
           value={view}
           onChange={setView}
           size="sm"
+          variant="pills"
         />
       </header>
 
