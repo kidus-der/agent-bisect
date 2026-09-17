@@ -5,7 +5,7 @@ import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
 import { useTheme } from '@/design/theme'
-import { springTransition } from '@/design/motion'
+import { ENTRANCE_LEAD_IN_SECONDS, delayedSpring } from '@/design/motion'
 import { formatPercent, wilsonInterval } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 
@@ -132,10 +132,12 @@ function FaultRow({
             initial={reduced ? undefined : { opacity: 0, scale: 0.94 }}
             whileInView={reduced ? undefined : { opacity: 1, scale: 1 }}
             viewport={{ once: true, amount: 0.3 }}
-            transition={{
-              ...springTransition('settle', reduced),
-              delay: reduced ? 0 : (rowIndex * methods.length + columnIndex) * CELL_ENTER_STAGGER_S,
-            }}
+            transition={delayedSpring(
+              'settle',
+              reduced,
+              ENTRANCE_LEAD_IN_SECONDS +
+                (rowIndex * methods.length + columnIndex) * CELL_ENTER_STAGGER_S,
+            )}
             data-slot="matrix-cell"
             onMouseEnter={() => onHover(cell)}
             style={{ background: ramp[step]?.fill, color: ramp[step]?.text }}

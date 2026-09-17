@@ -3,7 +3,7 @@ import { useId } from 'react'
 
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
-import { STAGGER_SECONDS, springTransition } from '@/design/motion'
+import { ENTRANCE_LEAD_IN_SECONDS, STAGGER_SECONDS, delayedSpring } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
 import { formatPercent, formatPoints } from '@/lib/stats'
 import { cn } from '@/lib/utils'
@@ -56,10 +56,14 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
   const meta = methodMeta(result.method)
   const fill = roleFill(meta)
   const { value, ci_low: low, ci_high: high } = result.accuracy
-  const enter = {
-    ...springTransition('settle', reduced),
-    delay: reduced ? 0 : index * STAGGER_SECONDS.forest,
-  }
+  // The lead-in keeps the bars from drawing underneath the page's own entrance;
+  // this panel is above the fold, so without it the two moves overlap and the
+  // bars are already full by the time the page has finished arriving.
+  const enter = delayedSpring(
+    'settle',
+    reduced,
+    ENTRANCE_LEAD_IN_SECONDS + index * STAGGER_SECONDS.forest,
+  )
 
   return (
     <motion.li

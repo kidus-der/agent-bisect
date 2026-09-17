@@ -8,7 +8,7 @@ import { useMemo, useRef, useState } from 'react'
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
-import { springTransition } from '@/design/motion'
+import { ENTRANCE_LEAD_IN_SECONDS, delayedSpring, springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -102,7 +102,7 @@ function Plot({ width, height, bins, methods, selected, entered }: PlotProps) {
                   ? { y: top, height: Math.max(0, innerHeight - top) }
                   : { y: innerHeight, height: 0 }
               }
-              transition={springTransition('settle', reduced)}
+              transition={delayedSpring('settle', reduced, ENTRANCE_LEAD_IN_SECONDS)}
             />
           )
         })}
