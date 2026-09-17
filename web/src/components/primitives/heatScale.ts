@@ -40,10 +40,7 @@ function testedEffects(steps: readonly HeatDatum[], blamedStep: number | undefin
  * distinct values there is no spread to show, so every cell takes the middle
  * bucket rather than implying a gradient that was never measured.
  */
-export function buildHeatScale(
-  steps: readonly HeatDatum[],
-  blamedStep?: number,
-): HeatScale {
+export function buildHeatScale(steps: readonly HeatDatum[], blamedStep?: number): HeatScale {
   const effects = testedEffects(steps, blamedStep)
   if (effects.length === 0) return { bucket: () => MIDDLE_BUCKET, domain: null }
 
