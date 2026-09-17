@@ -11,12 +11,15 @@ describe('StatePanel', () => {
         <ErrorState message="Cannot reach the server." />
       </StatePanel>,
     )
-    expect(container.firstElementChild).toHaveClass('mx-auto', 'w-full', 'max-w-[560px]')
+    expect(container.querySelector('[data-variant]')).toHaveClass('w-full', 'max-w-[560px]')
+    // Centred both ways in the height the page has left, not pinned under the header.
+    expect(container.firstElementChild).toHaveClass('grid', 'place-items-center')
+    expect(container.firstElementChild?.className).toMatch(/min-h-\[/)
     expect(screen.getByRole('alert')).toBeInTheDocument()
   })
 
   test('keeps the panel variant it is given', () => {
     const { container } = render(<StatePanel variant="canvas">x</StatePanel>)
-    expect(container.firstElementChild).toHaveAttribute('data-variant', 'canvas')
+    expect(container.querySelector('[data-variant]')).toHaveAttribute('data-variant', 'canvas')
   })
 })
