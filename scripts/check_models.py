@@ -24,7 +24,7 @@ from pathlib import Path
 
 import httpx
 from agent_bisect.core.budget import BudgetLedger
-from agent_bisect.core.config import get_settings
+from agent_bisect.core.config import get_settings, redact
 from agent_bisect.core.llm import LiteLLMTransport, LLMClient, LLMClientConfig, LLMRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -86,12 +86,25 @@ def role_for(model: str) -> str:
 
 
 def fetch_listed_models(base_url: str, api_key: str) -> list[str]:
-    response = httpx.get(
-        f"{base_url}/models",
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=MODELS_LIST_TIMEOUT_S,
-    )
-    response.raise_for_status()
+    """List the models this key can see. Errors are redacted before surfacing.
+
+    An httpx error renders the request it failed on, and this is the one
+    request that carries the Authorization header, so its text must go
+    through `redact()` exactly as `collect_nim_reachable` does.
+    """
+    try:
+        response = httpx.get(
+            f"{base_url}/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=MODELS_LIST_TIMEOUT_S,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        failure = RuntimeError(redact(f"{type(exc).__name__}: {exc}"))
+        failure.__cause__ = None
+        failure.__context__ = None
+        failure.__suppress_context__ = True
+        raise failure from None
     return sorted(m["id"] for m in response.json().get("data", []))
 
 
