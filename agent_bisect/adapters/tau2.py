@@ -233,8 +233,17 @@ class Tau2Recorder:
         """
         self._current_state()
 
-    def on_llm_call(self, request: dict, response: Any, meta: Any) -> Step:
-        """Record one LLM call. Raises `RecordingError` rather than losing it."""
+    def on_llm_call(
+        self, request: dict, response: Any, meta: Any, *, from_tape: bool = False
+    ) -> Step:
+        """Record one LLM call. Raises `RecordingError` rather than losing it.
+
+        `from_tape` marks a forked run's prefix step: the payload was read
+        from the parent's recording rather than sampled, so no call was
+        spent on it. The blobs are content-addressed, so re-storing the
+        parent's payload writes nothing new -- the prefix is shared, not
+        duplicated.
+        """
         actor = _PURPOSE_TO_ACTOR.get(getattr(meta, "purpose", ""), "evaluator")
         try:
             request_ref = self._store.put_json(request)
@@ -250,6 +259,7 @@ class Tau2Recorder:
             request_hash=request_hash,
             request_ref=request_ref,
             response_ref=response_ref,
+            from_tape=from_tape,
             model=getattr(meta, "model", None),
             params={"purpose": getattr(meta, "purpose", None)},
             latency_ms=int(getattr(meta, "latency_ms", 0) or 0),
@@ -258,7 +268,9 @@ class Tau2Recorder:
         self._llm_calls_by_actor[actor] = self._llm_calls_by_actor.get(actor, 0) + 1
         return self._append(step)
 
-    def on_tool_call(self, tool_call: Any, tool_message: Any) -> Step:
+    def on_tool_call(
+        self, tool_call: Any, tool_message: Any, *, from_tape: bool = False
+    ) -> Step:
         """Record one tool execution and the world either side of it."""
         try:
             result_ref = self._store.put_json(tool_message.model_dump(mode="json"))
@@ -273,6 +285,7 @@ class Tau2Recorder:
                 tool_name=tool_call.name,
                 tool_args=dict(tool_call.arguments or {}),
                 tool_result_ref=result_ref,
+                from_tape=from_tape,
             )
         )
 
@@ -295,21 +308,48 @@ class Tau2Recorder:
     @contextmanager
     def bind(self, environment: Any) -> Iterator[None]:
         """Install the tool hook and make this the calling thread's recorder."""
-        original = environment.get_response
 
-        def recording_get_response(tool_call: Any) -> Any:
+        def recording_get_response(original: Callable[[Any], Any], tool_call: Any) -> Any:
             self.begin_step()
             tool_message = original(tool_call)
             self.on_tool_call(tool_call, tool_message)
             return tool_message
 
-        token = _active.set(self)
-        environment.get_response = recording_get_response
-        try:
+        with active_recorder(self), wrap_tool_execution(environment, recording_get_response):
             yield
-        finally:
-            environment.get_response = original
-            _active.reset(token)
+
+
+@contextmanager
+def active_recorder(recorder: Tau2Recorder) -> Iterator[None]:
+    """Make `recorder` the one `recording_hook` routes this thread's calls to.
+
+    Separate from `Tau2Recorder.bind` because the replay engine needs the
+    same routing with a *different* tool hook: during a replayed prefix the
+    tools are not executed at all.
+    """
+    token = _active.set(recorder)
+    try:
+        yield
+    finally:
+        _active.reset(token)
+
+
+@contextmanager
+def wrap_tool_execution(
+    environment: Any, wrapper: Callable[[Callable[[Any], Any], Any], Any]
+) -> Iterator[None]:
+    """Route `Environment.get_response` through `wrapper(original, tool_call)`.
+
+    That method is the orchestrator's single tool-execution call site
+    (`Orchestrator._execute_tool_calls`), so wrapping it on the live
+    instance intercepts every tool call without touching tau2's source.
+    """
+    original = environment.get_response
+    environment.get_response = lambda tool_call: wrapper(original, tool_call)
+    try:
+        yield
+    finally:
+        environment.get_response = original
 
 
 def _token_counts(response: Any) -> dict[str, int | None]:
