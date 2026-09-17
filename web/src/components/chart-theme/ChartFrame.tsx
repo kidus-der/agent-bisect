@@ -32,7 +32,7 @@ export function ChartFrame({
   return (
     <Panel variant="chart" className={className}>
       <figure aria-labelledby={titleId} aria-describedby={descriptionId} className="m-0">
-        <header className="mb-3 flex items-start justify-between gap-3">
+        <header className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
           <div className="flex min-w-0 flex-col gap-1">
             <InstrumentLabel>{label}</InstrumentLabel>
             <h3 id={titleId} className="truncate text-h3 text-ink">
