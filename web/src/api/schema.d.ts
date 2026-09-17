@@ -875,7 +875,7 @@ export interface components {
             /** P Value */
             p_value: number;
             /** Pr Number */
-            pr_number: number;
+            pr_number: number | null;
             /** Scenarios */
             scenarios: components["schemas"]["ScenarioRow"][];
             /** Title */
@@ -894,7 +894,7 @@ export interface components {
             /** P Value */
             p_value: number;
             /** Pr Number */
-            pr_number: number;
+            pr_number: number | null;
             /** Title */
             title: string;
         };
@@ -1080,7 +1080,7 @@ export interface components {
         /** ScenarioRow */
         ScenarioRow: {
             /** Base Pass Rate */
-            base_pass_rate: number;
+            base_pass_rate: number | null;
             /** Head Pass Rate */
             head_pass_rate: number;
             /** N */
