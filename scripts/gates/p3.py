@@ -224,6 +224,7 @@ def _replay_faulted(run_id: str, store: BlobStore, reader: TapeReader) -> None:
     whole tape must be consumed.
     """
     from agent_bisect.adapters.tau2 import build_orchestrator
+    from agent_bisect.adapters.tau2_fault_injector import restored_fault
     from agent_bisect.adapters.tau2_replay import (  # noqa: PLC2701
         REPLAY_EVERYTHING,
         Tau2Replayer,
@@ -244,7 +245,14 @@ def _replay_faulted(run_id: str, store: BlobStore, reader: TapeReader) -> None:
         fork_step=REPLAY_EVERYTHING,
         tool_mode="snapshot",
     )
-    with _driving(replayer, orchestrator.environment, None):
+    # The item's standing fault is part of its world, so it is restored
+    # here too (`docs/decisions/0016-persistent-planted-fault.md`). A
+    # snapshot replay executes no tool, so it changes nothing today; it
+    # would matter the moment this replayed with `rerun_live`.
+    with (
+        restored_fault(orchestrator.environment, manifest.params),
+        _driving(replayer, orchestrator.environment, None),
+    ):
         _run(orchestrator)
     check_replay_complete(replayer.cursor)
 
