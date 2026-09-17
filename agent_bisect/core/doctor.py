@@ -29,6 +29,10 @@ DEFAULT_E2E_PATH = Path("runs/p0/e2e.json")
 DEFAULT_LEDGER_PATH = Path("runs/ledger.sqlite")
 #: Every role a later phase needs pinned in its run manifest.
 REQUIRED_MODEL_ROLES = ("agent", "user_sim", "judge")
+#: Where the repo keeps its hooks. git only runs them once core.hooksPath
+#: points here, which a fresh clone does NOT do by default.
+EXPECTED_HOOKS_PATH = ".githooks"
+HOOKS_FIX_COMMAND = "make setup  (or: git config core.hooksPath .githooks)"
 MIN_VALID_TOOL_CALL_RATE = 0.95
 AIRLINE_PASS_RATE_RANGE = (0.35, 0.75)
 SUBPROCESS_TIMEOUT_S = 10.0
@@ -92,6 +96,19 @@ def evaluate_airline_pass_rate(models_config: dict | None) -> CheckResult:
     low, high = AIRLINE_PASS_RATE_RANGE
     passed = low <= rate <= high
     return CheckResult("airline_pass_rate", passed, f"{rate:.3f} (window [{low}, {high}])")
+
+
+def evaluate_git_hooks(hooks_path: str | None) -> CheckResult:
+    """The secret-scanning hook does nothing until git is told where hooks live."""
+    if hooks_path == EXPECTED_HOOKS_PATH:
+        return CheckResult("git_hooks", True, f"core.hooksPath = {hooks_path}")
+    found = hooks_path or "unset"
+    return CheckResult(
+        "git_hooks",
+        False,
+        f"core.hooksPath is {found}, so .githooks/pre-commit never runs and a "
+        f"staged API key would not be caught. Fix: {HOOKS_FIX_COMMAND}",
+    )
 
 
 def evaluate_chosen_models(models_config: dict | None) -> CheckResult:
@@ -180,6 +197,10 @@ def collect_node_version() -> str | None:
     return _run(["node", "--version"])
 
 
+def collect_hooks_path() -> str | None:
+    return _run(["git", "config", "--get", "core.hooksPath"]) or None
+
+
 def collect_tau2_status() -> tuple[bool, bool, str]:
     try:
         from agent_bisect.adapters.tau2_env import ensure_tau2_data_dir
@@ -254,6 +275,7 @@ def run_doctor(
     get_uv_version: Callable[[], str | None] = collect_uv_version,
     get_node_version: Callable[[], str | None] = collect_node_version,
     get_tau2_status: Callable[[], tuple[bool, bool, str]] = collect_tau2_status,
+    get_hooks_path: Callable[[], str | None] = collect_hooks_path,
     get_nim_reachable: Callable[[], tuple[bool, str]] | None = None,
     load_models_config_fn: Callable[[], dict | None] = load_models_config,
     load_e2e_fn: Callable[[], dict | None] = load_e2e_result,
@@ -271,6 +293,7 @@ def run_doctor(
         evaluate_key(settings.has_nvidia_key),
         evaluate_uv_python(get_uv_version(), sys.version.split()[0]),
         evaluate_node(get_node_version()),
+        evaluate_git_hooks(get_hooks_path()),
         evaluate_tau2(tau2_importable, tau2_airline_loaded, tau2_detail),
         evaluate_nim_reachable(nim_reachable, nim_detail),
         evaluate_chosen_models(models_config),

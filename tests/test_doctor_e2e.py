@@ -105,6 +105,7 @@ def _collectors(**overrides):
         "get_uv_version": lambda: "uv 0.5.0",
         "get_node_version": lambda: "v22.0.0",
         "get_tau2_status": lambda: (True, True, "ok"),
+        "get_hooks_path": lambda: ".githooks",
         "get_nim_reachable": lambda: (True, "200"),
         "load_models_config_fn": lambda: {
             **MODELS, "valid_tool_call_rate": 0.99, "airline_pass_rate": 0.55
