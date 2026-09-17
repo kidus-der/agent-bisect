@@ -337,6 +337,64 @@ def test_canonicalising_a_trajectory_renames_the_generated_id(flaky_recordings):
     assert "HATHAT" in renamed.model_dump_json()
 
 
+def test_the_stock_runner_can_score_a_flaky_run_when_rewards_are_canonicalised():
+    """What lets the *stock* fork driver record a flaky run: tau2 computes
+    the reward inside `run_simulation`, so the canonicalisation has to
+    happen at that seam rather than after it."""
+    import tempfile
+    from datetime import UTC, datetime
+    from pathlib import Path as _Path
+
+    from agent_bisect.adapters.tau2 import (
+        RunSpec,
+        Tau2Recorder,
+        build_orchestrator,
+        recording_session,
+    )
+    from agent_bisect.adapters.tau2_fake_llm import ScriptedLLM
+    from agent_bisect.adapters.tau2_flaky import canonical_rewards
+    from agent_bisect.core.tape import RunManifest
+    from tau2.evaluator.evaluator import EvaluationType
+    from tau2.runner.simulation import run_simulation
+    from tests.tau2_offline import ledger_for
+
+    scripts = {AGENT_MODEL: list(FLAKY_SCENARIO.agent), USER_MODEL: list(FLAKY_SCENARIO.user)}
+    root = _Path(tempfile.mkdtemp())
+    with recording_session(
+        ledger=ledger_for(root), phase="test", completion_fn=ScriptedLLM(scripts).completion,
+        api_key=UNUSED_API_KEY, api_base=UNUSED_API_BASE, limiter_for=no_limiter,
+    ), canonical_rewards() as applied:
+        spec = RunSpec(domain="airline", task_id="0", agent_model=AGENT_MODEL,
+                       user_model=USER_MODEL, seed=42)
+        orchestrator = build_orchestrator(spec, "flaky-scored")
+        store = Store(root / "runs")
+        recorder = Tau2Recorder("flaky-scored", store.blobs, store.tape,
+                                orchestrator.environment)
+        recorder.start(RunManifest(
+            run_id="flaky-scored", domain="airline", task_id="0",
+            agent_model=AGENT_MODEL, user_model=USER_MODEL, tau2_commit="flaky-test",
+            created_at=datetime.now(UTC),
+        ))
+        with (
+            flaky_world(orchestrator.environment, FlakyConfig(seed=77)),
+            recorder.bind(orchestrator.environment),
+        ):
+            simulation = run_simulation(orchestrator, evaluation_type=EvaluationType.ALL)
+
+    assert applied() == 1
+    assert simulation.reward_info is not None
+    assert simulation.reward_info.reward in (0.0, 1.0)
+
+
+def test_canonicalising_rewards_leaves_an_ordinary_run_alone():
+    from agent_bisect.adapters.tau2_flaky import active_world, canonical_rewards
+
+    with canonical_rewards() as applied:
+        assert active_world() is None
+
+    assert applied() == 0
+
+
 def test_a_flaky_run_records_like_any_other(flaky_recordings):
     store = flaky_recordings["store"]
 

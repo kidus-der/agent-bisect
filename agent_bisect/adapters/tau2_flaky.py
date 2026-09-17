@@ -41,8 +41,9 @@ from __future__ import annotations
 
 import json
 import random
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -162,6 +163,16 @@ class FlakyWorld:
         }
 
 
+#: The world the calling thread is currently running in, so the reward can
+#: undo its renaming without every call site having to pass it along.
+_active_world: ContextVar[FlakyWorld | None] = ContextVar("bisect_flaky_world", default=None)
+
+
+def active_world() -> FlakyWorld | None:
+    """The flaky world this thread is inside, if any."""
+    return _active_world.get()
+
+
 @contextmanager
 def flaky_world(environment: Any, config: FlakyConfig) -> Iterator[FlakyWorld]:
     """Make `environment` non-deterministic for the duration.
@@ -171,10 +182,14 @@ def flaky_world(environment: Any, config: FlakyConfig) -> Iterator[FlakyWorld]:
     flaky answers.
     """
     world = FlakyWorld(config)
-    with ExitStack() as stack:
-        stack.enter_context(_patched_generators(environment, world, config))
-        stack.enter_context(wrap_tool_execution(environment, _responder(world, config)))
-        yield world
+    token = _active_world.set(world)
+    try:
+        with ExitStack() as stack:
+            stack.enter_context(_patched_generators(environment, world, config))
+            stack.enter_context(wrap_tool_execution(environment, _responder(world, config)))
+            yield world
+    finally:
+        _active_world.reset(token)
 
 
 @contextmanager
@@ -354,3 +369,39 @@ def flaky_evaluate(simulation: Any, task: Any, domain: str, world: FlakyWorld) -
         solo_mode=False,
         domain=domain,
     )
+
+
+@contextmanager
+def canonical_rewards() -> Iterator[Callable[[], int]]:
+    """Score every simulation run inside a flaky world on its canonical trajectory.
+
+    `run_simulation` computes the reward itself, so a fork of a flaky run
+    would raise inside tau2 before anything of ours could intervene
+    (`Environment.set_state` replays the write actions and mints `HATHAT`
+    where the recording holds a random id). Patching the evaluator tau2's
+    runner calls is the same technique used for `llm_utils.completion`
+    and `Environment.get_response`, and it is what lets the *stock* fork
+    driver record a flaky run.
+
+    Outside a flaky world it is a no-op: `active_world()` is `None` and
+    the untouched evaluator runs. Yields a counter of how many rewards
+    were canonicalised, so a caller can assert it actually applied.
+    """
+    import tau2.runner.simulation as simulation_module
+
+    original = simulation_module.evaluate_simulation
+    canonicalised = 0
+
+    def evaluate(*, simulation: Any, **kwargs: Any) -> Any:
+        nonlocal canonicalised
+        world = active_world()
+        if world is None:
+            return original(simulation=simulation, **kwargs)
+        canonicalised += 1
+        return original(simulation=canonical_simulation(simulation, world), **kwargs)
+
+    simulation_module.evaluate_simulation = evaluate
+    try:
+        yield lambda: canonicalised
+    finally:
+        simulation_module.evaluate_simulation = original
