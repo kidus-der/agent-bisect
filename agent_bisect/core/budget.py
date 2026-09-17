@@ -23,6 +23,7 @@ import os
 import sqlite3
 import time
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -31,6 +32,12 @@ DEFAULT_LEDGER_PATH = Path("runs/ledger.sqlite")
 BUSY_TIMEOUT_S = 30.0
 #: A row written before its call is made, updated by finish() afterwards.
 RESERVED_STATUS = "reserved"
+#: What a `max_calls` cap counts. "total" is every row in the file; "phase"
+#: is only the rows of the phase making the call, which is what a
+#: per-phase budget ("P1: hard cap 1,500 calls") means when the same file
+#: already holds an earlier phase's spending.
+CapScope = Literal["total", "phase"]
+_CAP_SCOPES = ("total", "phase")
 
 _COLUMNS = "ts, phase, model, purpose, status, tokens_in, tokens_out, latency_ms, run_id"
 _INSERT_SQL = f"INSERT INTO calls ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -40,6 +47,11 @@ _INSERT_GUARDED_SQL = (
     f"INSERT INTO calls ({_COLUMNS}) "
     "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? "
     "WHERE (SELECT COUNT(*) FROM calls) < ?"
+)
+_INSERT_GUARDED_BY_PHASE_SQL = (
+    f"INSERT INTO calls ({_COLUMNS}) "
+    "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? "
+    "WHERE (SELECT COUNT(*) FROM calls WHERE phase = ?) < ?"
 )
 
 _SCHEMA = """
@@ -128,9 +140,17 @@ class BudgetLedger:
     written by another process) without holding a connection open.
     """
 
-    def __init__(self, db_path: Path = DEFAULT_LEDGER_PATH, max_calls: int | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path = DEFAULT_LEDGER_PATH,
+        max_calls: int | None = None,
+        cap_scope: CapScope = "total",
+    ) -> None:
+        if cap_scope not in _CAP_SCOPES:
+            raise ValueError(f"cap_scope must be one of {_CAP_SCOPES}, got {cap_scope!r}")
         self._db_path = db_path
         self._max_calls = max_calls
+        self._cap_scope: CapScope = cap_scope
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.execute(_SCHEMA)
@@ -142,7 +162,7 @@ class BudgetLedger:
         conn.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")
         return conn
 
-    def check_budget(self) -> None:
+    def check_budget(self, phase: str | None = None) -> None:
         """Advisory, non-atomic peek at the cap.
 
         Only for read-only reporting (`bisect doctor`). It does **not**
@@ -152,10 +172,12 @@ class BudgetLedger:
         """
         if self._max_calls is None:
             return
-        total = self.total_calls()
+        scope = self._scope_label(phase)
+        total = self._spent(phase)
         if total >= self._max_calls:
             raise BudgetExceededError(
-                f"budget exceeded: {total} calls already recorded, cap is {self._max_calls}"
+                f"budget exceeded: {total} {scope} calls already recorded, "
+                f"cap is {self._max_calls}"
             )
 
     def reserve(
@@ -177,11 +199,17 @@ class BudgetLedger:
         with self._connect() as conn:
             if self._max_calls is None:
                 cursor = conn.execute(_INSERT_SQL, _row_values(row))
+            elif self._cap_scope == "phase":
+                cursor = conn.execute(
+                    _INSERT_GUARDED_BY_PHASE_SQL,
+                    (*_row_values(row), phase, self._max_calls),
+                )
             else:
                 cursor = conn.execute(_INSERT_GUARDED_SQL, (*_row_values(row), self._max_calls))
             if cursor.rowcount == 0:
                 raise BudgetExceededError(
-                    f"budget exceeded: cap is {self._max_calls} calls, all of them reserved"
+                    f"budget exceeded: cap is {self._max_calls} "
+                    f"{self._scope_label(phase)} calls, all of them reserved"
                 )
             call_id = cursor.lastrowid
         if call_id is None:  # pragma: no cover - sqlite always sets it on INSERT
@@ -215,6 +243,14 @@ class BudgetLedger:
         """
         with self._connect() as conn:
             conn.execute(_INSERT_SQL, _row_values(record))
+
+    def _scope_label(self, phase: str | None) -> str:
+        return phase if self._cap_scope == "phase" and phase else "total"
+
+    def _spent(self, phase: str | None) -> int:
+        if self._cap_scope == "total" or phase is None:
+            return self.total_calls()
+        return self.totals_per_phase().get(phase, 0)
 
     def total_calls(self) -> int:
         with self._connect() as conn:
