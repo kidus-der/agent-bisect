@@ -1,41 +1,67 @@
 /**
  * The sequential single-hue scale for the accuracy matrix.
  *
- * Every cell prints its value, so every fill has to clear AA against the body
- * text in both themes. The shared `sequentialScale` token runs all the way to
- * full measurement cyan, which does not (mid-cyan is a contrast trap: too light
- * for the light ink, too dark for the dark ink). This builds the ramp instead by
- * walking the mix amount down until the darkest step still clears 4.5:1, so the
- * number in the cell is always legible without a plate behind it.
+ * Every cell prints its value, so every fill has to clear AA against the text
+ * drawn on it. Holding the text at one colour caps the dark ramp at a mix of
+ * about 0.45 — five teals a few points apart that read as one — so each step
+ * instead carries whichever ink clears AA against it, and the steps are chosen
+ * to skip the mid band where neither ink does.
  */
 import { type Hex, contrastRatio, mixHex } from '@/design/color'
 import { type ThemeName, themes } from '@/design/tokens'
 
 export const HEATMAP_STEPS = 5
-const AA_CONTRAST = 4.5
+const AA_TEXT = 4.5
 /** Lightest step: a tint, still distinct from the panel it sits on. */
-const MIN_MIX = 0.08
-const MIX_SEARCH_START = 1
-const MIX_SEARCH_STEP = 0.01
+const MIN_MIX = 0.06
+const MIX_STEP = 0.01
 
-/** Largest mix of the hue over the surface whose fill still clears AA for cell text. */
-function maxLegibleMix(theme: ThemeName): number {
-  const { role, neutral } = themes[theme]
-  for (let amount = MIX_SEARCH_START; amount > MIN_MIX; amount -= MIX_SEARCH_STEP) {
-    const fill = mixHex(role.measure, neutral.surface, amount)
-    if (contrastRatio(fill, neutral.text) >= AA_CONTRAST) return amount
-  }
-  return MIN_MIX
+export interface HeatmapStep {
+  readonly fill: Hex
+  /** The ink that clears AA on this fill. */
+  readonly text: Hex
 }
 
-/** `HEATMAP_STEPS` fills, lightest first. Stable for a theme, so memoise at the call site. */
-export function heatmapRamp(theme: ThemeName): readonly Hex[] {
-  const { role, neutral } = themes[theme]
-  const maxMix = maxLegibleMix(theme)
-  const span = maxMix - MIN_MIX
-  return Array.from({ length: HEATMAP_STEPS }, (_, index) =>
-    mixHex(role.measure, neutral.surface, MIN_MIX + (span * index) / (HEATMAP_STEPS - 1)),
-  )
+/** Every mix of the hue over the surface on which some ink clears AA. */
+function legibleMixes(theme: ThemeName): readonly HeatmapStep[] {
+  const { role, neutral, on } = themes[theme]
+  const inks = [neutral.text, on.onRole] as const
+  const steps: HeatmapStep[] = []
+  for (let amount = MIN_MIX; amount <= 1 + MIX_STEP / 2; amount += MIX_STEP) {
+    const fill = mixHex(role.measure, neutral.surface, Math.min(1, amount))
+    const best = inks.reduce((winner, ink) =>
+      contrastRatio(fill, ink) > contrastRatio(fill, winner) ? ink : winner,
+    )
+    if (contrastRatio(fill, best) >= AA_TEXT) steps.push({ fill, text: best })
+  }
+  return steps
+}
+
+/**
+ * `HEATMAP_STEPS` fills, weakest first.
+ *
+ * Ordered by how much hue is mixed in, not by luminance: on a dark surface more
+ * hue means a *brighter* fill and on a light one a darker fill, so luminance
+ * order is inverted between the themes while hue order is not. The five are
+ * spaced evenly across the legible mixes, which steps over the mid band where
+ * neither ink clears AA.
+ */
+export function heatmapRamp(theme: ThemeName): readonly HeatmapStep[] {
+  const legible = legibleMixes(theme)
+  if (legible.length === 0) {
+    const { role, neutral } = themes[theme]
+    const fallback = mixHex(role.measure, neutral.surface, MIN_MIX)
+    return Array.from({ length: HEATMAP_STEPS }, () => ({
+      fill: fallback,
+      text: neutral.text,
+    }))
+  }
+
+  const last = legible.length - 1
+  return Array.from({ length: HEATMAP_STEPS }, (_, index) => {
+    const at = Math.round((last * index) / (HEATMAP_STEPS - 1))
+    return legible[at] ?? legible[last]
+  }) as readonly HeatmapStep[]
 }
 
 export interface RampDomain {

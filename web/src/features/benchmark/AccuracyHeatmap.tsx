@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 
 import type { FaultType, HeatmapCell, MethodName } from './api'
 import { HeatmapTable } from './HeatmapTable'
-import { HEATMAP_STEPS, heatmapRamp, rampDomain, rampStep } from './heatmapScale'
+import { HEATMAP_STEPS, type HeatmapStep, heatmapRamp, rampDomain, rampStep } from './heatmapScale'
 import { FAULT_TYPE_LABELS, METHOD_ORDER, methodLabel, methodMeta } from './methods'
 
 type HeatmapView = 'matrix' | 'table'
@@ -37,7 +37,7 @@ interface MatrixProps {
   readonly faultTypes: readonly FaultType[]
   readonly methods: readonly MethodName[]
   readonly cellAt: (fault: FaultType, method: MethodName) => HeatmapCell | undefined
-  readonly ramp: readonly string[]
+  readonly ramp: readonly HeatmapStep[]
   readonly domain: { readonly min: number; readonly max: number }
   readonly onHover: (cell: HeatmapCell | null) => void
 }
@@ -138,9 +138,9 @@ function FaultRow({
             }}
             data-slot="matrix-cell"
             onMouseEnter={() => onHover(cell)}
-            style={{ background: ramp[step] }}
+            style={{ background: ramp[step]?.fill, color: ramp[step]?.text }}
             className={cn(
-              'flex h-12 items-center justify-center rounded-step num text-small font-semibold text-ink sm:h-14',
+              'flex h-12 items-center justify-center rounded-step num text-small font-semibold sm:h-14',
               step === HEATMAP_STEPS - 1 && 'ring-1 ring-measure/50 ring-inset',
             )}
           >
@@ -153,7 +153,7 @@ function FaultRow({
 }
 
 interface LegendProps {
-  readonly ramp: readonly string[]
+  readonly ramp: readonly HeatmapStep[]
   readonly domain: { readonly min: number; readonly max: number }
 }
 
@@ -162,8 +162,12 @@ function RampLegend({ ramp, domain }: LegendProps) {
     <div className="flex shrink-0 items-center gap-2 text-[12px] text-ink-muted">
       <span className="num">{formatPercent(domain.min, 0)}</span>
       <span aria-hidden="true" className="flex gap-0.5">
-        {ramp.map((fill) => (
-          <span key={fill} style={{ background: fill }} className="h-3 w-4 rounded-[2px]" />
+        {ramp.map((step) => (
+          <span
+            key={step.fill}
+            style={{ background: step.fill }}
+            className="h-3 w-4 rounded-[2px]"
+          />
         ))}
       </span>
       <span className="num">{formatPercent(domain.max, 0)}</span>
