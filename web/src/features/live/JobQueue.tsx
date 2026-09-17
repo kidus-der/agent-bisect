@@ -46,13 +46,23 @@ const JOB_STATE: Readonly<Record<JobState, StateCopy>> = {
 const JOB_ORDER: readonly JobState[] = ['running', 'queued', 'failed', 'done']
 
 /**
- * A finished job is complete whatever the last progress sample said — the API
- * reports progress at the moment of the snapshot, so a `done` job can carry a
- * stale fraction and render as an empty track.
+ * What the track should show, given the state.
+ *
+ * The API's `progress` does not agree with `state` in either direction: a `done`
+ * job can carry a stale fraction and render as an empty track, and a `queued`
+ * job — which by definition has not started — carries one too. A finished job is
+ * drawn full; a queued job is drawn empty and its percentage is withheld rather
+ * than asserted, because nothing has been measured yet.
  */
 function displayProgress(job: JobStatus): number {
   if (job.state === 'done') return 1
+  if (job.state === 'queued') return 0
   return Math.min(1, Math.max(0, job.progress))
+}
+
+/** A queued job has no measured progress, so it shows none. */
+function progressLabel(job: JobStatus): string {
+  return job.state === 'queued' ? '—' : formatPercent(displayProgress(job), 0)
 }
 
 function JobTile({ job, index }: { readonly job: JobStatus; readonly index: number }) {
@@ -88,8 +98,13 @@ function JobTile({ job, index }: { readonly job: JobStatus; readonly index: numb
             }}
           />
         </span>
-        <span className="w-10 shrink-0 text-right num text-small text-ink">
-          {formatPercent(fraction, 0)}
+        <span
+          className={cn(
+            'w-10 shrink-0 text-right num text-small',
+            job.state === 'queued' ? 'text-ink-muted' : 'text-ink',
+          )}
+        >
+          {progressLabel(job)}
         </span>
       </div>
     </li>
