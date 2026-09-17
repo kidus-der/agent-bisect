@@ -44,12 +44,18 @@ function runsFor(url: URL): unknown {
   const outcome = params.get('outcome')
   const domain = params.get('domain')
   const model = params.get('model')
+  const fault = params.get('fault_type')
+  const query = (params.get('q') ?? '').toLowerCase()
   // The real server filters and sorts; the recording is replayed the same way.
+  // `q` matches run id, task id, model and tool names; `none` is "no planted fault".
   const filtered = all.filter(
     (run) =>
       (outcome === null || run.outcome === outcome) &&
       (domain === null || run.domain === domain) &&
-      (model === null || run.model === model),
+      (model === null || run.model === model) &&
+      (fault === null || (fault === 'none' ? run.fault_type === null : run.fault_type === fault)) &&
+      (query === '' ||
+        [run.run_id, run.task_id, run.model].some((field) => field.toLowerCase().includes(query))),
   )
   const sort = params.get('sort') ?? 'run_id'
   const descending = sort.startsWith('-')

@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 test('lists the recorded runs with their marks', async ({ page }) => {
   await page.goto('/runs')
   await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible()
-  await expect(page.getByText(`${RECORDED.runTotal} of ${RECORDED.runTotal} runs`)).toBeVisible()
+  await expect(page.getByText(`${RECORDED.runTotal} runs`)).toBeVisible()
 
   const first = page.getByRole('row').nth(1)
   await expect(first.getByText(RECORDED.firstRunId)).toBeVisible()
@@ -41,20 +41,33 @@ test('a filter narrows the list, lands in the URL and survives a reload', async 
 
 test('a fault-type filter narrows further and clears again', async ({ page }) => {
   await page.goto('/runs')
+  const request = page.waitForRequest((call) => call.url().includes('fault_type=stale_record'))
   await page.getByRole('button', { name: 'stale record' }).click()
+  await request
   await expect(page).toHaveURL(/fault=stale_record/)
 
   await page.getByRole('button', { name: /clear filters/i }).click()
   await expect(page).toHaveURL(/\/runs$/)
-  await expect(page.getByText(`${RECORDED.runTotal} of ${RECORDED.runTotal} runs`)).toBeVisible()
+  await expect(page.getByText(`${RECORDED.runTotal} runs`)).toBeVisible()
 })
 
-test('searching narrows the loaded rows and says what it counted', async ({ page }) => {
+test('searching is done by the server and counts the whole matching set', async ({ page }) => {
   await page.goto('/runs')
+  const request = page.waitForRequest((call) => call.url().includes('q=refund'))
   await page.getByRole('searchbox', { name: /search runs/i }).fill('refund')
+  await request
   await expect(page).toHaveURL(/q=refund/)
-  await expect(page.getByText(/ of \d+ runs?$/)).toBeVisible()
+  await expect(page.locator('output')).toHaveText(/^\d+ runs? match(es)?$/)
   await expect(page.getByRole('row').nth(1)).toContainText('refund')
+})
+
+test('fault type is a server filter, including runs with none planted', async ({ page }) => {
+  await page.goto('/runs')
+  const request = page.waitForRequest((call) => call.url().includes('fault_type=none'))
+  await page.getByRole('button', { name: 'none planted' }).click()
+  await request
+  await expect(page).toHaveURL(/fault=none/)
+  await expect(page.getByRole('cell').getByText('STEP', { exact: false })).toHaveCount(0)
 })
 
 test('sorting is requested from the server and announced on the header', async ({ page }) => {
@@ -116,7 +129,7 @@ test('filters that match nothing offer a way back', async ({ page }) => {
   await page.goto('/runs?q=zzzznothing')
   await expect(page.getByRole('heading', { name: 'No runs match these filters' })).toBeVisible()
   await page.getByRole('button', { name: 'Clear filters' }).first().click()
-  await expect(page.getByText(`${RECORDED.runTotal} of ${RECORDED.runTotal} runs`)).toBeVisible()
+  await expect(page.getByText(`${RECORDED.runTotal} runs`)).toBeVisible()
 })
 
 test('nothing recorded yet shows the command that would record something', async ({ page }) => {
