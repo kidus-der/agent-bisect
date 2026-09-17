@@ -82,8 +82,18 @@ function TimelineMinimapImpl({
           />
         ))}
       </div>
+      {/* Dim what is off-screen rather than outlining what is on it: two thin
+          borders on a dark ground read as one stray line. */}
       <span
-        className="absolute inset-y-0 border-x-2 border-measure bg-measure/10"
+        className="absolute inset-y-0 left-0 bg-ground/75"
+        style={{ width: `${scrollFraction * 100}%` }}
+      />
+      <span
+        className="absolute inset-y-0 right-0 bg-ground/75"
+        style={{ width: `${Math.max(1 - scrollFraction - viewportFraction, 0) * 100}%` }}
+      />
+      <span
+        className="absolute inset-y-0 border-x border-measure"
         style={{
           left: `${scrollFraction * 100}%`,
           width: `${Math.min(viewportFraction, 1) * 100}%`,
