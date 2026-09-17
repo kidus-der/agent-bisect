@@ -8,16 +8,25 @@ phase board.
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Annotated
 
 import typer
 
+from agent_bisect.cli_record import record
+from agent_bisect.cli_replay import replay
 from agent_bisect.core.config import get_settings
 from agent_bisect.core.doctor import CheckResult, run_doctor
+from agent_bisect.server.runserver import DEFAULT_HOST, DEFAULT_PORT, run_server
+from agent_bisect.server.settings import DataSource
 
 app = typer.Typer(help="Bisect: counterfactual replay for LLM agent failures.")
 
 NOT_IMPLEMENTED_EXIT_CODE = 2
 DOCTOR_FAILURE_EXIT_CODE = 1
+SERVE_USAGE_EXIT_CODE = 2
+#: Module-level so the option default is not a call (ruff B008).
+DEFAULT_RUNS_DIR = Path("runs")
 
 
 def _not_implemented(phase: str) -> None:
@@ -59,16 +68,8 @@ def doctor(
         raise typer.Exit(code=DOCTOR_FAILURE_EXIT_CODE)
 
 
-@app.command()
-def record() -> None:
-    """Record an agent run (phase P1)."""
-    _not_implemented("P1")
-
-
-@app.command()
-def replay() -> None:
-    """Replay a recorded run from a snapshot (phase P2)."""
-    _not_implemented("P2")
+app.command()(record)
+app.command()(replay)
 
 
 @app.command()
@@ -90,9 +91,42 @@ def eval_() -> None:
 
 
 @app.command()
-def serve() -> None:
-    """Serve the dashboard (phase P6)."""
-    _not_implemented("P6")
+def serve(
+    host: str = typer.Option(DEFAULT_HOST, help="Address to bind."),
+    port: int = typer.Option(DEFAULT_PORT, help="Port to bind."),
+    fixture: bool = typer.Option(
+        False, "--fixture", help="Serve the simulated dataset instead of the recordings."
+    ),
+    real: bool = typer.Option(
+        False, "--real", help="Serve the recordings; fail if there are none."
+    ),
+    runs_dir: Annotated[
+        Path, typer.Option(help="Where the recordings live.")
+    ] = DEFAULT_RUNS_DIR,
+) -> None:
+    """Serve the dashboard at http://127.0.0.1:8484 (phase P6)."""
+    if fixture and real:
+        typer.echo("--fixture and --real are mutually exclusive.", err=True)
+        raise typer.Exit(code=SERVE_USAGE_EXIT_CODE)
+
+    has_recordings = (runs_dir / "index.sqlite").exists()
+    if real and not has_recordings:
+        typer.echo(
+            f"no recorded runs under {runs_dir} — record some first, or use --fixture.",
+            err=True,
+        )
+        raise typer.Exit(code=SERVE_USAGE_EXIT_CODE)
+
+    data_source: DataSource = "fixture" if fixture or not has_recordings else "real"
+    if data_source == "fixture":
+        # Never quietly: a dashboard of simulated numbers that does not say
+        # so is indistinguishable from a dashboard of results.
+        typer.echo("serving SIMULATED fixture data — these numbers are not results")
+    else:
+        typer.echo(f"serving real recordings from {runs_dir}")
+    typer.echo(f"http://{host}:{port}")
+
+    run_server(host, port, data_source, explicit_host=host != DEFAULT_HOST, runs_dir=runs_dir)
 
 
 @app.command()
