@@ -29,7 +29,7 @@ interface RowProps {
 function Row({ label, value }: RowProps) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <span className="label-instrument shrink-0">{label}</span>
+      <span className="shrink-0 label-instrument">{label}</span>
       <span className="min-w-0 truncate num text-small text-ink" title={value}>
         {value}
       </span>
