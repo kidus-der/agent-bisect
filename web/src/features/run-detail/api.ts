@@ -99,6 +99,39 @@ interface RerunPage {
   readonly reruns: readonly RerunRow[]
 }
 
+export type RerunsStatus = 'pending' | 'error' | 'unavailable' | 'ready'
+
+export interface RerunsView {
+  readonly status: RerunsStatus
+  readonly rows: readonly RerunRow[]
+  /** Why there is nothing to show: the error message, or the server's reason. */
+  readonly reason: string | null
+}
+
+interface RerunsQueryLike {
+  readonly isPending: boolean
+  readonly isError: boolean
+  readonly error: ApiError | null
+  readonly data: ApiResult<RerunPage | NotAvailable> | undefined
+}
+
+/**
+ * One reading of the re-runs query for both consumers. An empty `rows` is only
+ * ever "this run has no re-runs" when the status is `ready`; a failure and a
+ * `not_available` each keep their own status so neither is drawn as zero.
+ */
+export function unwrapReruns(query: RerunsQueryLike): RerunsView {
+  if (query.isError) {
+    return { status: 'error', rows: [], reason: query.error?.message ?? 'The request failed.' }
+  }
+  if (query.isPending || !query.data) return { status: 'pending', rows: [], reason: null }
+  const payload = query.data.data
+  if (isNotAvailable(payload)) {
+    return { status: 'unavailable', rows: [], reason: payload.reason }
+  }
+  return { status: 'ready', rows: payload.reruns, reason: null }
+}
+
 type Query<T> = UseQueryResult<ApiResult<T>, ApiError>
 
 // Module-level so the selector's identity is stable: an inline arrow makes

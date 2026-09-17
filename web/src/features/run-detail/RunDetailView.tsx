@@ -4,7 +4,13 @@ import { useCallback, useMemo, useState } from 'react'
 import { ErrorState } from '@/components/primitives/ErrorState'
 import { Panel } from '@/components/primitives/Panel'
 
-import { availableOrNull, useInterventionDiffQuery, useRerunsQuery, useRunDetailQuery } from './api'
+import {
+  availableOrNull,
+  unwrapReruns,
+  useInterventionDiffQuery,
+  useRerunsQuery,
+  useRunDetailQuery,
+} from './api'
 import { BlameReadout } from './BlameReadout'
 import { blameVerdict, deltaFor, effectDomain, forestRows, heatCells } from './blame'
 import { DotMatrix } from './DotMatrix'
@@ -38,10 +44,8 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
   const setPlayhead = setSelected
   const { rewind, start, reset } = useRewindSequence(nSteps, reduced)
 
-  const rerunRows = useMemo(
-    () => availableOrNull(reruns.data?.data ?? null)?.reruns ?? [],
-    [reruns.data],
-  )
+  const rerunsView = useMemo(() => unwrapReruns(reruns), [reruns])
+  const rerunRows = rerunsView.rows
   const treatedAtPlayhead = useMemo(
     () => rerunRows.filter((row) => row.arm === 'treated' && row.step === playhead),
     [rerunRows, playhead],
@@ -166,7 +170,15 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
         ) : null}
       </div>
 
-      {rerunRows.length > 0 ? (
+      {rerunsView.status === 'error' ? (
+        <Panel variant="chart" label="treated vs control">
+          <ErrorState
+            title="The individual re-runs failed to load"
+            message={rerunsView.reason ?? 'The request failed.'}
+            onRetry={() => void reruns.refetch()}
+          />
+        </Panel>
+      ) : rerunRows.length > 0 ? (
         <Panel
           variant="chart"
           label="treated vs control"

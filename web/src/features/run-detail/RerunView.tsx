@@ -15,6 +15,7 @@ import {
   type RerunRow,
   type StepView,
   availableOrNull,
+  unwrapReruns,
   useRerunStepsQuery,
   useRerunsQuery,
   useRunDetailQuery,
@@ -127,7 +128,9 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
     </Link>
   )
 
-  if (steps.isPending || reruns.isPending) {
+  const rerunsView = unwrapReruns(reruns)
+
+  if (steps.isPending || rerunsView.status === 'pending') {
     return (
       <LoadingRegion subject="this re-run" className="flex flex-col gap-4">
         <Skeleton className="h-8 w-64" />
@@ -148,8 +151,19 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
     )
   }
 
-  const rows = availableOrNull(reruns.data?.data ?? null)?.reruns ?? []
-  const row = rows.find((entry) => entry.rerun_id === rerunId)
+  // Without the run's re-run rows there is no arm, seed or fork step to show,
+  // and an absent row must not be reported as "no such re-run".
+  if (rerunsView.status === 'error') {
+    return (
+      <ErrorState
+        title="This re-run failed to load"
+        message={rerunsView.reason ?? 'The request failed.'}
+        onRetry={() => void reruns.refetch()}
+      />
+    )
+  }
+
+  const row = rerunsView.rows.find((entry) => entry.rerun_id === rerunId)
   const stepList = availableOrNull(steps.data.data) ?? []
 
   if (!row || stepList.length === 0) {
