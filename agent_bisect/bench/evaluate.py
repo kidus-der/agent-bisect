@@ -50,6 +50,17 @@ JUDGE_METHODS: tuple[EvalMethod, ...] = ("judge_all_at_once", "judge_step_by_ste
 #: The pre-registered bar: Bisect must beat the best judge by this much.
 GATE_POINTS = 15.0
 
+#: Printed with every report that used a shared control. It is the
+#: condition under which the number means what it says, and
+#: `docs/findings/p5-control-fork.md` is what happens when it does not hold.
+SHARED_CONTROL_SCOPE = (
+    "the shared control assumes the recorded failure is reproducible from the "
+    "fork point; planted faults satisfy this only because they are standing "
+    "faulty tools (docs/decisions/0016-persistent-planted-fault.md), not edited "
+    "recordings. Items whose control arm passed anyway are listed in "
+    "scope.control_flags and are still included in every accuracy above."
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ScoredItem:
@@ -331,6 +342,10 @@ def build_report(
     cost_curve: Sequence[Mapping[str, Any]] | None = None,
     manifest_digest: str | None = None,
     estimator_config: Mapping[str, Any] | None = None,
+    control_flags: Sequence[Mapping[str, Any]] | None = None,
+    unevaluated: Sequence[Mapping[str, Any]] | None = None,
+    sensitivity: Mapping[str, Any] | None = None,
+    unguarded_calls: int = 0,
 ) -> dict[str, Any]:
     """Every number P5 reports, from labels and answers alone."""
     if not scores:
@@ -353,6 +368,24 @@ def build_report(
         "heatmap": _breakdown(scores, "fault_type", "fault_type"),
         "by_position": _breakdown(scores, "position_bucket", "position"),
         "sankey": _sankey(scores, "bisect"),
+        # The assumption every shared-control number rests on, stated in
+        # the output rather than only in a decision file.
+        "scope": {
+            "shared_control_assumption": SHARED_CONTROL_SCOPE,
+            "control_flags": [dict(flag) for flag in (control_flags or ())],
+            "n_control_flags": len(control_flags or ()),
+            "unevaluated": [dict(item) for item in (unevaluated or ())],
+            "n_unevaluated": len(unevaluated or ()),
+        },
+        "sensitivity": dict(sensitivity) if sensitivity else None,
+        "integrity": {
+            "bisect_unguarded_calls": unguarded_calls or 0,
+            "note": (
+                "responses served past the request-hash guard by the bisect arms; "
+                "must be 0, since unsafe_positional belongs to the re-run-live "
+                "baseline alone"
+            ),
+        },
         "cost_curve": [dict(point) for point in cost_curve] if cost_curve else None,
         "flaky_ablation": (
             None

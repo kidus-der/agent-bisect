@@ -9,6 +9,19 @@ walks a frozen split and leaves behind everything a reader needs:
   can rebuild the report without re-running anything;
 - the report itself (`bench/evaluate.build_report`).
 
+**Every control arm is sanity-checked.** A control is "restore at the
+step, change nothing, run the rest"; if it *passes*, it is not a control
+for this failure but a different run, and every effect measured against it
+is understated. `control_reproduces_failure` compares the control arm's
+pass rate with the item's recorded faulted pass rate and flags the item
+when the control passes more than `CONTROL_PASS_LIMIT` of the time.
+Flagged items are **reported and still scored** — the primary metric
+includes them — because dropping them would quietly evaluate the subset
+whose controls happened to behave. This check is what
+`docs/findings/p5-control-fork.md` says would have caught the one-shot
+fault before any live spend, and `docs/decisions/0016-persistent-planted-fault.md`
+is what makes it pass.
+
 **An item that cannot be evaluated is recorded, not skipped.** If the tape
 is unreadable, the judge raises, or every fork of it dies on
 infrastructure, the item still produces one `MethodOutcome` per method with
@@ -42,13 +55,41 @@ from agent_bisect.bench.baselines import (
     judge_item,
 )
 from agent_bisect.bench.manifest import DatasetItem
+from agent_bisect.core.job_status import running, write_status
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import TapeReader
+
+#: A control arm that passes more often than this is not a control for the
+#: recorded failure. Not a threshold anything is gated on: it decides only
+#: whether an item is flagged in the report.
+CONTROL_PASS_LIMIT = 0.5
+
+#: The `kind` P5's progress is written under, for the dashboard's Live page.
+STATUS_KIND = "eval"
+STATUS_PHASE = "P5"
 
 #: `(domain, task_id) -> (task description, domain policy)`.
 TaskTextFor = Callable[[str, str], tuple[str, str]]
 #: `item -> how to re-execute one of its tool steps truthfully`.
 TruthForItem = Callable[[DatasetItem], TruthFor | None]
+
+
+@dataclass(frozen=True, slots=True)
+class ControlFlag:
+    """An item whose control arm did not reproduce its recorded failure."""
+
+    item_id: str
+    run_id: str
+    method: EvalMethod
+    control_pass_rate: float
+    faulted_pass_rate: float
+
+    def describe(self) -> str:
+        return (
+            f"{self.item_id} ({self.method}): control passed "
+            f"{self.control_pass_rate:.2f} of the time but the recorded run "
+            f"failed at {self.faulted_pass_rate:.2f}; effects here are understated"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,10 +107,49 @@ class EvaluationRun:
 
     outcomes: list[MethodOutcome] = field(default_factory=list)
     failures: list[ItemFailure] = field(default_factory=list)
+    control_flags: list[ControlFlag] = field(default_factory=list)
 
     @property
     def n_failed_items(self) -> int:
         return len(self.failures)
+
+    @property
+    def n_control_flags(self) -> int:
+        return len(self.control_flags)
+
+    @property
+    def bisect_unguarded_calls(self) -> int:
+        """Responses the bisect arms served past the request-hash guard.
+
+        Must be 0. `scripts/gates/p5.py` fails the gate otherwise, because
+        a Bisect arm that drifted from its own recording is not Bisect.
+        """
+        return sum(
+            0 if outcome.blame is None else outcome.blame.unguarded_calls
+            for outcome in self.outcomes
+            if outcome.method == "bisect"
+        )
+
+    def flag_rows(self) -> list[dict[str, Any]]:
+        """The control flags, for the report's scope section."""
+        return [
+            {
+                "item_id": flag.item_id,
+                "run_id": flag.run_id,
+                "method": flag.method,
+                "control_pass_rate": flag.control_pass_rate,
+                "faulted_pass_rate": flag.faulted_pass_rate,
+                "detail": flag.describe(),
+            }
+            for flag in self.control_flags
+        ]
+
+    def failure_rows(self) -> list[dict[str, Any]]:
+        """The items that could not be evaluated, for the same section."""
+        return [
+            {"item_id": f.item_id, "run_id": f.run_id, "reason": f.reason}
+            for f in self.failures
+        ]
 
 
 def _unevaluated(
@@ -95,6 +175,44 @@ def _unevaluated(
     ]
 
 
+def control_pass_rate(outcome: MethodOutcome) -> float | None:
+    """The control arm's pass rate, or `None` when it bought no control."""
+    blame = outcome.blame
+    if blame is None or blame.estimate is None:
+        return None
+    arms = [
+        effect.control
+        for effect in blame.estimate.step_effects
+        if effect.control is not None and effect.control.n > 0
+    ]
+    if not arms:
+        return None
+    # The shared control is one arm repeated across steps, so successes and
+    # draws are summed rather than averaged -- that is the same number for
+    # a shared arm and the right one for per-step arms.
+    return sum(arm.successes for arm in arms) / sum(arm.n for arm in arms)
+
+
+def check_controls(
+    item: DatasetItem, outcomes: Sequence[MethodOutcome]
+) -> list[ControlFlag]:
+    """Flag any control arm that did not reproduce the recorded failure."""
+    flags: list[ControlFlag] = []
+    for outcome in outcomes:
+        rate = control_pass_rate(outcome)
+        if rate is not None and rate > CONTROL_PASS_LIMIT:
+            flags.append(
+                ControlFlag(
+                    item_id=item.item_id,
+                    run_id=item.run_id,
+                    method=outcome.method,
+                    control_pass_rate=rate,
+                    faulted_pass_rate=item.faulted_pass_rate,
+                )
+            )
+    return flags
+
+
 def evaluate_dataset(
     items: Sequence[DatasetItem],
     *,
@@ -117,6 +235,7 @@ def evaluate_dataset(
     for index, item in enumerate(items, start=1):
         if progress is not None:
             progress(item, index, total)
+        _report_progress(runs_dir, index - 1, total, run)
         try:
             description, policy = task_text(item.domain, item.task_id)
             judge_input = build_judge_input(
@@ -160,6 +279,7 @@ def evaluate_dataset(
         for outcome in outcomes:
             if outcome.blame is not None:
                 save_blame(runs_dir, outcome.blame, judgement.step_by_step)
+        run.control_flags.extend(check_controls(item, outcomes))
         run.outcomes.extend(outcomes)
     return run
 
@@ -207,3 +327,30 @@ def outcomes_from_rows(rows: Sequence[dict[str, Any]]) -> list[MethodOutcome]:
         )
         for row in rows
     ]
+
+
+def _report_progress(
+    runs_dir: Path, done: int, total: int, run: EvaluationRun
+) -> None:
+    """Write P5's progress where the dashboard's Live page reads it.
+
+    Best effort: a status file that cannot be written must not stop an
+    evaluation that is otherwise fine, and the run's own outputs are the
+    record that matters.
+    """
+    try:
+        write_status(
+            runs_dir,
+            running(
+                kind=STATUS_KIND,
+                phase=STATUS_PHASE,
+                items_done=done,
+                items_total=total,
+                calls_spent=sum(
+                    outcome.total_calls for outcome in run.outcomes
+                ),
+            ),
+            phase=STATUS_PHASE,
+        )
+    except Exception:  # noqa: BLE001 - progress reporting is never load-bearing
+        return

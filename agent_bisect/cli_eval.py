@@ -108,6 +108,12 @@ def _summarise(report: dict[str, Any], failures: int) -> str:
         )
     if failures:
         lines.append(f"  {failures} item(s) could not be evaluated; scored as wrong")
+    scope = report.get("scope") or {}
+    if scope.get("n_control_flags"):
+        lines.append(
+            f"  {scope['n_control_flags']} item(s) whose control did not reproduce "
+            "the recorded failure; reported, not dropped"
+        )
     return "\n".join(lines)
 
 
@@ -214,6 +220,9 @@ def eval_(
         seed=seed,
         manifest_digest=frozen.digest,
         estimator_config=frozen.config,
+        control_flags=run.flag_rows(),
+        unevaluated=run.failure_rows(),
+        unguarded_calls=run.bisect_unguarded_calls,
     )
     written = write_results(
         scores=scores,

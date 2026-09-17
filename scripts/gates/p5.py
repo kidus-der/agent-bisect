@@ -130,12 +130,39 @@ def check_flaky(summary: dict[str, Any]) -> Criterion:
     )
 
 
+def check_guard(summary: dict[str, Any]) -> Criterion:
+    """Bisect's numbers must not have been produced with the hash guard off.
+
+    `unsafe_positional` exists for the CAR-style baseline alone. A Bisect
+    arm that served a recorded reply to a request the recording does not
+    match is not Bisect, so a non-zero count here is a hard failure rather
+    than a note.
+    """
+    unguarded = (summary.get("integrity") or {}).get("bisect_unguarded_calls")
+    if unguarded is None:
+        return Criterion(
+            "replay integrity",
+            False,
+            "the summary does not report bisect_unguarded_calls; it cannot be shown "
+            "that Bisect ran with the request-hash guard on",
+        )
+    return Criterion(
+        name="replay integrity",
+        passed=int(unguarded) == 0,
+        detail=(
+            f"{int(unguarded)} Bisect response(s) served past the request-hash guard "
+            "(must be 0; unsafe_positional is the re-run-live baseline's alone)"
+        ),
+    )
+
+
 def run_gate(summary: dict[str, Any]) -> list[Criterion]:
     return [
         check_split(summary),
         check_gap_points(summary),
         check_gap_interval(summary),
         check_flaky(summary),
+        check_guard(summary),
     ]
 
 

@@ -51,6 +51,9 @@ SUMMARY_KEYS = (
     "by_position",
     "sankey",
     "flaky_ablation",
+    "scope",
+    "sensitivity",
+    "integrity",
 )
 
 
