@@ -20,11 +20,21 @@ const VIEWPORTS = [
   { name: '390', width: 390, height: 844 },
 ] as const
 
+/**
+ * The Overview scrolls, so it is captured whole. Runs is a fixed-height view
+ * whose table scrolls inside itself — a full-page capture would stretch the
+ * viewport, and the table sizes itself to the viewport, so it would grow to
+ * fill a page that was only that tall because the table grew.
+ */
 const PAGES = [
-  { name: 'overview', path: '/' },
-  { name: 'runs', path: '/runs' },
+  { name: 'overview', path: '/', fullPage: true },
+  { name: 'runs', path: '/runs', fullPage: false },
   // A narrowed view: chips, a smaller count, and the rows that survived.
-  { name: 'runs-filtered', path: '/runs?outcome=fail&domain=airline&fault=wrong_value' },
+  {
+    name: 'runs-filtered',
+    path: '/runs?outcome=fail&domain=airline&fault=wrong_value',
+    fullPage: false,
+  },
 ] as const
 
 const SETTLE_MS = 2200
@@ -50,7 +60,7 @@ for (const theme of THEMES) {
         await prepare(page, theme, target.path)
         await page.screenshot({
           path: `${OUT_DIR}${target.name}-${theme}-${viewport.name}.png`,
-          fullPage: true,
+          fullPage: target.fullPage,
         })
       })
     }
