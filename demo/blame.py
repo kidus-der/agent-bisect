@@ -20,17 +20,18 @@ against a shared control forked at the earliest tested step.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
 from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
+from agent_bisect.attribution.estimate import SequentialConfig
 from agent_bisect.attribution.judge_view import CANDIDATE_ACTORS, JudgeVerdict, RankedStep
 from agent_bisect.attribution.search import BlameConfig, BlameResult, run_blame
-from agent_bisect.attribution.estimate import SequentialConfig
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Step, TapeReader, TapeWriter
+
 from demo.tasks import DOMAIN, scenario
 
 #: Free (no cost, no rate limit -- every re-run is scripted): confirmation
@@ -148,7 +149,6 @@ def blame_new_failure(
     head_tape: TapeWriter,
     base_store: BlobStore,
     base_reader: TapeReader,
-    live_completion: Callable[..., Any],
     seed: int,
 ) -> BlameResult:
     """Shortlist by first divergence, then confirm exactly as `run_blame` would.
@@ -156,6 +156,18 @@ def blame_new_failure(
     Forks are written to `head_store`/`head_tape` -- `failure.head_run_id`
     lives there, and so must every fork of it. `base_store`/`base_reader`
     are read only, for the divergence comparison.
+
+    Must be called inside a `recording_session(completion_fn=demo_completion,
+    ...)`. `Tau2ForkExecutor` is built with no `live_completion` of its own
+    so its live suffix goes through that session's router
+    (`adapters/tau2_llm.route_tau2_llm`), not straight to `demo_completion` --
+    a `Resample`-armed suspect whose live continuation is a bare completion
+    call is never recorded, so the replayer's own step count stalls and the
+    *next* step (routinely the tool call the resampled turn itself makes)
+    is mistaken for the fork step,
+    raising `MisappliedInterventionError`. `Tau2ForkExecutor`'s own
+    docstring names this failure mode; `TruthfulToolResult` never hits it
+    because it never returns `LIVE`.
     """
     spec = scenario(failure.scenario_name)
     head_steps = head_reader.get_steps(failure.head_run_id)
@@ -164,9 +176,7 @@ def blame_new_failure(
         item_id=failure.scenario_name, head_store=head_store, base_store=base_store,
         base_steps=base_steps, head_steps=head_steps,
     )
-    executor = Tau2ForkExecutor(
-        store=head_store, reader=head_reader, tape=head_tape, live_completion=live_completion
-    )
+    executor = Tau2ForkExecutor(store=head_store, reader=head_reader, tape=head_tape)
     truth = Tau2TruthResolver(DOMAIN, spec.task_id, head_store)
     return run_blame(
         item_id=failure.scenario_name,

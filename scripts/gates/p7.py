@@ -48,6 +48,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 from scripts.gates.evidence import current_commit, format_evidence, provenance_for  # noqa: E402
+
 POLICY_PATH = "demo/agent_policy.yaml"
 PROMPT_PATH = "demo/system_prompt.md"
 OUT_ROOT = REPO_ROOT / "runs" / "p7"
@@ -65,7 +66,7 @@ GATE_TEXT = (
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class Criterion:
     name: str
     passed: bool
@@ -119,7 +120,8 @@ def _regression_variant(name: str, rule_id: str, new_value: float) -> Variant:
 def _noop_comment_variant() -> Variant:
     def apply(clone: Path) -> None:
         path = clone / POLICY_PATH
-        path.write_text(path.read_text() + "\n# p7 self-test: a comment changes nothing at runtime.\n")
+        comment = "\n# p7 self-test: a comment changes nothing at runtime.\n"
+        path.write_text(path.read_text() + comment)
 
     return Variant(branch="demo/p7-noop-comment", kind="noop", planted="comment only", apply=apply)
 
@@ -165,7 +167,13 @@ VARIANTS: tuple[Variant, ...] = (
 
 def _prepare_clone(tmp: Path) -> Path:
     clone = tmp / "clone"
-    _run(["git", "clone", "--local", "--branch", "main", str(REPO_ROOT), str(clone)], cwd=REPO_ROOT)
+    # `--no-hardlinks`: the system temp dir is routinely a different
+    # filesystem from the repo, where git's default hardlink optimisation
+    # for a local-path clone fails outright ("Cross-device link").
+    _run(
+        ["git", "clone", "--no-hardlinks", "--branch", "main", str(REPO_ROOT), str(clone)],
+        cwd=REPO_ROOT,
+    )
     return clone
 
 
@@ -211,12 +219,14 @@ def local_self_test(*, out_dir: Path) -> tuple[list[Criterion], list[dict[str, A
     noops = [r for r in rows if r["kind"] == "noop"]
     flagged = [r for r in regressions if r["is_regression"] and r["decisive_step_head"] is not None]
     false_alarms = [r for r in noops if r["is_regression"]]
+    regression_detail = ", ".join(
+        f"{r['branch']}={r['is_regression']}/{r['decisive_step_head']}" for r in regressions
+    )
     criteria = [
         Criterion(
             "regressions flagged with a named step",
             len(flagged) == len(regressions),
-            f"{len(flagged)}/{len(regressions)}: "
-            + ", ".join(f"{r['branch']}={r['is_regression']}/{r['decisive_step_head']}" for r in regressions),
+            f"{len(flagged)}/{len(regressions)}: {regression_detail}",
         ),
         Criterion(
             "no-ops raise no false alarm",
@@ -302,7 +312,10 @@ def _close_pr(pr_number: int, branch: str) -> None:
     _run(["git", "push", "origin", "--delete", branch], cwd=REPO_ROOT, check=False)
 
 
-def remote_pr_test(*, evidence_dir: Path) -> tuple[list[Criterion], list[dict[str, Any]], str | None]:
+RemotePrResult = tuple[list[Criterion], list[dict[str, Any]], str | None]
+
+
+def remote_pr_test(*, evidence_dir: Path) -> RemotePrResult:
     """Returns `(criteria, rows, skip_reason)`. `skip_reason` set means NOT RUN."""
     try:
         _check_actions_available()
@@ -382,11 +395,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[NOT RUN] real PRs (layer b): {remote_skip_reason}")  # noqa: T201
 
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    criteria_json = [{"name": c.name, "passed": c.passed, "detail": c.detail} for c in criteria]
     (OUT_ROOT / "gate.json").write_text(
         json.dumps(
             {
-                "local": local_rows, "remote": remote_rows, "remote_skip_reason": remote_skip_reason,
-                "criteria": [{"name": c.name, "passed": c.passed, "detail": c.detail} for c in criteria],
+                "local": local_rows,
+                "remote": remote_rows,
+                "remote_skip_reason": remote_skip_reason,
+                "criteria": criteria_json,
             },
             indent=2, sort_keys=True,
         )

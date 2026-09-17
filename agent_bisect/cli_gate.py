@@ -16,6 +16,7 @@ import typer
 from agent_bisect.gate.action import ERROR_EXIT, GateConfig, GateError, run_gate
 
 DEFAULT_RUNS_DIR = Path("runs")
+DEFAULT_REPO = Path(".")
 
 
 def gate(
@@ -23,12 +24,12 @@ def gate(
     head: str = typer.Option(..., "--head", help="The ref under test (e.g. the PR branch)."),
     suite: str = typer.Option("demo", "--suite", help="Only 'demo' exists so far."),
     runs: int = typer.Option(4, "--runs", help="Runs per scenario, per side."),
-    out: Path | None = typer.Option(
+    out: Path | None = typer.Option(  # noqa: B008 - `None` itself is immutable; a ruff false positive
         None, "--out", help="Where to write the gate's evidence. Default: runs/gate/<random id>."
     ),
     seed: int = typer.Option(20260917, "--seed", help="Base seed for the demo suite."),
-    repo: Path = typer.Option(
-        Path("."), "--repo", help="The git repository to check `--base`/`--head` out of."
+    repo: Path = typer.Option(  # noqa: B008 - DEFAULT_REPO is an immutable Path, not a mutable default
+        DEFAULT_REPO, "--repo", help="The git repository to check `--base`/`--head` out of."
     ),
 ) -> None:
     """Run the demo suite on `--base` and `--head`, compare, and blame a regression."""

@@ -51,7 +51,8 @@ class GateComparison:
                 f"both arms need at least one run, got head_n={self.head_n}, "
                 f"base_n={self.base_n}"
             )
-        for name, passes, n in (("head", self.head_passes, self.head_n), ("base", self.base_passes, self.base_n)):
+        arms = (("head", self.head_passes, self.head_n), ("base", self.base_passes, self.base_n))
+        for name, passes, n in arms:
             if not 0 <= passes <= n:
                 raise ValueError(f"{name}_passes must be between 0 and {name}_n={n}, got {passes}")
 

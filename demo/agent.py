@@ -43,6 +43,7 @@ from typing import Any
 
 from agent_bisect.adapters.tau2_fake_llm import ScriptedToolCall, ScriptedTurn
 from agent_bisect.adapters.tau2_scenarios import STOP
+
 from demo.policy import DemoPolicy, load_policy
 from demo.tasks import AGENT_MODEL, USER_MODEL, ScenarioSpec, scenario_of_run_id
 
@@ -128,9 +129,10 @@ def _role(message: Any) -> str | None:
 
 
 def _content(message: Any) -> str | None:
-    value = (
-        message.get("content") if isinstance(message, Mapping) else getattr(message, "content", None)
-    )
+    if isinstance(message, Mapping):
+        value = message.get("content")
+    else:
+        value = getattr(message, "content", None)
     return None if value is None else str(value)
 
 
@@ -146,8 +148,10 @@ def _raw_tool_calls(message: Any) -> Sequence[Any]:
 def _tool_call_name(call: Any) -> str | None:
     if isinstance(call, Mapping):
         function = call.get("function") or {}
-        return function.get("name") if isinstance(function, Mapping) else getattr(function, "name", None)
-    function = getattr(call, "function", None)
+    else:
+        function = getattr(call, "function", None)
+    if isinstance(function, Mapping):
+        return function.get("name")
     return getattr(function, "name", None)
 
 

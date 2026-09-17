@@ -8,14 +8,12 @@ orchestrator, the environment, the evaluator -- is tau2's own.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from demo.agent import demo_completion
 from demo.faults import corrupted_get_users_result, get_users_step, plant_wrong_lookup_key
-from demo.harness import Store, UNUSED_API_BASE, UNUSED_API_KEY, ledger_for, no_limiter
+from demo.harness import UNUSED_API_BASE, UNUSED_API_KEY, Store, ledger_for, no_limiter
 from demo.runner import DEFAULT_SEED, run_suite
-from demo.tasks import DOMAIN, SCENARIOS, AGENT_MODEL, USER_MODEL, run_id_for, scenario
+from demo.tasks import AGENT_MODEL, DOMAIN, SCENARIOS, USER_MODEL, run_id_for, scenario
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -85,7 +83,9 @@ def store(tmp_path) -> Store:
 def _record_clean(store: Store, task_id: str, run_id: str, *, seed: int = 1):
     from agent_bisect.adapters.tau2 import RunSpec, record_run
 
-    spec = RunSpec(domain=DOMAIN, task_id=task_id, agent_model=AGENT_MODEL, user_model=USER_MODEL, seed=seed)
+    spec = RunSpec(
+        domain=DOMAIN, task_id=task_id, agent_model=AGENT_MODEL, user_model=USER_MODEL, seed=seed
+    )
     return record_run(spec, run_id=run_id, store=store.blobs, tape=store.tape)
 
 
@@ -125,7 +125,6 @@ def test_planting_the_wrong_lookup_key_fault_flips_the_run_to_a_failure(store):
         outcome = plant_wrong_lookup_key(
             parent_run_id=clean_id, run_id=faulted_id,
             store=store.blobs, reader=store.reader, tape=store.tape,
-            live_completion=demo_completion,
         )
 
     assert outcome.passed is False
@@ -173,19 +172,17 @@ def test_truthful_tool_result_recovers_the_planted_fault(store):
         plant_wrong_lookup_key(
             parent_run_id=clean_id, run_id=faulted_id,
             store=store.blobs, reader=store.reader, tape=store.tape,
-            live_completion=demo_completion,
         )
     step = get_users_step(store.reader, faulted_id)
-    executor = Tau2ForkExecutor(
-        store=store.blobs, reader=store.reader, tape=store.tape, live_completion=demo_completion
-    )
+    executor = Tau2ForkExecutor(store=store.blobs, reader=store.reader, tape=store.tape)
     resolver = Tau2TruthResolver(DOMAIN, spec.task_id, store.blobs)
 
     with _session(store):
         treated = executor.run(
             RerunRequest(
                 parent_run_id=faulted_id, run_id=faulted_id + "-treated", fork_step=step.step_idx,
-                arm="treated", intervention=TruthfulToolResult(step=step.step_idx).with_truth(resolver),
+                arm="treated",
+                intervention=TruthfulToolResult(step=step.step_idx).with_truth(resolver),
                 seed=1, prefix_tools="snapshot", unsafe_positional=False,
             )
         )
@@ -216,11 +213,8 @@ def test_the_standing_fault_survives_a_fork_taken_before_it(store):
         plant_wrong_lookup_key(
             parent_run_id=clean_id, run_id=faulted_id,
             store=store.blobs, reader=store.reader, tape=store.tape,
-            live_completion=demo_completion,
         )
-    executor = Tau2ForkExecutor(
-        store=store.blobs, reader=store.reader, tape=store.tape, live_completion=demo_completion
-    )
+    executor = Tau2ForkExecutor(store=store.blobs, reader=store.reader, tape=store.tape)
 
     with _session(store):
         before = executor.run(
@@ -238,4 +232,6 @@ def test_unscripted_model_name_raises():
     from demo.agent import UnscriptedModelError
 
     with pytest.raises(UnscriptedModelError):
-        demo_completion(model="openai/not-a-demo-model", messages=[{"role": "user", "content": "hi"}])
+        demo_completion(
+            model="openai/not-a-demo-model", messages=[{"role": "user", "content": "hi"}]
+        )

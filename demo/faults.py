@@ -78,7 +78,7 @@ def plant_wrong_lookup_key(
     store: BlobStore,
     reader: TapeReader,
     tape: TapeWriter,
-    live_completion: Any,
+    live_completion: Any = None,
 ) -> Outcome:
     """Fork `parent_run_id` with `get_users()` corrupted, standing.
 
@@ -86,7 +86,21 @@ def plant_wrong_lookup_key(
     `update_lookup` scenarios. The fork's manifest carries the fault
     (`FaultedForkDriver`), so any later fork of `run_id` -- the PR check's
     blame confirmation included -- reproduces the same wrong answer.
+
+    Must be called inside a `recording_session(...)`. `live_completion`
+    defaults to that session's own router (`tau2.utils.llm_utils.completion`,
+    read fresh so the active patch is the one used), never a bare
+    `completion_fn` passed straight through: this fork's live suffix
+    includes agent/user turns after the fault, and a live call that
+    bypasses the router is never recorded, which corrupts this recording's
+    own tape for anything that forks it later at one of those steps
+    (`adapters.tau2_fork.Tau2ForkExecutor`'s docstring names the same
+    hazard; `demo.blame`'s module docstring hit it in practice).
     """
+    if live_completion is None:
+        import tau2.utils.llm_utils as llm_utils
+
+        live_completion = llm_utils.completion
     step = get_users_step(reader, parent_run_id)
     faulted_result = corrupted_get_users_result(store, step)
     intervention = ReplaceToolResult(step=step.step_idx, new_result=faulted_result)

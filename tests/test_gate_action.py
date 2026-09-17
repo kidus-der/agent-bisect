@@ -11,12 +11,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from agent_bisect.gate.action import (
+    GateConfig,
     compare_suites,
     decisive_step_summary,
     diff_lines,
     new_failures,
     to_result_json,
-    GateConfig,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -29,7 +29,10 @@ def _summary(scenarios: dict[str, list[bool]], *, rule_id: str = "use_correct_ta
                 "name": name,
                 "rule_id": rule_id,
                 "runs": [
-                    {"run_index": i, "passed": passed, "run_id": f"demo-{name}-{i}", "faulted": False}
+                    {
+                        "run_index": i, "passed": passed,
+                        "run_id": f"demo-{name}-{i}", "faulted": False,
+                    }
                     for i, passed in enumerate(runs)
                 ],
             }
@@ -103,7 +106,8 @@ def test_decisive_step_summary_picks_the_mode_and_counts_sharing_failures():
     ]
 
     decisive = decisive_step_summary(
-        blame_summaries, total_new_failures=3, changed_files={"demo/agent_policy.yaml": ["- x", "+ y"]}
+        blame_summaries, total_new_failures=3,
+        changed_files={"demo/agent_policy.yaml": ["- x", "+ y"]},
     )
 
     assert decisive is not None

@@ -23,14 +23,15 @@ from pathlib import Path
 
 from agent_bisect.adapters.tau2 import RunSpec, record_run, recording_session
 from agent_bisect.adapters.tau2_env import ensure_tau2_data_dir
+
 from demo.agent import demo_completion, policy
 from demo.faults import plant_wrong_lookup_key
-from demo.harness import Store, UNUSED_API_BASE, UNUSED_API_KEY, ledger_for, no_limiter
+from demo.harness import UNUSED_API_BASE, UNUSED_API_KEY, Store, ledger_for, no_limiter
 from demo.tasks import (
+    AGENT_MODEL,
     DEFAULT_SEED,
     DOMAIN,
     SCENARIOS,
-    AGENT_MODEL,
     USER_MODEL,
     ScenarioSpec,
     run_id_for,
@@ -123,19 +124,23 @@ def _run_spec(scenario: ScenarioSpec, seed: int) -> RunSpec:
     )
 
 
+def _record_plain(store: Store, spec: RunSpec, run_id: str, run_index: int) -> RunResult:
+    recorded = record_run(spec, run_id=run_id, store=store.blobs, tape=store.tape)
+    assert recorded.outcome is not None, f"{run_id} aborted: {recorded.termination_reason}"
+    return RunResult(
+        run_id=run_id, run_index=run_index, passed=recorded.outcome.passed, faulted=False
+    )
+
+
 def _run_one(store: Store, scenario: ScenarioSpec, run_index: int, seed: int) -> RunResult:
     run_id = run_id_for(scenario.name, run_index, seed)
     spec = _run_spec(scenario, seed)
     if scenario.name not in FAULT_INJECTABLE:
-        recorded = record_run(spec, run_id=run_id, store=store.blobs, tape=store.tape)
-        assert recorded.outcome is not None, f"{run_id} aborted: {recorded.termination_reason}"
-        return RunResult(run_id=run_id, run_index=run_index, passed=recorded.outcome.passed, faulted=False)
+        return _record_plain(store, spec, run_id, run_index)
 
     faulted = _slips(scenario.rule_id, run_id)
     if not faulted:
-        recorded = record_run(spec, run_id=run_id, store=store.blobs, tape=store.tape)
-        assert recorded.outcome is not None, f"{run_id} aborted: {recorded.termination_reason}"
-        return RunResult(run_id=run_id, run_index=run_index, passed=recorded.outcome.passed, faulted=False)
+        return _record_plain(store, spec, run_id, run_index)
 
     clean_run_id = f"{run_id}-clean"
     recorded = record_run(spec, run_id=clean_run_id, store=store.blobs, tape=store.tape)
@@ -146,7 +151,6 @@ def _run_one(store: Store, scenario: ScenarioSpec, run_index: int, seed: int) ->
         store=store.blobs,
         reader=store.reader,
         tape=store.tape,
-        live_completion=demo_completion,
     )
     return RunResult(run_id=run_id, run_index=run_index, passed=outcome.passed, faulted=True)
 

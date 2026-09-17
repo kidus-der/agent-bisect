@@ -26,6 +26,7 @@ from agent_bisect.adapters.tau2_env import ensure_tau2_data_dir
 from agent_bisect.attribution.blame_store import save_blame
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import TapeReader, TapeWriter
+
 from demo.agent import demo_completion
 from demo.blame import NewFailure, blame_new_failure
 from demo.harness import UNUSED_API_BASE, UNUSED_API_KEY, ledger_for, no_limiter
@@ -68,7 +69,7 @@ def run_blame_cli(
                 failure,
                 head_store=head_store, head_reader=head_reader, head_tape=head_tape,
                 base_store=base_store, base_reader=base_reader,
-                live_completion=demo_completion, seed=seed,
+                seed=seed,
             )
             save_blame(out_dir, result)
             summaries.append(
