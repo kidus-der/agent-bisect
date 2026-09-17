@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import type { StepEffect } from './api'
-import { DELTA, blameVerdict, clearsDelta, earliestClearingStep, heatCells, judgeMissed } from './blame'
+import {
+  DELTA,
+  blameVerdict,
+  clearsDelta,
+  earliestClearingStep,
+  forestRows,
+  heatCells,
+  judgeMissed,
+} from './blame'
 
 function effect(step: number, value: number, low: number, high: number): StepEffect {
   return {
@@ -81,6 +89,31 @@ describe('heatCells', () => {
       { step: 2, effect: 0.3, low: 0.15, high: 0.5, tested: true },
       { step: 3, effect: null, low: null, high: null, tested: false },
     ])
+  })
+})
+
+describe('forestRows', () => {
+  it('orders by step and marks which intervals clear delta', () => {
+    // Arrange
+    const effects = [
+      effect(9, 0.8, 0.5, 0.95),
+      effect(4, 0.4, 0.2, 0.6),
+      effect(2, 0.05, -0.2, 0.3),
+    ]
+
+    // Act
+    const rows = forestRows(effects, DELTA, 4)
+
+    // Assert
+    expect(rows.map((row) => row.step)).toEqual([2, 4, 9])
+    expect(rows.map((row) => row.clears)).toEqual([false, true, true])
+    expect(rows.map((row) => row.blamed)).toEqual([false, true, false])
+  })
+
+  it('does not mutate the effects it was handed', () => {
+    const effects = [effect(9, 0.8, 0.5, 0.95), effect(4, 0.4, 0.2, 0.6)]
+    forestRows(effects, DELTA, 4)
+    expect(effects.map((entry) => entry.step)).toEqual([9, 4])
   })
 })
 

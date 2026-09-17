@@ -17,10 +17,7 @@ export function clearsDelta(effect: StepEffect, delta: number): boolean {
 }
 
 /** The earliest clearing step, or null when nothing clears. */
-export function earliestClearingStep(
-  effects: readonly StepEffect[],
-  delta: number,
-): number | null {
+export function earliestClearingStep(effects: readonly StepEffect[], delta: number): number | null {
   const clearing = effects.filter((entry) => clearsDelta(entry, delta))
   if (clearing.length === 0) return null
   return clearing.reduce((earliest, entry) => (entry.step < earliest.step ? entry : earliest)).step
@@ -76,6 +73,35 @@ export function judgeMissed(
 ): boolean {
   if (blamedStep === null) return false
   return !ranking.some((entry) => entry.step === blamedStep)
+}
+
+export interface ForestRow {
+  readonly step: number
+  readonly effect: number
+  readonly low: number
+  readonly high: number
+  /** The interval clears delta on its own. */
+  readonly clears: boolean
+  /** The earliest clearing step: the one blame lands on. */
+  readonly blamed: boolean
+}
+
+/** One row per tested step, in step order, each marked against the blame rule. */
+export function forestRows(
+  effects: readonly StepEffect[],
+  delta: number,
+  blamedStep: number | null,
+): readonly ForestRow[] {
+  return [...effects]
+    .sort((a, b) => a.step - b.step)
+    .map((entry) => ({
+      step: entry.step,
+      effect: entry.effect,
+      low: entry.ci_low,
+      high: entry.ci_high,
+      clears: clearsDelta(entry, delta),
+      blamed: entry.step === blamedStep,
+    }))
 }
 
 export function effectForStep(
