@@ -91,6 +91,9 @@ export function StepTimeline({
   const sliderRef = useRef<HTMLDivElement | null>(null)
   const [scrollLeft, setScrollLeft] = useState(0)
   const [hovered, setHovered] = useState<number | null>(null)
+  // The step the drag last committed. A pointer crossing a cell fires many
+  // moves; only the ones that change the step are worth a render.
+  const committedRef = useRef(playhead)
 
   const nSteps = steps.length
   const geometry = useMemo(
@@ -103,7 +106,10 @@ export function StepTimeline({
     (clientX: number): void => {
       const rect = sliderRef.current?.getBoundingClientRect()
       if (!rect) return
-      onPlayheadChange(geometry.stepAt(clientX - rect.left))
+      const next = geometry.stepAt(clientX - rect.left)
+      if (next === committedRef.current) return
+      committedRef.current = next
+      onPlayheadChange(next)
     },
     [geometry, onPlayheadChange],
   )
@@ -127,6 +133,11 @@ export function StepTimeline({
     event.preventDefault()
     onPlayheadChange(clampStep(playhead + delta, nSteps))
   }
+
+  // Keyboard, the forest plot and the matrix all move the playhead too.
+  useEffect(() => {
+    committedRef.current = playhead
+  }, [playhead])
 
   // Keep the playhead in view when it moves by keyboard or by a rewind.
   useEffect(() => {
