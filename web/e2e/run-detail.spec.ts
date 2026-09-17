@@ -34,6 +34,19 @@ test('the header states the run, its outcome and the step blame landed on', asyn
   await expect(page.getByText('planted fault · wrong_value at step 7')).toBeVisible()
 })
 
+test('the blame rail reports the settings the estimate was produced with', async ({ page }) => {
+  await openRun(page, BRIEF_RUN)
+
+  const config = page.getByTestId('estimator-config')
+  await expect(config).toContainText('N ≤')
+  await expect(config).toContainText('16')
+  await expect(config).toContainText('shared')
+  await expect(config).toContainText('O’Brien-Fleming')
+  // The caption carries a non-breaking space before the value, so match around it.
+  await expect(page.getByText(/Earliest step whose 95% interval clears/)).toBeVisible()
+  await expect(page.getByText(/out of 12 tested/)).toBeVisible()
+})
+
 test('the playhead opens on the decisive step and moves by keyboard', async ({ page }) => {
   await openRun(page, BRIEF_RUN)
   const slider = page.getByRole('slider', { name: 'Step playhead' })
@@ -128,6 +141,8 @@ test('a dot in the matrix opens the re-run it stands for', async ({ page }) => {
 test('the judge panel compares both protocols with the measured effect', async ({ page }) => {
   await openRun(page, BRIEF_RUN)
 
+  // The shortlist size comes from the run's own estimator config, not a guess.
+  await expect(page.getByText('judge ranking · top 3_')).toBeVisible()
   await expect(page.getByText(/judge rank 1 = step 7/)).toBeVisible()
   await page.getByText('Step by step', { exact: true }).click()
   await expect(page.getByRole('button', { name: /judge score 0.689/ })).toBeVisible()

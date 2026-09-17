@@ -27,6 +27,15 @@
       "domain": "airline",
       "estimate": {
         "blamed_step": 7,
+        "config": {
+          "batch": 4,
+          "conf": 0.95,
+          "control_mode": "shared",
+          "delta": 0.1,
+          "efficacy_boundary": "obf",
+          "max_n": 16,
+          "shortlist_m": 3
+        },
         "control_fork_step": 1,
         "control_mode": "shared",
         "control_reruns": 16,
@@ -35,122 +44,194 @@
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 1,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.386,
             "ci_low": -0.153,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 2,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 4 }
+            "treated": {
+              "n": 16,
+              "successes": 4
+            }
           },
           {
             "ci_high": 0.386,
             "ci_low": -0.153,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 3,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 4 }
+            "treated": {
+              "n": 16,
+              "successes": 4
+            }
           },
           {
             "ci_high": 0.386,
             "ci_low": -0.153,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 4,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 4 }
+            "treated": {
+              "n": 16,
+              "successes": 4
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 5,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 6,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.965,
             "ci_low": 0.4743,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.875,
             "n_batches": 2,
             "step": 7,
             "stop_reason": "blameworthy",
-            "treated": { "n": 8, "successes": 8 }
+            "treated": {
+              "n": 8,
+              "successes": 8
+            }
           },
           {
             "ci_high": 0.505,
             "ci_low": -0.0525,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.25,
             "n_batches": 4,
             "step": 8,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 6 }
+            "treated": {
+              "n": 16,
+              "successes": 6
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 9,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 10,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 11,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 12,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           }
         ],
         "treated_reruns": 184
@@ -2197,7 +2278,12 @@
   },
   "/api/runs/brief-12-step/steps/1": {
     "data": {
-      "messages": [{ "content": "provides an order number", "role": "user" }],
+      "messages": [
+        {
+          "content": "provides an order number",
+          "role": "user"
+        }
+      ],
       "step_idx": 1,
       "tool_args": null,
       "tool_result": null
@@ -2227,7 +2313,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/1/state-diff": {
-    "data": { "entries": [], "step_idx": 1 },
+    "data": {
+      "entries": [],
+      "step_idx": 1
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2241,7 +2330,12 @@
   },
   "/api/runs/brief-12-step/steps/10": {
     "data": {
-      "messages": [{ "content": "summarizes what it found so far", "role": "agent" }],
+      "messages": [
+        {
+          "content": "summarizes what it found so far",
+          "role": "agent"
+        }
+      ],
       "step_idx": 10,
       "tool_args": null,
       "tool_result": null
@@ -2271,7 +2365,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/10/state-diff": {
-    "data": { "entries": [], "step_idx": 10 },
+    "data": {
+      "entries": [],
+      "step_idx": 10
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2285,10 +2382,21 @@
   },
   "/api/runs/brief-12-step/steps/11": {
     "data": {
-      "messages": [{ "content": "book_reservation returned", "role": "tool" }],
+      "messages": [
+        {
+          "content": "book_reservation returned",
+          "role": "tool"
+        }
+      ],
       "step_idx": 11,
-      "tool_args": { "id": "X76TSY" },
-      "tool_result": { "origin": "ORD", "reservation_id": "X76TSY", "status": "confirmed" }
+      "tool_args": {
+        "id": "X76TSY"
+      },
+      "tool_result": {
+        "origin": "ORD",
+        "reservation_id": "X76TSY",
+        "status": "confirmed"
+      }
     },
     "error": null,
     "meta": {
@@ -2339,7 +2447,12 @@
   },
   "/api/runs/brief-12-step/steps/12": {
     "data": {
-      "messages": [{ "content": "calls a tool to check the current state", "role": "agent" }],
+      "messages": [
+        {
+          "content": "calls a tool to check the current state",
+          "role": "agent"
+        }
+      ],
       "step_idx": 12,
       "tool_args": null,
       "tool_result": null
@@ -2369,7 +2482,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/12/state-diff": {
-    "data": { "entries": [], "step_idx": 12 },
+    "data": {
+      "entries": [],
+      "step_idx": 12
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2383,7 +2499,12 @@
   },
   "/api/runs/brief-12-step/steps/2": {
     "data": {
-      "messages": [{ "content": "summarizes what it found so far", "role": "agent" }],
+      "messages": [
+        {
+          "content": "summarizes what it found so far",
+          "role": "agent"
+        }
+      ],
       "step_idx": 2,
       "tool_args": null,
       "tool_result": null
@@ -2413,7 +2534,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/2/state-diff": {
-    "data": { "entries": [], "step_idx": 2 },
+    "data": {
+      "entries": [],
+      "step_idx": 2
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2427,10 +2551,21 @@
   },
   "/api/runs/brief-12-step/steps/3": {
     "data": {
-      "messages": [{ "content": "update_reservation_baggages returned", "role": "tool" }],
+      "messages": [
+        {
+          "content": "update_reservation_baggages returned",
+          "role": "tool"
+        }
+      ],
       "step_idx": 3,
-      "tool_args": { "id": "J1LAMF" },
-      "tool_result": { "origin": "SFO", "reservation_id": "J1LAMF", "status": "confirmed" }
+      "tool_args": {
+        "id": "J1LAMF"
+      },
+      "tool_result": {
+        "origin": "SFO",
+        "reservation_id": "J1LAMF",
+        "status": "confirmed"
+      }
     },
     "error": null,
     "meta": {
@@ -2459,7 +2594,12 @@
   "/api/runs/brief-12-step/steps/3/state-diff": {
     "data": {
       "entries": [
-        { "after": "9405", "before": "M4GI", "kind": "changed", "path": "reservation.status" }
+        {
+          "after": "9405",
+          "before": "M4GI",
+          "kind": "changed",
+          "path": "reservation.status"
+        }
       ],
       "step_idx": 3
     },
@@ -2476,7 +2616,12 @@
   },
   "/api/runs/brief-12-step/steps/4": {
     "data": {
-      "messages": [{ "content": "calls a tool to check the current state", "role": "agent" }],
+      "messages": [
+        {
+          "content": "calls a tool to check the current state",
+          "role": "agent"
+        }
+      ],
       "step_idx": 4,
       "tool_args": null,
       "tool_result": null
@@ -2506,7 +2651,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/4/state-diff": {
-    "data": { "entries": [], "step_idx": 4 },
+    "data": {
+      "entries": [],
+      "step_idx": 4
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2520,7 +2668,12 @@
   },
   "/api/runs/brief-12-step/steps/5": {
     "data": {
-      "messages": [{ "content": "pushes back on the proposed fix", "role": "user" }],
+      "messages": [
+        {
+          "content": "pushes back on the proposed fix",
+          "role": "user"
+        }
+      ],
       "step_idx": 5,
       "tool_args": null,
       "tool_result": null
@@ -2550,7 +2703,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/5/state-diff": {
-    "data": { "entries": [], "step_idx": 5 },
+    "data": {
+      "entries": [],
+      "step_idx": 5
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2564,7 +2720,12 @@
   },
   "/api/runs/brief-12-step/steps/6": {
     "data": {
-      "messages": [{ "content": "looks up the record before acting", "role": "agent" }],
+      "messages": [
+        {
+          "content": "looks up the record before acting",
+          "role": "agent"
+        }
+      ],
       "step_idx": 6,
       "tool_args": null,
       "tool_result": null
@@ -2594,7 +2755,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/6/state-diff": {
-    "data": { "entries": [], "step_idx": 6 },
+    "data": {
+      "entries": [],
+      "step_idx": 6
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2608,10 +2772,21 @@
   },
   "/api/runs/brief-12-step/steps/7": {
     "data": {
-      "messages": [{ "content": "book_reservation returned", "role": "tool" }],
+      "messages": [
+        {
+          "content": "book_reservation returned",
+          "role": "tool"
+        }
+      ],
       "step_idx": 7,
-      "tool_args": { "id": "X0X2K6" },
-      "tool_result": { "origin": "JFK", "reservation_id": "NM1VX1", "status": "confirmed" }
+      "tool_args": {
+        "id": "X0X2K6"
+      },
+      "tool_result": {
+        "origin": "JFK",
+        "reservation_id": "NM1VX1",
+        "status": "confirmed"
+      }
     },
     "error": null,
     "meta": {
@@ -2652,7 +2827,12 @@
   "/api/runs/brief-12-step/steps/7/state-diff": {
     "data": {
       "entries": [
-        { "after": "U9JL", "before": "21MM", "kind": "changed", "path": "user.membership" }
+        {
+          "after": "U9JL",
+          "before": "21MM",
+          "kind": "changed",
+          "path": "user.membership"
+        }
       ],
       "step_idx": 7
     },
@@ -2669,7 +2849,12 @@
   },
   "/api/runs/brief-12-step/steps/8": {
     "data": {
-      "messages": [{ "content": "looks up the record before acting", "role": "agent" }],
+      "messages": [
+        {
+          "content": "looks up the record before acting",
+          "role": "agent"
+        }
+      ],
       "step_idx": 8,
       "tool_args": null,
       "tool_result": null
@@ -2699,7 +2884,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/8/state-diff": {
-    "data": { "entries": [], "step_idx": 8 },
+    "data": {
+      "entries": [],
+      "step_idx": 8
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2713,7 +2901,12 @@
   },
   "/api/runs/brief-12-step/steps/9": {
     "data": {
-      "messages": [{ "content": "pushes back on the proposed fix", "role": "user" }],
+      "messages": [
+        {
+          "content": "pushes back on the proposed fix",
+          "role": "user"
+        }
+      ],
       "step_idx": 9,
       "tool_args": null,
       "tool_result": null
@@ -2743,7 +2936,10 @@
     "success": true
   },
   "/api/runs/brief-12-step/steps/9/state-diff": {
-    "data": { "entries": [], "step_idx": 9 },
+    "data": {
+      "entries": [],
+      "step_idx": 9
+    },
     "error": null,
     "meta": {
       "data_source": "fixture",
@@ -2762,6 +2958,15 @@
       "domain": "airline",
       "estimate": {
         "blamed_step": 55,
+        "config": {
+          "batch": 4,
+          "conf": 0.95,
+          "control_mode": "shared",
+          "delta": 0.1,
+          "efficacy_boundary": "obf",
+          "max_n": 16,
+          "shortlist_m": 3
+        },
         "control_fork_step": 1,
         "control_mode": "shared",
         "control_reruns": 16,
@@ -2770,602 +2975,962 @@
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 1,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 2,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.386,
             "ci_low": -0.153,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 3,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 4 }
+            "treated": {
+              "n": 16,
+              "successes": 4
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 4,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 5,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 6,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.4471,
             "ci_low": -0.1032,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.1875,
             "n_batches": 4,
             "step": 7,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 5 }
+            "treated": {
+              "n": 16,
+              "successes": 5
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 8,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 9,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 10,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 11,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 12,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 13,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 14,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 15,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 16,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 17,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 18,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 19,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 20,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 21,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 22,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 23,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 24,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 25,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 26,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 27,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 28,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 29,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 30,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 31,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 32,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 33,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 34,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 35,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 36,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 37,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 38,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 39,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 40,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 41,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 42,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 43,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 44,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 45,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 46,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 47,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 48,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 49,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 50,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 51,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.0885,
             "ci_low": -0.3602,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 52,
             "stop_reason": "cleared",
-            "treated": { "n": 16, "successes": 0 }
+            "treated": {
+              "n": 16,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.2519,
             "ci_low": -0.2519,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 53,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 2 }
+            "treated": {
+              "n": 16,
+              "successes": 2
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 54,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.8865,
             "ci_low": 0.3317,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.75,
             "n_batches": 2,
             "step": 55,
             "stop_reason": "blameworthy",
-            "treated": { "n": 8, "successes": 7 }
+            "treated": {
+              "n": 8,
+              "successes": 7
+            }
           },
           {
             "ci_high": 0.6628,
             "ci_low": 0.108,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.4375,
             "n_batches": 4,
             "step": 56,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 9 }
+            "treated": {
+              "n": 16,
+              "successes": 9
+            }
           },
           {
             "ci_high": 0.5602,
             "ci_low": -0.0005,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.3125,
             "n_batches": 4,
             "step": 57,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 7 }
+            "treated": {
+              "n": 16,
+              "successes": 7
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 58,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           },
           {
             "ci_high": 0.3213,
             "ci_low": -0.2023,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": 0.0625,
             "n_batches": 4,
             "step": 59,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 3 }
+            "treated": {
+              "n": 16,
+              "successes": 3
+            }
           },
           {
             "ci_high": 0.1759,
             "ci_low": -0.3033,
-            "control": { "n": 16, "successes": 2 },
+            "control": {
+              "n": 16,
+              "successes": 2
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 60,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 1 }
+            "treated": {
+              "n": 16,
+              "successes": 1
+            }
           }
         ],
         "treated_reruns": 952
@@ -3390,50 +3955,26 @@
             "rationale": "[all-at-once] tool result at step 3 looks inconsistent with the reasoning that follows it",
             "score": 0.033,
             "step": 3
-          },
-          {
-            "rank": 4,
-            "rationale": "[all-at-once] tool result at step 7 looks inconsistent with the reasoning that follows it",
-            "score": 0.0,
-            "step": 7
-          },
-          {
-            "rank": 5,
-            "rationale": "[all-at-once] tool result at step 11 looks inconsistent with the reasoning that follows it",
-            "score": 0.008,
-            "step": 11
           }
         ],
         "step_by_step": [
           {
             "rank": 1,
             "rationale": "[step-by-step] tool result at step 55 looks inconsistent with the reasoning that follows it",
-            "score": 0.855,
+            "score": 0.849,
             "step": 55
           },
           {
             "rank": 2,
             "rationale": "[step-by-step] tool result at step 59 looks inconsistent with the reasoning that follows it",
-            "score": 0.063,
+            "score": 0.0,
             "step": 59
           },
           {
             "rank": 3,
             "rationale": "[step-by-step] tool result at step 3 looks inconsistent with the reasoning that follows it",
-            "score": 0.103,
+            "score": 0.015,
             "step": 3
-          },
-          {
-            "rank": 4,
-            "rationale": "[step-by-step] tool result at step 7 looks inconsistent with the reasoning that follows it",
-            "score": 0.017,
-            "step": 7
-          },
-          {
-            "rank": 5,
-            "rationale": "[step-by-step] tool result at step 11 looks inconsistent with the reasoning that follows it",
-            "score": 0.087,
-            "step": 11
           }
         ]
       },
@@ -3947,6 +4488,15 @@
       "domain": "retail",
       "estimate": {
         "blamed_step": null,
+        "config": {
+          "batch": 4,
+          "conf": 0.95,
+          "control_mode": "shared",
+          "delta": 0.1,
+          "efficacy_boundary": "obf",
+          "max_n": 16,
+          "shortlist_m": 3
+        },
         "control_fork_step": 1,
         "control_mode": "shared",
         "control_reruns": 16,
@@ -3955,102 +4505,162 @@
           {
             "ci_high": 0.4158,
             "ci_low": -0.1995,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 1,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 10 }
+            "treated": {
+              "n": 16,
+              "successes": 10
+            }
           },
           {
             "ci_high": 0.4158,
             "ci_low": -0.1995,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 2,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 10 }
+            "treated": {
+              "n": 16,
+              "successes": 10
+            }
           },
           {
             "ci_high": 0.4158,
             "ci_low": -0.1995,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 3,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 10 }
+            "treated": {
+              "n": 16,
+              "successes": 10
+            }
           },
           {
             "ci_high": 0.3111,
             "ci_low": -0.3111,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 4,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 8 }
+            "treated": {
+              "n": 16,
+              "successes": 8
+            }
           },
           {
             "ci_high": 0.037,
             "ci_low": -0.72,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": -0.5,
             "n_batches": 1,
             "step": 5,
             "stop_reason": "cleared",
-            "treated": { "n": 4, "successes": 0 }
+            "treated": {
+              "n": 4,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.2563,
             "ci_low": -0.3642,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": -0.0625,
             "n_batches": 4,
             "step": 6,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 7 }
+            "treated": {
+              "n": 16,
+              "successes": 7
+            }
           },
           {
             "ci_high": 0.3111,
             "ci_low": -0.3111,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": 0.0,
             "n_batches": 4,
             "step": 7,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 8 }
+            "treated": {
+              "n": 16,
+              "successes": 8
+            }
           },
           {
             "ci_high": 0.4158,
             "ci_low": -0.1995,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": 0.125,
             "n_batches": 4,
             "step": 8,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 10 }
+            "treated": {
+              "n": 16,
+              "successes": 10
+            }
           },
           {
             "ci_high": 0.037,
             "ci_low": -0.72,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": -0.5,
             "n_batches": 1,
             "step": 9,
             "stop_reason": "cleared",
-            "treated": { "n": 4, "successes": 0 }
+            "treated": {
+              "n": 4,
+              "successes": 0
+            }
           },
           {
             "ci_high": 0.1995,
             "ci_low": -0.4158,
-            "control": { "n": 16, "successes": 8 },
+            "control": {
+              "n": 16,
+              "successes": 8
+            },
             "effect": -0.125,
             "n_batches": 4,
             "step": 10,
             "stop_reason": "max_n",
-            "treated": { "n": 16, "successes": 6 }
+            "treated": {
+              "n": 16,
+              "successes": 6
+            }
           }
         ],
         "treated_reruns": 136
