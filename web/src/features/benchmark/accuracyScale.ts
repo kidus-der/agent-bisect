@@ -7,7 +7,22 @@
  */
 
 export const MAX_RATE = 1
-export const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
+const BASE_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
+
+/** Kept for the tests and callers that only need the fixed quarters. */
+export const AXIS_TICKS = BASE_TICKS
+
+/**
+ * The ticks that actually span the drawn track.
+ *
+ * When the pre-registered bar pushes the axis past 100%, the quarters alone
+ * stop short of the track's right edge, so the axis and the plot disagree about
+ * where the scale ends. A final tick at the axis maximum closes that gap.
+ */
+export function axisTicks(axisMax: number): readonly number[] {
+  if (axisMax <= MAX_RATE) return [...BASE_TICKS]
+  return [...BASE_TICKS, axisMax]
+}
 
 /** Kept clear to the right of the furthest mark so its label is not clipped. */
 const AXIS_HEADROOM = 0.02

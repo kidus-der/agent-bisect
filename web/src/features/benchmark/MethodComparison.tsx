@@ -9,9 +9,9 @@ import { formatPercent, formatPoints } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 
 import {
-  AXIS_TICKS,
   MAX_RATE,
   accuracyAxisMax,
+  axisTicks,
   rateFraction,
   ratePercent,
   rateSpanPercent,
@@ -192,10 +192,12 @@ interface AxisProps {
 }
 
 function AccuracyAxis({ axisMax }: AxisProps) {
+  // Driven off the bars' own scale, so the last tick lands on the track's edge.
+  const ticks = axisTicks(axisMax)
   return (
     <div aria-hidden="true" className={cn(ROW_GRID, 'mt-1')}>
-      <div className={cn(TRACK_CELL, 'relative h-4')}>
-        {AXIS_TICKS.map((tick, index) => (
+      <div data-slot="accuracy-axis" className={cn(TRACK_CELL, 'relative h-4')}>
+        {ticks.map((tick, index) => (
           <span
             key={tick}
             style={{ left: ratePercent(tick, axisMax) }}
@@ -205,7 +207,7 @@ function AccuracyAxis({ axisMax }: AxisProps) {
               // half its width outside the scale it belongs to.
               index === 0
                 ? ''
-                : index === AXIS_TICKS.length - 1 && rateFraction(tick, axisMax) > 0.98
+                : index === ticks.length - 1
                   ? '-translate-x-full'
                   : '-translate-x-1/2',
             )}
