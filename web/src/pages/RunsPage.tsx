@@ -199,6 +199,9 @@ export function RunsPage() {
               onSortChange={onSortChange}
               onOpen={onOpen}
               onIntent={onIntent}
+              // The filters, not the scroll position or a refetch, are what
+              // makes this a different list worth re-introducing.
+              enterKey={JSON.stringify(toSearchParams(search))}
               footer={
                 narrowed.total === null
                   ? `${narrowed.loaded} shown`

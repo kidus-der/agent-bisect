@@ -99,7 +99,7 @@ function RunIdChip({ runId }: { readonly runId: string }) {
   if (reduced) return <span className="num font-medium text-ink">{runId}</span>
   return (
     <motion.span
-      layoutId={layoutIds.runRow(runId)}
+      layoutId={layoutIds.runIdChip(runId)}
       transition={transition}
       className="inline-block num font-medium text-ink"
     >
@@ -225,6 +225,8 @@ interface RunsTableProps {
   readonly onIntent: (run: RunSummary) => void
   /** What the footer reports, e.g. "40 of 266 shown". */
   readonly footer: string
+  /** Changes only when the result set materially changes, replaying the entrance. */
+  readonly enterKey: string
 }
 
 export function RunsTable({
@@ -234,6 +236,7 @@ export function RunsTable({
   onOpen,
   onIntent,
   footer,
+  enterKey,
 }: RunsTableProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wide = useMediaQuery(WIDE_QUERY)
@@ -260,6 +263,7 @@ export function RunsTable({
           onRowIntent={onIntent}
           maxHeight={height}
           rowHeight={ROW_HEIGHT}
+          enterKey={enterKey}
           compactRowHeight={COMPACT_ROW_HEIGHT}
           renderCompactRow={(run) => <CompactRun run={run} />}
         />

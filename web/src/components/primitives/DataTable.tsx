@@ -1,9 +1,9 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
-import { type ReactNode, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
-import { springTransition } from '@/design/motion'
+import { STAGGER_SECONDS, springTransition } from '@/design/motion'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
 
@@ -52,6 +52,12 @@ interface DataTableProps<Row> {
    */
   readonly renderCompactRow?: (row: Row) => ReactNode
   readonly compactRowHeight?: number
+  /**
+   * Staggers the first window of rows in. Keyed by a token from the owner, so
+   * it replays when the set materially changes (a new filter) and not on every
+   * scroll, refetch or re-render.
+   */
+  readonly enterKey?: string
   readonly className?: string
 }
 
@@ -61,6 +67,9 @@ const OVERSCAN_ROWS = 8
 const HEADER_ROWS = 1
 const HOVER_LIFT_PX = 2
 const PRESS_SCALE = 0.995
+const ROW_ENTER_OFFSET_PX = 6
+/** Only the first window staggers; past it rows appear as you scroll to them. */
+const MAX_STAGGERED_ROWS = 14
 /** Matches `--breakpoint-md`, where the top nav collapses into the bottom tab bar. */
 const WIDE_QUERY = '(min-width: 768px)'
 
@@ -113,6 +122,8 @@ interface BodyRowProps<Row> {
   readonly rowIndex: number
   readonly onRowActivate?: (row: Row) => void
   readonly onRowIntent?: (row: Row) => void
+  /** Seconds to hold this row back, for the staggered first paint. */
+  readonly enterDelay: number
 }
 
 const ACTIVATION_KEYS = ['Enter', ' ']
@@ -137,12 +148,15 @@ function BodyRow<Row>({
   rowIndex,
   onRowActivate,
   onRowIntent,
+  enterDelay,
 }: BodyRowProps<Row>) {
   const reduced = useReducedMotion() ?? false
   const interactive = onRowActivate !== undefined
   return (
     <motion.tr
       aria-rowindex={rowIndex}
+      initial={reduced || enterDelay < 0 ? false : { opacity: 0, y: ROW_ENTER_OFFSET_PX }}
+      animate={{ opacity: 1, y: 0 }}
       tabIndex={interactive ? 0 : undefined}
       onClick={onRowActivate ? () => onRowActivate(row) : undefined}
       onKeyDown={activationHandler(row, onRowActivate)}
@@ -151,7 +165,7 @@ function BodyRow<Row>({
       // Transform only: a lift must not reflow the virtualized list.
       whileHover={interactive && !reduced ? { y: -HOVER_LIFT_PX } : undefined}
       whileTap={interactive && !reduced ? { y: 0, scale: PRESS_SCALE } : undefined}
-      transition={springTransition('settle', reduced)}
+      transition={{ ...springTransition('settle', reduced), delay: Math.max(enterDelay, 0) }}
       style={{ height: rowHeight }}
       className={cn(
         'group/row relative border-b border-line last:border-b-0 hover:bg-elevated',
@@ -231,6 +245,20 @@ function SpacerRow({ height, span }: SpacerRowProps) {
   )
 }
 
+/**
+ * True only for the render that follows a new `enterKey`, which is what makes
+ * the stagger a first-paint effect rather than a scroll effect: rows mounting
+ * later — because the virtualizer brought row 3 back as you scrolled up — find
+ * it false and simply appear.
+ */
+function useFirstPaintStagger(enterKey: string | undefined): boolean {
+  const [settledKey, setSettledKey] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    if (enterKey !== undefined) setSettledKey(enterKey)
+  }, [enterKey])
+  return enterKey !== undefined && settledKey !== enterKey
+}
+
 /** Dense table base: sortable headers, sticky header, tabular numerals, optional virtualization. */
 export function DataTable<Row>({
   columns,
@@ -246,9 +274,11 @@ export function DataTable<Row>({
   rowHeight = DEFAULT_ROW_HEIGHT,
   renderCompactRow,
   compactRowHeight = DEFAULT_COMPACT_ROW_HEIGHT,
+  enterKey,
   className,
 }: DataTableProps<Row>) {
   const [internalSort, setInternalSort] = useState<SortState | null>(initialSort ?? null)
+  const staggering = useFirstPaintStagger(enterKey)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const wide = useMediaQuery(WIDE_QUERY)
   const compact = renderCompactRow !== undefined && !wide
@@ -292,6 +322,10 @@ export function DataTable<Row>({
       })
     : sortedRows.map((row, index) => ({ row, rowIndex: index + HEADER_ROWS + 1 }))
 
+  // A negative delay means "do not animate this row in".
+  const enterDelayFor = (index: number): number =>
+    !staggering || index >= MAX_STAGGERED_ROWS ? -1 : index * STAGGER_SECONDS.list
+
   const body = compact ? (
     // A list, not a sideways-scrolling table: at 390px there is no room for columns.
     <ul
@@ -325,7 +359,11 @@ export function DataTable<Row>({
           ))}
         </tr>
       </thead>
-      <tbody className="[&_td]:border-b [&_td]:border-line [&_tr:last-child_td]:border-b-0">
+      {/* Keyed so a materially different list is introduced again rather than swapped under the cursor. */}
+      <tbody
+        key={enterKey}
+        className="[&_td]:border-b [&_td]:border-line [&_tr:last-child_td]:border-b-0"
+      >
         <SpacerRow height={padTop} span={columns.length} />
         {visibleRows.map(({ row, rowIndex }) => (
           <BodyRow
@@ -336,6 +374,7 @@ export function DataTable<Row>({
             rowHeight={rowHeight}
             onRowActivate={onRowActivate}
             onRowIntent={onRowIntent}
+            enterDelay={enterDelayFor(rowIndex - HEADER_ROWS - 1)}
           />
         ))}
         <SpacerRow height={padBottom} span={columns.length} />
