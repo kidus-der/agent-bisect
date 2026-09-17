@@ -103,6 +103,14 @@ export const FAULT_TYPE_LABELS = {
   tool_error: 'tool error text',
 } as const
 
+/** Short forms for the sankey's outside labels, which have no room on a phone. */
+export const FAULT_TYPE_SHORT = {
+  wrong_value: 'wrong',
+  missing_field: 'missing',
+  stale_record: 'stale',
+  tool_error: 'tool err',
+} as const
+
 export const POSITION_LABELS = { early: 'early', middle: 'middle', late: 'late' } as const
 export const POSITION_ORDER = ['early', 'middle', 'late'] as const
 
@@ -113,6 +121,13 @@ export const BLAME_LABELS = {
   later: '✕ a later step',
   none: '· no step blamed',
 } as const
+export const BLAME_LABELS_SHORT = {
+  exact: '✓ exact',
+  earlier: '✕ earlier',
+  later: '✕ later',
+  none: '· none',
+} as const
+
 export const BLAME_LABEL_ORDER = ['exact', 'earlier', 'later', 'none'] as const
 
 /**

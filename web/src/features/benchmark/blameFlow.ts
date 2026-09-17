@@ -5,7 +5,14 @@
 import type { RoleName } from '@/design/tokens'
 
 import type { BlameLabel, FaultType, SankeyFlow } from './api'
-import { BLAME_LABELS, BLAME_LABEL_ORDER, BLAME_LABEL_ROLES, FAULT_TYPE_LABELS } from './methods'
+import {
+  BLAME_LABELS,
+  BLAME_LABELS_SHORT,
+  BLAME_LABEL_ORDER,
+  BLAME_LABEL_ROLES,
+  FAULT_TYPE_LABELS,
+  FAULT_TYPE_SHORT,
+} from './methods'
 
 export type FlowCategory = 'source' | 'outcome'
 
@@ -29,7 +36,10 @@ export interface BlameFlowGraph {
 
 const FAULT_ROLE: RoleName = 'tape'
 
-export function buildBlameFlow(rows: readonly SankeyFlow[]): BlameFlowGraph {
+/** `compact` swaps in the short labels; the text alternative always uses the full ones. */
+export function buildBlameFlow(rows: readonly SankeyFlow[], compact = false): BlameFlowGraph {
+  const faultName = compact ? FAULT_TYPE_SHORT : FAULT_TYPE_LABELS
+  const labelName = compact ? BLAME_LABELS_SHORT : BLAME_LABELS
   const faults = [...new Set(rows.map((row) => row.fault_type))].sort((a, b) =>
     FAULT_TYPE_LABELS[a].localeCompare(FAULT_TYPE_LABELS[b]),
   )
@@ -38,12 +48,12 @@ export function buildBlameFlow(rows: readonly SankeyFlow[]): BlameFlowGraph {
   )
 
   const faultNodes: readonly FlowNode[] = faults.map((fault) => ({
-    name: FAULT_TYPE_LABELS[fault],
+    name: faultName[fault],
     category: 'source',
     role: FAULT_ROLE,
   }))
   const labelNodes: readonly FlowNode[] = labels.map((label) => ({
-    name: BLAME_LABELS[label],
+    name: labelName[label],
     category: 'outcome',
     role: BLAME_LABEL_ROLES[label],
   }))

@@ -1,5 +1,5 @@
 import { useReducedMotion } from 'motion/react'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
@@ -17,8 +17,46 @@ import type { SankeyFlow } from './api'
 import { buildBlameFlow, describeBlameFlow } from './blameFlow'
 
 const ENTER_DURATION_MS = 1100
-/** Node labels are drawn outside the nodes, so the sides are sized for the longest one. */
-const MARGIN = { top: 12, right: 132, bottom: 12, left: 104 } as const
+/**
+ * Node labels are drawn outside the nodes, so the side margins have to hold the
+ * longest label — but fixed margins leave almost no plot on a 390px screen, so
+ * they scale with the available width between a readable floor and that ceiling.
+ */
+const MARGIN_Y = 12
+const MIN_LEFT = 70
+const MAX_LEFT = 104
+const MIN_RIGHT = 78
+const MAX_RIGHT = 132
+
+const WIDE_MARGIN = {
+  top: MARGIN_Y,
+  bottom: MARGIN_Y,
+  left: MAX_LEFT,
+  right: MAX_RIGHT,
+} as const
+const NARROW_MARGIN = {
+  top: MARGIN_Y,
+  bottom: MARGIN_Y,
+  left: MIN_LEFT,
+  right: MIN_RIGHT,
+} as const
+
+const NARROW_QUERY = '(max-width: 640px)'
+
+/** Nesting a ParentSize inside the chart's own breaks its sizing, so this reads the viewport. */
+function useNarrowViewport(): boolean {
+  const subscribe = useCallback((onChange: () => void) => {
+    if (typeof window.matchMedia !== 'function') return () => undefined
+    const list = window.matchMedia(NARROW_QUERY)
+    list.addEventListener('change', onChange)
+    return () => list.removeEventListener('change', onChange)
+  }, [])
+  const read = useCallback(
+    () => typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches,
+    [],
+  )
+  return useSyncExternalStore(subscribe, read, () => false)
+}
 const NODE_WIDTH = 10
 const NODE_PADDING = 16
 const LINK_OPACITY = 0.38
@@ -32,7 +70,8 @@ interface BlameFlowSankeyProps {
 /** Planted fault type on the left, where the blame actually landed on the right. */
 export function BlameFlowSankey({ rows }: BlameFlowSankeyProps) {
   const reduced = useReducedMotion() === true
-  const graph = useMemo(() => buildBlameFlow(rows), [rows])
+  const narrow = useNarrowViewport()
+  const graph = useMemo(() => buildBlameFlow(rows, narrow), [rows, narrow])
   const exact = rows.reduce((sum, row) => sum + (row.label === 'exact' ? row.count : 0), 0)
 
   // The chart's `data` prop is typed mutable and carries no role, so it gets a copy.
@@ -72,7 +111,7 @@ export function BlameFlowSankey({ rows }: BlameFlowSankeyProps) {
         data={chartData}
         aspectRatio="auto"
         className="h-full"
-        margin={MARGIN}
+        margin={narrow ? NARROW_MARGIN : WIDE_MARGIN}
         nodeWidth={NODE_WIDTH}
         nodePadding={NODE_PADDING}
         animationDuration={reduced ? 0 : ENTER_DURATION_MS}
