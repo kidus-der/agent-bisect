@@ -42,9 +42,13 @@ export function EventFeed({ events }: EventFeedProps) {
         <p className="py-6 text-ink-muted">No events yet on this connection.</p>
       ) : (
         <ol
+          // A scrollable region must be reachable by keyboard, and needs a name
+          // once it is (WCAG 2.1.1 / axe scrollable-region-focusable).
+          tabIndex={0}
+          aria-label="Recent events, newest first"
           aria-live="polite"
           aria-relevant="additions"
-          className="m-0 flex max-h-72 list-none flex-col overflow-y-auto p-0"
+          className="m-0 flex max-h-72 list-none flex-col overflow-y-auto p-0 -outline-offset-2"
         >
           {events.map((event) => {
             const level = LEVEL_STYLES[event.level]
