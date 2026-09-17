@@ -1,0 +1,11 @@
+# Rate-limiter settings for agent_bisect.core.llm.TokenBucketLimiter.
+#
+# `requests_per_minute` is the process-wide token-bucket rate for calls to
+# NVIDIA NIM. This default (30) is a conservative placeholder — P0b
+# measures each candidate model's actual ceiling by ramping to HTTP 429 and
+# records "measured requests/min minus a 10% safety margin" per
+# docs/decisions/0001-preregistration.md. Do not hand-tune this value;
+# P0b's measurement script is the only writer once it runs.
+
+[limiter]
+requests_per_minute = 30

@@ -1,0 +1,1014 @@
+<title>Bisect</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9ECF0; --surface:#FCFDFE; --surface-2:#F1F4F7; --surface-3:#E3E8ED;
+  --ink:#141A21; --ink-2:#44515E; --muted:#6E7C8A; --line:#CFD6DE; --line-2:#B9C3CD;
+  --amber:#9A5A04; --amber-bg:#F3E6D2; --teal:#0A6B76; --teal-bg:#D8EBEE;
+  --ok:#2C7A4C; --ok-bg:#D9EBDF; --bad:#AE3448; --bad-bg:#F3DCE0;
+  --shadow:0 1px 2px rgba(20,26,33,.06), 0 8px 24px -12px rgba(20,26,33,.18);
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1319; --surface:#161D25; --surface-2:#1C252F; --surface-3:#253039;
+    --ink:#E4EAF0; --ink-2:#AEBAC6; --muted:#7D8C9B; --line:#28323C; --line-2:#36434F;
+    --amber:#E3A44C; --amber-bg:#3A2B13; --teal:#52B9C8; --teal-bg:#0F3138;
+    --ok:#5CBE81; --ok-bg:#14301F; --bad:#E2697C; --bad-bg:#371820;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1319; --surface:#161D25; --surface-2:#1C252F; --surface-3:#253039;
+  --ink:#E4EAF0; --ink-2:#AEBAC6; --muted:#7D8C9B; --line:#28323C; --line-2:#36434F;
+  --amber:#E3A44C; --amber-bg:#3A2B13; --teal:#52B9C8; --teal-bg:#0F3138;
+  --ok:#5CBE81; --ok-bg:#14301F; --bad:#E2697C; --bad-bg:#371820;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); font-family:var(--f-body); font-size:15px; line-height:1.58; -webkit-font-smoothing:antialiased}
+.page{max-width:1000px; margin:0 auto; padding-inline:20px; padding-block:0 76px}
+h1,h2,h3,h4{font-family:var(--f-display); margin:0; text-wrap:balance; letter-spacing:-.018em}
+p{margin:0}
+ul,ol{margin:0; padding-left:1.1em}
+li{margin:.34em 0}
+li::marker{color:var(--muted)}
+b,strong{font-weight:600}
+code,.mono{font-family:var(--f-mono)}
+code{font-size:.86em; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:.1em .34em}
+.eyebrow{font-family:var(--f-mono); font-size:11px; font-weight:500; letter-spacing:.11em; text-transform:uppercase; color:var(--muted)}
+
+.masthead{padding-block:52px 34px; border-bottom:1px solid var(--line)}
+.masthead h1{font-size:clamp(40px,7.4vw,66px); font-weight:700; line-height:1; margin-top:14px; letter-spacing:-.035em}
+.masthead h1 .k{color:var(--amber)}
+.masthead .sub{margin-top:18px; max-width:60ch; color:var(--ink-2); font-size:17px}
+.stamp{display:flex; flex-wrap:wrap; gap:8px; margin-top:22px}
+.stamp span,.stamp a{font-family:var(--f-mono); font-size:11px; letter-spacing:.05em; border:1px solid var(--line-2); border-radius:100px; padding:4px 11px; color:var(--ink-2); text-decoration:none}
+.stamp a:hover{border-color:var(--teal); color:var(--teal)}
+
+.tabbar{position:sticky; top:env(safe-area-inset-top,0px); z-index:30;
+  background:color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line); display:flex; overflow-x:auto; scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
+.tabbar button{flex:0 0 auto; background:none; border:none; cursor:pointer;
+  font-family:var(--f-mono); font-size:11.5px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--muted); padding:13px 15px; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap}
+.tabbar button:hover{color:var(--ink-2)}
+.tabbar button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--amber)}
+.tabbar button .n{color:var(--line-2); margin-right:7px; font-weight:600}
+.tabbar button[aria-selected="true"] .n{color:var(--amber)}
+
+.sec{padding-block:46px; border-bottom:1px solid var(--line)}
+.tp > .sec:last-child{border-bottom:none}
+.sec > h2{font-size:clamp(23px,3.6vw,31px); font-weight:700; margin-top:10px; line-height:1.12}
+.sec > .sub{margin-top:13px; color:var(--ink-2); font-size:16px; max-width:64ch}
+.sec h3{font-size:17px; font-weight:600; margin-top:34px}
+.body-copy{margin-top:20px; max-width:66ch; color:var(--ink-2)}
+.body-copy p + p{margin-top:13px}
+.body-copy strong{color:var(--ink)}
+
+.frame{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:20px; box-shadow:var(--shadow); margin-top:24px}
+.frame-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:14px}
+.readout{font-family:var(--f-mono); font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+.readout b{color:var(--ink); font-weight:600}
+.cap{font-family:var(--f-mono); font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5}
+svg{display:block; max-width:100%; height:auto}
+.scroll-x{overflow-x:auto}
+
+.note{margin-top:22px; background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--teal); border-radius:var(--r); padding:15px 17px}
+.note.amber{border-left-color:var(--amber)} .note.bad{border-left-color:var(--bad)}
+.note .eyebrow{color:var(--teal)} .note.amber .eyebrow{color:var(--amber)} .note.bad .eyebrow{color:var(--bad)}
+.note p{margin-top:7px; font-size:14.5px; line-height:1.55; color:var(--ink-2)}
+.note p strong{color:var(--ink)}
+
+.formula{margin-top:22px; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r); padding:20px; text-align:center; overflow-x:auto}
+.formula .expr{font-family:var(--f-mono); font-size:clamp(12.5px,2.2vw,16px); color:var(--ink); white-space:nowrap}
+.formula .legend{margin-top:14px; display:flex; flex-wrap:wrap; gap:16px; justify-content:center; font-family:var(--f-mono); font-size:11.5px; color:var(--muted)}
+.formula .legend b{color:var(--teal); font-weight:600}
+
+.two{display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:26px; margin-top:24px}
+.two h4{font-size:14px; font-weight:600; margin-bottom:7px}
+.two p,.two ul{font-size:14px; color:var(--ink-2)}
+
+.deliv{margin-top:24px; display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px}
+.deliv .d{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px}
+.deliv .d h4{font-size:14.5px; font-weight:600}
+.deliv .d p{margin-top:6px; font-size:13.5px; color:var(--ink-2); line-height:1.5}
+.deliv .d .k{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--amber); margin-bottom:7px}
+.deliv .d .big{font-family:var(--f-mono); font-size:28px; font-weight:600; letter-spacing:-.03em; line-height:1; margin:4px 0 6px; font-variant-numeric:tabular-nums}
+.big.ok{color:var(--ok)} .big.bad{color:var(--bad)} .big.teal{color:var(--teal)} .big.amb{color:var(--amber)}
+
+.tbl-wrap{margin-top:22px; overflow-x:auto}
+table{border-collapse:collapse; width:100%; min-width:600px; font-size:13.5px}
+th,td{text-align:left; padding:9px 11px; border-bottom:1px solid var(--line); vertical-align:top}
+th{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:500}
+td:first-child{color:var(--ink); font-weight:500}
+td.mono{font-family:var(--f-mono); font-size:12.5px}
+td.c,th.c{text-align:center}
+.y{color:var(--ok); font-family:var(--f-mono); font-weight:600}
+.h{color:var(--amber); font-family:var(--f-mono); font-weight:600}
+.no{color:var(--muted); font-family:var(--f-mono)}
+tr.us td{background:var(--teal-bg)}
+tr.us td:first-child{color:var(--teal); font-weight:600}
+
+.tree{margin-top:22px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:18px 20px;
+  font-family:var(--f-mono); font-size:12.5px; line-height:1.85; overflow-x:auto; box-shadow:var(--shadow); white-space:pre}
+.tree .d{color:var(--teal); font-weight:600}
+.tree .c{color:var(--muted)}
+.tree .w{color:var(--bad)}
+
+.phases{margin-top:24px; display:flex; flex-direction:column; gap:2px}
+.ph{display:grid; grid-template-columns:52px minmax(0,1.15fr) minmax(0,1fr); gap:18px; background:var(--surface); border:1px solid var(--line); padding:15px 18px; align-items:start}
+.ph:first-child{border-radius:var(--r) var(--r) 0 0}
+.ph:last-child{border-radius:0 0 var(--r) var(--r)}
+.ph .tag{font-family:var(--f-mono); font-size:11px; font-weight:600; color:var(--teal); border:1px solid var(--teal); border-radius:4px; text-align:center; padding:3px 0}
+.ph h4{font-size:14.5px; font-weight:600}
+.ph .what{font-size:13.5px; color:var(--ink-2); margin-top:4px; line-height:1.5}
+.ph .ac{font-family:var(--f-mono); font-size:11.5px; color:var(--ink-2); background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:9px 11px; line-height:1.55}
+.ph .ac b{display:block; color:var(--ok); font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; font-weight:600}
+.ph .calls{display:block; margin-top:6px; color:var(--muted); font-size:10.5px}
+
+.flow{margin-top:22px; display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; counter-reset:f}
+.flow div{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:12px 13px; position:relative}
+.flow div::before{counter-increment:f; content:counter(f); font-family:var(--f-mono); font-size:10.5px; font-weight:600; color:var(--amber); display:block; margin-bottom:4px}
+.flow h4{font-size:13.5px; font-weight:600}
+.flow p{font-size:12.5px; color:var(--ink-2); margin-top:4px; line-height:1.45}
+
+.dont{margin-top:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:11px}
+.dont div{border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; background:var(--surface)}
+.dont .x{font-family:var(--f-mono); font-size:12px; color:var(--bad); font-weight:600}
+.dont .x::before{content:"✕ "}
+.dont p{font-size:12.5px; color:var(--ink-2); margin-top:5px; line-height:1.45}
+
+/* interactive controls */
+.ctl-row{display:flex; flex-wrap:wrap; gap:18px; align-items:end; margin-bottom:16px}
+.ctl{min-width:170px; flex:1 1 170px}
+.ctl label{display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+.ctl label output{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:0; font-variant-numeric:tabular-nums}
+input[type=range]{width:100%; accent-color:var(--teal); height:22px; cursor:pointer}
+.verdict{border:1px solid var(--line); border-radius:var(--r); padding:13px 15px; background:var(--surface-2)}
+.verdict .lbl{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+.verdict .big{font-family:var(--f-mono); font-size:26px; font-weight:600; letter-spacing:-.03em; line-height:1.1; margin-top:5px; font-variant-numeric:tabular-nums}
+.verdict .vsub{font-size:12.5px; color:var(--ink-2); margin-top:6px; line-height:1.45}
+.vgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-top:6px}
+.dots{display:flex; flex-wrap:wrap; gap:4px; margin-top:6px}
+.dots i{width:14px; height:14px; border-radius:3px; display:grid; place-items:center; font-style:normal; font-family:var(--f-mono); font-size:9px; line-height:1; font-weight:600}
+.dots i.p{background:var(--ok-bg); color:var(--ok); border:1px solid var(--ok)}
+.dots i.f{background:var(--bad-bg); color:var(--bad); border:1px solid var(--bad)}
+.armlbl{font-family:var(--f-mono); font-size:11px; color:var(--muted); margin-top:12px}
+.armlbl b{color:var(--ink)}
+
+/* SVG classes */
+.s-node{stroke-width:1.6}
+.s-lbl{font-family:var(--f-mono); font-size:10px; fill:var(--muted)}
+.s-txt{font-family:var(--f-mono); font-size:10.5px; fill:var(--ink-2)}
+.s-title{font-family:var(--f-display); font-size:13px; font-weight:600; fill:var(--ink)}
+.s-box{fill:var(--surface-2); stroke:var(--line-2); stroke-width:1.3}
+.s-box.core{stroke:var(--teal); stroke-width:1.6}
+.s-box.attr{stroke:var(--amber); stroke-width:1.6}
+.s-box.surf{stroke:var(--ok); stroke-width:1.6}
+.s-edge{stroke:var(--line-2); stroke-width:1.4; fill:none}
+.s-wall{stroke:var(--bad); stroke-width:2; stroke-dasharray:6 4}
+.s-wall-t{font-family:var(--f-mono); font-size:9.5px; fill:var(--bad)}
+.s-grid{stroke:var(--line); stroke-width:1}
+.s-zero{stroke:var(--ink-2); stroke-width:1.2}
+.s-thr{stroke:var(--amber); stroke-width:1.2; stroke-dasharray:3 3}
+.s-row{fill:transparent; cursor:pointer}
+.s-row:hover{fill:var(--surface-2)}
+.s-row.sel{fill:var(--teal-bg)}
+
+/* viewer mock */
+.viewer{margin-top:24px; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface); box-shadow:var(--shadow)}
+.viewer .vbar{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); background:var(--surface-2); font-family:var(--f-mono); font-size:11px; color:var(--muted)}
+.viewer .vbar b{color:var(--ink)}
+.viewer .pill{border-radius:100px; padding:2px 9px; font-size:10.5px}
+.pill.fail{background:var(--bad-bg); color:var(--bad)}
+.pill.pass{background:var(--ok-bg); color:var(--ok)}
+.viewer .vbody{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)}
+.viewer .steps{border-right:1px solid var(--line); max-height:340px; overflow:auto}
+.vstep{display:grid; grid-template-columns:28px 64px minmax(0,1fr) 44px; gap:8px; align-items:center; padding:7px 12px; border-bottom:1px solid var(--line); font-size:12.5px; cursor:pointer}
+.vstep .i{font-family:var(--f-mono); font-size:10.5px; color:var(--muted)}
+.vstep .who{font-family:var(--f-mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2)}
+.vstep .t{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2)}
+.vstep .heat{height:12px; border-radius:2px}
+.vstep.on{background:var(--teal-bg)}
+.viewer .detail{padding:14px 16px; font-size:13px; color:var(--ink-2)}
+.viewer .detail h4{font-size:14px; color:var(--ink)}
+.diff{margin-top:10px; font-family:var(--f-mono); font-size:11.5px; line-height:1.6; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:9px 11px; overflow-x:auto; white-space:pre}
+.diff .m{color:var(--bad)} .diff .p{color:var(--ok)}
+@media (max-width:700px){ .viewer .vbody{grid-template-columns:1fr} .viewer .steps{border-right:none; border-bottom:1px solid var(--line)} }
+
+.term{margin-top:22px; background:#0E1319; border:1px solid #28323C; border-radius:8px; overflow:hidden; box-shadow:var(--shadow)}
+.term .bar{display:flex; gap:6px; align-items:center; padding:9px 13px; border-bottom:1px solid #28323C; background:#161D25}
+.term .bar i{width:9px; height:9px; border-radius:50%; display:block}
+.term .bar span{font-family:var(--f-mono); font-size:10.5px; color:#7D8C9B; margin-left:8px}
+.term pre{margin:0; padding:14px 16px; font-family:var(--f-mono); font-size:12px; color:#AEBAC6; line-height:1.7; overflow-x:auto; white-space:pre}
+.term .hi{color:#E4EAF0; font-weight:600} .term .c{color:#7D8C9B} .term .grn{color:#5CBE81} .term .red{color:#E2697C} .term .amb{color:#E3A44C} .term .teal{color:#52B9C8}
+
+.todo{margin-top:20px; display:flex; flex-direction:column; gap:9px}
+.todo .item{display:grid; grid-template-columns:24px minmax(0,1fr); gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:13px 15px}
+.todo .box{width:20px; height:20px; border:2px solid var(--amber); background:var(--amber-bg); border-radius:5px; margin-top:2px}
+.todo h4{font-size:14px; font-weight:600}
+.todo p{font-size:13.5px; color:var(--ink-2); margin-top:3px; line-height:1.5}
+
+footer{padding-block:32px 0; color:var(--muted); font-size:12.5px; line-height:1.6}
+:focus-visible{outline:2px solid var(--teal); outline-offset:2px; border-radius:3px}
+@media (max-width:700px){ .ph{grid-template-columns:1fr; gap:10px} .ph .tag{width:52px} }
+@media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+</style>
+
+<div class="page">
+
+<header class="masthead">
+  <div class="eyebrow">Build brief · project 02 of the 2026 dossier · formerly “Rewind”</div>
+  <h1><span class="k">git bisect</span>, for<br>agent runs</h1>
+  <p class="sub"><strong>Bisect</strong> rewinds a failed agent run to any step, changes one thing, and re-runs the rest many times. It names the step that actually caused the failure, with an error bar, and can run as a check on every pull request.</p>
+  <div class="stamp">
+    <span>τ²-bench · MIT</span>
+    <span>NVIDIA NIM · free tier</span>
+    <span>M4 · 16GB · local fallback</span>
+    <span>~$0 compute</span>
+    <span>9 phases · 9 gates</span>
+    <a href="https://claude.ai/artifact/Nx1eTVLfwmQpt1jmt81ZgS" target="_blank" rel="noopener">← the five-builds dossier</a>
+  </div>
+</header>
+
+<div class="tabbar" role="tablist" aria-label="Brief sections">
+  <button role="tab" aria-selected="true" aria-controls="tp1"><span class="n">01</span>Overview</button>
+  <button role="tab" aria-selected="false" aria-controls="tp2"><span class="n">02</span>How it works</button>
+  <button role="tab" aria-selected="false" aria-controls="tp3"><span class="n">03</span>Prior art</button>
+  <button role="tab" aria-selected="false" aria-controls="tp4"><span class="n">04</span>The build</button>
+  <button role="tab" aria-selected="false" aria-controls="tp5"><span class="n">05</span>Tech &amp; models</button>
+  <button role="tab" aria-selected="false" aria-controls="tp6"><span class="n">06</span>Phases &amp; gates</button>
+</div>
+
+<!-- ================= 01 OVERVIEW ================= -->
+<div class="tp" id="tp1">
+<section class="sec">
+  <div class="eyebrow">Start here</div>
+  <h2>Agents fail late for reasons that happened early</h2>
+  <div class="body-copy">
+    <p>An AI agent works in <strong>steps</strong>. It reads a message, calls a tool, reads the result, and decides what to do next. When a run fails at step 12, the error usually <em>shows</em> at step 12, but it was often <em>caused</em> earlier. Maybe a lookup at step 7 returned the wrong booking and everything after it built on that mistake.</p>
+    <p>Today you find that step by reading the trace and guessing, or by asking another AI to guess. The best published AI guessers get the exact step right well under half the time on the standard failure dataset.</p>
+    <p>Bisect <strong>tests</strong> instead of guessing. It rewinds the run to step 7, fixes that one thing, and plays the rest of the run again, several times. If the run now passes far more often than it does untouched, step 7 caused the failure. That is an experiment with a measured effect, not an opinion.</p>
+  </div>
+
+  <div class="frame">
+    <div class="frame-head">
+      <span class="eyebrow">Record · rewind · fix · re-run</span>
+      <span class="readout" id="heroRead">state <b>recording</b></span>
+    </div>
+    <div id="heroViz"></div>
+    <div class="cap">Steps 1–6 are replayed from the recording at no cost. Step 7 gets one change. Steps 8–12 run live again. The failure at step 12 turns into a pass, so the blame goes to step 7, not step 12.</div>
+  </div>
+
+  <div class="deliv">
+    <div class="d"><div class="k">Part 1 · the engine</div><h4>Record, snapshot, replay</h4><p>Saves every model reply and tool result, plus a copy of the world state at every step. It can jump back to any step exactly, without spending a single model call on the steps before it.</p></div>
+    <div class="d"><div class="k">Part 2 · attribution</div><h4>The judge guesses, replay proves it</h4><p>A cheap AI judge ranks the suspect steps. Bisect then tests only the top few with controlled re-runs and reports each step's effect with a 95% confidence interval.</p></div>
+    <div class="d"><div class="k">Part 3 · the PR check</div><h4>“This PR broke step 7”</h4><p>A GitHub Action runs the agent's test scenarios before and after a change. If the pass rate drops, it posts a comment naming the step that broke and what changed there.</p></div>
+  </div>
+
+  <div class="note amber">
+    <div class="eyebrow">Why the name changed</div>
+    <p>“Rewind” is taken: agentoptics ships <em>Rewind, the time-travel debugger for AI agents</em> on PyPI as <code>rewind-agent</code>. <strong>Bisect</strong> names what the tool does: <code>git bisect</code> finds the commit that broke your code, and this finds the step that broke your run. One catch: <code>bisect</code> is already a Python standard-library module, so the package is <code>agent-bisect</code>, you import it as <code>agent_bisect</code>, and the command is <code>bisect</code>.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">The claim this is all for</div>
+  <h2>A number, a method, a repo</h2>
+  <div class="body-copy">
+    <p>“On τ²-bench failures with a known planted cause, testing each suspect step by re-running it finds the right step <strong>X points more often</strong> than asking an AI judge, at a stated cost per diagnosis. Here is the dataset, here is the code, and <code>make reproduce</code> rebuilds every number offline from the recordings.”</p>
+    <p>Everything in this brief exists to make that sentence true, or to report honestly that it isn't.</p>
+  </div>
+</section>
+</div>
+
+<!-- ================= 02 HOW IT WORKS ================= -->
+<div class="tp" id="tp2" hidden>
+<section class="sec">
+  <div class="eyebrow">The core idea</div>
+  <h2>Replay the past exactly, sample the future</h2>
+  <div class="body-copy">
+    <p>Cloud models are not repeatable: the same prompt at temperature 0 can still give different answers. So Bisect doesn't try to make the model deterministic. It splits the run in two:</p>
+  </div>
+  <div class="two">
+    <div>
+      <h4>Before step <i>k</i>: from the tape</h4>
+      <p>Every model reply and tool result was recorded, so replaying steps 1…k−1 means reading them back. That makes zero network calls and gives an exact copy. The world state (τ²-bench's in-memory database) is restored from the snapshot saved at step <i>k</i>, and its hash is checked against the recording.</p>
+    </div>
+    <div>
+      <h4>After step <i>k</i>: sampled live</h4>
+      <p>The rest of the run is random by nature, so Bisect runs it <strong>N times</strong> and counts passes. It does this twice: once with the fix at step <i>k</i> (<em>treated</em>) and once untouched (<em>control</em>). Some failed runs pass on a plain re-run, and without a control you would blame a step for that luck.</p>
+    </div>
+  </div>
+
+  <div class="formula">
+    <div class="expr">effect(k) = P(pass | fix step k) − P(pass | step k as recorded)</div>
+    <div class="legend">
+      <span><b>P(pass | fix)</b> treated pass rate over N re-runs</span>
+      <span><b>P(pass | recorded)</b> control pass rate over N re-runs</span>
+      <span><b>blame</b> = earliest step whose 95% CI lower bound &gt; δ</span>
+    </div>
+  </div>
+  <div class="body-copy">
+    <p>“Earliest step that clears the bar” matches how the failure-attribution benchmarks define the <strong>decisive error</strong>: the first step where a fix would have saved the run. Fixing later steps can also help a little, because the agent gets a chance to recover. That is why Bisect takes the <em>earliest</em> step that clears the bar, not the biggest effect.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Play with it</div>
+  <h2>How many re-runs does a verdict need?</h2>
+  <p class="sub">A simulated 12-step failure where step 7 is the planted cause. Every row is a step. Drag N to see how the error bars shrink until one step clearly stands out. Click a row to see its actual re-runs.</p>
+  <div class="frame">
+    <div class="ctl-row">
+      <div class="ctl"><label for="nSlider">Re-runs per arm, N <output id="nOut">8</output></label><input type="range" id="nSlider" min="2" max="32" step="1" value="8"></div>
+      <div class="ctl"><label for="dSlider">Bar to clear, δ <output id="dOut">0.10</output></label><input type="range" id="dSlider" min="0" max="30" step="1" value="10"></div>
+    </div>
+    <div class="scroll-x"><div id="forest" style="min-width:520px"></div></div>
+    <div class="vgrid">
+      <div class="verdict"><div class="lbl">Verdict</div><div class="big" id="vBlame">step 7</div><div class="vsub" id="vBlameSub"></div></div>
+      <div class="verdict"><div class="lbl">Model calls spent</div><div class="big teal" id="vCalls">—</div><div class="vsub">if all 12 steps are tested, ~10 calls per re-run (control is shared)</div></div>
+    </div>
+    <div class="armlbl">Selected step <b id="selK">7</b> · treated re-runs <b id="selT"></b></div>
+    <div class="dots" id="dotsT" aria-label="treated re-run outcomes"></div>
+    <div class="armlbl">control re-runs (shared by all steps) <b id="selC"></b></div>
+    <div class="dots" id="dotsC" aria-label="control re-run outcomes"></div>
+    <div class="cap">✓ pass · ✕ fail. Whiskers are Newcombe 95% intervals for the difference of two pass rates. The data is simulated to show the method, not a result. At N=4 nothing is conclusive; by N≈8 step 7 separates; steps 8–9 also help a little (the agent can recover late), but they come after step 7.</div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">What it costs</div>
+  <h2>Why the judge goes first</h2>
+  <p class="sub">Testing every step costs roughly steps × re-runs × calls per re-run. On a free tier capped around 40 calls a minute, that adds up quickly. Let a cheap judge shortlist the suspects, then test only those.</p>
+  <div class="frame">
+    <div class="ctl-row">
+      <div class="ctl"><label for="cSteps">Steps in the run <output id="oSteps">24</output></label><input type="range" id="cSteps" min="6" max="60" value="24"></div>
+      <div class="ctl"><label for="cTop">Suspects tested <output id="oTop">3</output></label><input type="range" id="cTop" min="1" max="10" value="3"></div>
+      <div class="ctl"><label for="cN">Re-runs per arm <output id="oN">8</output></label><input type="range" id="cN" min="2" max="32" value="8"></div>
+      <div class="ctl"><label for="cC">Calls per re-run <output id="oC">10</output></label><input type="range" id="cC" min="2" max="30" value="10"></div>
+    </div>
+    <div class="vgrid">
+      <div class="verdict"><div class="lbl">Test every step</div><div class="big bad" id="cAll">—</div><div class="vsub" id="cAllSub"></div></div>
+      <div class="verdict"><div class="lbl">Judge shortlist → test</div><div class="big ok" id="cBis">—</div><div class="vsub" id="cBisSub"></div></div>
+      <div class="verdict"><div class="lbl">Saving</div><div class="big teal" id="cSave">—</div><div class="vsub">plus early stopping: stop sampling a step once its interval is decisive</div></div>
+    </div>
+    <div class="cap">Time assumes ~40 requests/min on NVIDIA's free tier (reported on NVIDIA's forums, not an official page). The steps before k cost nothing, because they are read from the tape.</div>
+  </div>
+  <div class="note">
+    <div class="eyebrow">The risk in the shortcut</div>
+    <p>If the judge leaves the real culprit off the shortlist, replay can never find it. So the report must show <strong>how often the true step was in the judge's top-m at all</strong> (recall@m), separately from the final accuracy. If recall is low, raise m. If raising m costs too much, that is a finding.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Stay honest about this</div>
+  <h2>Where snapshots actually matter</h2>
+  <div class="body-copy">
+    <p>In plain τ²-bench, tools are <strong>deterministic</strong>: the same database plus the same call gives the same result. There, you could rebuild the state at step <i>k</i> by re-running the recorded tool calls from the start, so snapshots mostly buy <strong>speed</strong>, not correctness.</p>
+    <p>Snapshots matter for correctness when tools aren't deterministic: generated IDs, timestamps, flaky services, anything with side effects. The build therefore includes a <strong>“flaky world” variant</strong> of τ²-bench (random IDs, time-dependent answers, occasional tool errors). There the no-snapshot baseline measurably drifts and Bisect doesn't. That ablation is what justifies the engine. Without it, “snapshots” is just a feature on a list.</p>
+  </div>
+</section>
+</div>
+
+<!-- ================= 03 PRIOR ART ================= -->
+<div class="tp" id="tp3" hidden>
+<section class="sec">
+  <div class="eyebrow">Checked 16 Sep 2026</div>
+  <h2>The core idea is taken. The combination isn't.</h2>
+  <p class="sub">The dossier said nobody had shipped replay. That was wrong. Below is what exists today, and what each one is missing.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Project</th><th class="c">World snapshots</th><th class="c">Tape replay</th><th class="c">Causal stats</th><th class="c">Real benchmark</th><th class="c">PR check</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td>causal-agent-replay (CAR)</td><td class="c no">—</td><td class="c y">✓</td><td class="c y">✓</td><td class="c no">—</td><td class="c no">—</td><td>CMU, Jun 2026, 13★. Five intervention types, CIs, Shapley. Re-runs tools live; synthetic evaluation only.</td></tr>
+        <tr><td>agentoptics Rewind</td><td class="c h">◐</td><td class="c y">✓</td><td class="c no">—</td><td class="c no">—</td><td class="c y">✓</td><td>Time-travel debugger, fork at any step, regression Action. Fixes “proven” by an LLM judge.</td></tr>
+        <tr><td>Mirrors (YC)</td><td class="c h">◐</td><td class="c y">✓</td><td class="c no">—</td><td class="c no">—</td><td class="c y">✓</td><td>Mocks tools from production traces, replays in CI. Says whether a failure is yours or upstream; no step blame.</td></tr>
+        <tr><td>DoVer (Microsoft)</td><td class="c y">✓</td><td class="c y">✓</td><td class="c no">—</td><td class="c y">✓</td><td class="c no">—</td><td>Checkpoint, edit, resume, verify. Fixes 18–28% of failed Magentic-One runs. Research code.</td></tr>
+        <tr><td>LangGraph time travel</td><td class="c h">◐</td><td class="c y">✓</td><td class="c no">—</td><td class="c no">—</td><td class="c no">—</td><td>Fork from a checkpoint by hand. Graph state only, not the outside world.</td></tr>
+        <tr><td>AgenTracer</td><td class="c no">—</td><td class="c no">—</td><td class="c h">◐</td><td class="c y">✓</td><td class="c no">—</td><td>Trained 8B attributor. Its “replay” re-simulates the rest of the run with an LLM rather than re-executing it.</td></tr>
+        <tr><td>Braintrust · LangSmith</td><td class="c no">—</td><td class="c h">◐</td><td class="c no">—</td><td class="c no">—</td><td class="c h">◐</td><td>Re-run one logged call in a playground by hand. Evals in CI, but no counterfactuals.</td></tr>
+        <tr class="us"><td>Bisect</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td>All five together, plus a planted-fault dataset with known answers and a flaky-world ablation.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="cap">✓ has it · ◐ partial · — doesn't have it. Taken from each project's README, paper or site; not tested hands-on.</div>
+
+  <div class="note amber">
+    <div class="eyebrow">The gap, stated exactly</div>
+    <p>Nobody combines <strong>world-state snapshots at every step</strong>, <strong>statistically sound counterfactual blame</strong>, a <strong>real benchmark with planted, known causes</strong>, and a <strong>PR verdict that names a step</strong>, for example “this PR moved the decisive step from 7 to 4; effect 0.62, 95% CI [0.38, 0.81].” CAR has the statistics without the rest; Mirrors has CI without blame; Rewind has forking without statistics.</p>
+  </div>
+  <div class="note">
+    <div class="eyebrow">Build our own, credit theirs</div>
+    <p>CAR is MIT-licensed and close to our core, but it is tiny, unpublished on PyPI, and re-runs tools live. Snapshots have to be designed into the engine from the start, so Bisect writes its own. It cites CAR as prior art and <strong>includes a CAR-style re-run-live mode as a baseline</strong>, so the comparison is on the page rather than implied.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">The research numbers</div>
+  <h2>How good is blame today?</h2>
+  <div class="deliv">
+    <div class="d"><div class="k">Who&amp;When · ICML 2025</div><div class="big bad">14.2%</div><p>Best step-level accuracy in the original paper (53.5% for naming the right agent). 184 failures; static logs, not re-runnable.</p></div>
+    <div class="d"><div class="k">Best since, on Who&amp;When</div><div class="big amb">≈20–47%</div><p>AgenTracer-8B and A2P, depending on the split. The settings differ, so these aren't strictly comparable.</p></div>
+    <div class="d"><div class="k">Who&amp;When Pro · Jul 2026</div><div class="big teal">73.9%</div><p>12,326 runs made by replaying a success and injecting one error — the same recipe Bisect uses. Classifying the error type reaches only 22.2% macro-F1.</p></div>
+  </div>
+  <div class="body-copy">
+    <p>Two more to know: <strong>TraceElephant</strong> (Apr 2026, 220 failures, re-runnable environments, CC BY 4.0), which is where the “full traces help by up to 76%” figure comes from (step-level only), and <strong>CausalFlow</strong> (May 2026), which scores step responsibility and searches for the smallest fix. TraceElephant is the external check once its code is published.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Why it's worth it</div>
+  <h2>The category is being bought</h2>
+  <div class="deliv">
+    <div class="d"><div class="k">Braintrust · Feb 2026</div><div class="big">$800M</div><p>$80M Series B led by ICONIQ. Evals and observability.</p></div>
+    <div class="d"><div class="k">Arize → Dynatrace · Aug 2026</div><div class="big">~$915M</div><p>Cash and stock. Incumbents are consolidating the trace layer.</p></div>
+    <div class="d"><div class="k">Mirrors · YC</div><div class="big">$0.20</div><p>Per replay-minute. Someone already charges for replay in CI, which proves people will pay for it.</p></div>
+  </div>
+  <div class="note bad">
+    <div class="eyebrow">This space moves monthly</div>
+    <p>Two of the dossier's claims went stale within weeks. <strong>Re-check this table at every phase boundary</strong>: search for “counterfactual agent attribution”, “agent replay CI” and new Who&amp;When results, and update this tab before moving on.</p>
+  </div>
+</section>
+</div>
+
+<!-- ================= 04 THE BUILD ================= -->
+<div class="tp" id="tp4" hidden>
+<section class="sec">
+  <div class="eyebrow">Architecture</div>
+  <h2>A core that knows nothing about blame</h2>
+  <p class="sub">Two layers with a wall between them. The core records, snapshots and replays. Attribution sits on top. The core never imports attribution, so Branchpoint (project 04) can reuse it to fork runs.</p>
+  <div class="frame">
+    <div class="scroll-x"><div id="archViz" style="min-width:600px"></div></div>
+    <div class="cap">Adapters feed the core. Attribution drives the core through one interface (restore, apply, run the rest). The surfaces only read results.</div>
+  </div>
+
+<div class="tree"><span class="d">agent_bisect/</span>
+  <span class="d">core/</span>                 <span class="c"># the reusable engine; imports nothing from attribution/</span>
+    tape.py             <span class="c"># Step records; append-only; request hashing</span>
+    store.py            <span class="c"># content-addressed blobs (sha256 + zstd) + SQLite index</span>
+    snapshot.py         <span class="c"># Snapshotter protocol: capture() / restore() / state_hash()</span>
+    replay.py           <span class="c"># TapeLLM + TapeTools: serve the steps before k, fail loudly on divergence</span>
+    runner.py           <span class="c"># restore(k) → apply(intervention) → run the rest(seed) → Outcome</span>
+    llm.py              <span class="c"># LiteLLM wrapper: one rate limiter, retries, recording</span>
+    budget.py           <span class="c"># call ledger; hard stop at the configured cap</span>
+  <span class="d">adapters/</span>
+    tau2.py             <span class="c"># τ²-bench: DB snapshotter, reward → Outcome, user simulator on tape</span>
+    tau2_flaky.py       <span class="c"># the flaky-world variant (random ids, clock, injected tool errors)</span>
+    sdk.py              <span class="c"># @bisect.tool + wrapped client, for agents outside τ²</span>
+  <span class="w">─── wall ───</span>
+  <span class="d">attribution/</span>
+    interventions.py    <span class="c"># ReplaceToolResult · ForceAction · Resample · EditPrompt · SwapModel</span>
+    estimate.py         <span class="c"># treated vs shared control; Wilson / Newcombe CI; early stopping</span>
+    judge.py            <span class="c"># LLM judge: all-at-once + step-by-step (Who&amp;When protocols)</span>
+    search.py           <span class="c"># judge shortlist → confirm by replay → earliest step clearing δ</span>
+    repair.py           <span class="c"># proposes the fix at step k when no oracle exists</span>
+  <span class="d">bench/</span>
+    inject.py           <span class="c"># planted faults on successful runs → labelled dataset</span>
+    baselines.py        <span class="c"># judge-only · re-run-live (CAR-style) · no-control ablation</span>
+    evaluate.py         <span class="c"># step accuracy, recall@m, cost, bootstrap CIs</span>
+  <span class="d">gate/</span>
+    action.py           <span class="c"># base vs head over scenarios → PR comment markdown</span>
+  <span class="d">server/</span>              <span class="c"># FastAPI: JSON API + the built viewer as static files</span>
+  <span class="d">cli.py</span>                <span class="c"># bisect doctor | record | replay | blame | inject | eval | serve | gate</span>
+<span class="d">web/</span>                    <span class="c"># Svelte 5 viewer (built to server/static at release)</span>
+<span class="d">docs/</span>  gates/  findings/  decisions/  report.md</div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">The one schema that matters</div>
+  <h2>A step record</h2>
+  <p class="sub">One row per step, whoever acted. Large payloads live in the blob store and the row keeps their hash, so identical snapshots are stored only once.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Why it's there</th></tr></thead>
+      <tbody>
+        <tr><td>run_id · step_idx</td><td class="mono">str · int</td><td>Identity. A forked run gets a new run_id plus parent_run_id and fork_step</td></tr>
+        <tr><td>actor</td><td class="mono">agent | user | tool</td><td>τ²-bench has three parties; the simulated user is an LLM too, and gets recorded</td></tr>
+        <tr><td>request_hash</td><td class="mono">sha256</td><td>Canonical hash of the model request. On replay, a mismatch means divergence: stop, don't guess</td></tr>
+        <tr><td>request_ref · response_ref</td><td class="mono">blob hash</td><td>Full messages, tool schemas and the reply, verbatim</td></tr>
+        <tr><td>tool_name · tool_args · tool_result_ref</td><td class="mono">str · json · blob</td><td>What ran and what came back; the target for ReplaceToolResult</td></tr>
+        <tr><td>state_before · state_after</td><td class="mono">blob hash</td><td>World snapshot around the step; restore(k) loads state_before of step k</td></tr>
+        <tr><td>state_hash</td><td class="mono">str</td><td>τ²'s own DB hash, checked after every restore</td></tr>
+        <tr><td>model · params · seed</td><td class="mono">str · json · int</td><td>Pinned per run. Swapping the model is itself an intervention</td></tr>
+        <tr><td>latency_ms · tokens_in · tokens_out</td><td class="mono">int</td><td>Cost accounting for the report and the budget ledger</td></tr>
+        <tr><td>outcome (run level)</td><td class="mono">reward 0–1 · pass</td><td>τ²'s evaluator result; pass = reward 1.0</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Where the right answers come from</div>
+  <h2>Break runs on purpose</h2>
+  <p class="sub">Public failure logs can't be re-run, and nobody labels why your own failures happened. So Bisect makes failures with a <strong>known cause</strong>: take a run that passed, break exactly one step, and keep it only if the break reliably causes the failure.</p>
+  <div class="flow">
+    <div><h4>Record successes</h4><p>Run τ²-bench airline + retail tasks, and keep the runs that pass (reward 1.0).</p></div>
+    <div><h4>Check they're stable</h4><p>Re-run the full task 4×. Keep tasks with a pass rate ≥ 0.75, so a failure isn't just noise.</p></div>
+    <div><h4>Pick a step</h4><p>Choose a tool-result step k at random (stratified early / middle / late).</p></div>
+    <div><h4>Plant a fault</h4><p>One of four: wrong value, missing field, stale record, or tool error text.</p></div>
+    <div><h4>Re-run the rest</h4><p>Sample the steps after k N=4 times with the fault in place.</p></div>
+    <div><h4>Keep if it flips</h4><p>Faulted pass rate ≤ 0.25. The label is k, and the fix is the original result.</p></div>
+  </div>
+  <div class="note">
+    <div class="eyebrow">Two kinds of fix</div>
+    <p>On planted faults the fix is known: put back the original tool result. That is an <strong>oracle</strong>, and it isolates the question “can replay find the step?”. On real failures nobody knows the fix, so <code>repair.py</code> asks a model to propose one, and the report scores both separately. Mixing them would hide which part failed.</p>
+  </div>
+
+  <h3>The intervention types</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Intervention</th><th>What changes at step k</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>ReplaceToolResult</td><td>The tool's return value</td><td>Planted faults (oracle) and repair proposals</td></tr>
+        <tr><td>ForceAction</td><td>The agent's reply or tool call</td><td>“What if the agent had asked for the booking ID first?”</td></tr>
+        <tr><td>Resample</td><td>Nothing, just a fresh sample of step k</td><td>Was this step bad luck or a bad policy?</td></tr>
+        <tr><td>EditPrompt</td><td>System prompt from step k onward</td><td>The PR check: did the prompt change cause it?</td></tr>
+        <tr><td>SwapModel</td><td>Which model acts from step k onward</td><td>“Would the bigger model have recovered here?”</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">The PR check</div>
+  <h2>What lands on a pull request</h2>
+  <div class="body-copy">
+    <p>The Action runs a fixed scenario suite on the base branch and on the PR. If the pass rate drops beyond noise (a two-proportion test), Bisect runs blame on the new failures, compares each blamed step with the same step on base, and writes one comment.</p>
+  </div>
+  <div class="term">
+    <div class="bar"><i style="background:#E2697C"></i><i style="background:#E3A44C"></i><i style="background:#5CBE81"></i><span>bisect-bot commented on #42 · refund-flow prompt tweak</span></div>
+<pre><span class="hi">Bisect · agent regression detected</span>
+
+scenario suite     <span class="c">airline-refunds (24 tasks × 4 runs)</span>
+pass rate          base <span class="grn">0.83</span>  →  head <span class="red">0.54</span>   <span class="c">(p = 0.002)</span>
+
+<span class="hi">decisive step</span>      <span class="amb">step 7 · agent → get_reservation_details</span>
+effect of reverting at step 7   <span class="teal">+0.62</span>  <span class="c">95% CI [0.38, 0.81] · N = 12</span>
+
+what changed at step 7
+  <span class="red">- asks for the reservation ID before looking anything up</span>
+  <span class="grn">+ looks up the most recent reservation by user_id</span>
+  <span class="c">caused by: system_prompt.md L31–L36 (this PR)</span>
+
+<span class="c">7 of 13 new failures share this step · 212 model calls · details → bisect serve</span></pre>
+  </div>
+  <div class="cap">Illustrative mock, not a result. Every number in a real comment links to the recording that produced it.</div>
+
+  <h3>What someone installs</h3>
+<div class="tree">uv tool install agent-bisect
+
+bisect doctor                 <span class="c"># checks key, model tool-calling, one τ² task end to end</span>
+bisect record  --domain airline --tasks 0-19
+bisect replay  RUN_ID         <span class="c"># zero network calls; asserts identical</span>
+bisect blame   RUN_ID --top 3 --n 8
+bisect inject  --out data/faults.parquet
+bisect eval    --split test   <span class="c"># accuracy, recall@m, cost, CIs</span>
+bisect serve                  <span class="c"># the viewer on http://127.0.0.1:8484</span>
+bisect gate    --base main --head HEAD</div>
+</section>
+</div>
+
+<!-- ================= 05 TECH & MODELS ================= -->
+<div class="tp" id="tp5" hidden>
+<section class="sec">
+  <div class="eyebrow">The deciding constraint</div>
+  <h2>Every model call is scarce</h2>
+  <div class="body-copy">
+    <p>AcceptRate's constraint was memory bandwidth. Bisect's is <strong>model calls</strong>: a free tier around 40 a minute, shared by the agent, the simulated user and the judge. So one rule shapes the stack: <strong>every call goes through one rate limiter and one ledger, and is recorded</strong>. Nothing is ever paid for twice, and tests and the report never touch the network.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Choice</th><th>Why this one</th></tr></thead>
+      <tbody>
+        <tr><td>Language · env</td><td class="mono">Python 3.12 · uv</td><td>τ²-bench is Python; same toolchain as AcceptRate</td></tr>
+        <tr><td>Benchmark</td><td class="mono">tau2-bench @ pinned commit</td><td>MIT; in-memory DB, <code>get_db_hash()</code>, <code>set_state()</code>; no Docker</td></tr>
+        <tr><td>Model access</td><td class="mono">LiteLLM</td><td>τ²-bench already uses it; NIM, OpenRouter and local MLX are one config line each</td></tr>
+        <tr><td>Rate limiting</td><td class="mono">asyncio + token bucket</td><td>One process-wide limiter; honors Retry-After; exponential backoff with jitter</td></tr>
+        <tr><td>Blob store</td><td class="mono">sha256 · zstd · files</td><td>Content addressing deduplicates the many identical snapshots for free</td></tr>
+        <tr><td>Index</td><td class="mono">SQLite (WAL)</td><td>Zero-server, transactional, fine for millions of steps</td></tr>
+        <tr><td>Analysis</td><td class="mono">DuckDB + Polars → Parquet</td><td>Same as AcceptRate; SQL straight over exports</td></tr>
+        <tr><td>Stats</td><td class="mono">numpy · scipy</td><td>Wilson, Newcombe and bootstrap are a few lines each; no heavy stats stack</td></tr>
+        <tr><td>Schemas · CLI · API</td><td class="mono">Pydantic v2 · Typer · FastAPI</td><td>Validation at every boundary; the house pattern</td></tr>
+        <tr><td>Tests</td><td class="mono">pytest · hypothesis · pytest-socket</td><td>Network blocked by default; scripted fake LLM; property tests for replay</td></tr>
+        <tr><td>Viewer</td><td class="mono">Svelte 5 · Vite · d3-scale/shape</td><td>Compiles small; built into the wheel so users never need Node</td></tr>
+        <tr><td>E2E</td><td class="mono">Playwright · axe-core</td><td>The viewer gate; accessibility checked, not assumed</td></tr>
+        <tr><td>Figures</td><td class="mono">matplotlib</td><td>Boring, vector, reproducible</td></tr>
+        <tr><td>Lint · CI</td><td class="mono">ruff · pyright · GitHub Actions</td><td>Linux runners are enough; no GPU and no Mac needed</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Five rules that outrank the table</h3>
+  <div class="deliv">
+    <div class="d"><div class="k">Rule 01</div><h4>Record everything, always</h4><p>Every call, including judge and repair calls, is recorded before it's used. A crash mid-run loses nothing, and a resumed run spends nothing twice.</p></div>
+    <div class="d"><div class="k">Rule 02</div><h4>Tests never hit the network</h4><p>pytest-socket blocks it. Unit tests use a scripted fake model with known causal structure; live calls live only in marked, opt-in smoke tests.</p></div>
+    <div class="d"><div class="k">Rule 03</div><h4>Divergence is an error</h4><p>If a replayed request hash doesn't match the recording, stop and report it. Never quietly fall back to a live call. That is how replay tools silently lie.</p></div>
+    <div class="d"><div class="k">Rule 04</div><h4>Pin what moves</h4><p>Model IDs, the tau2 commit and the user-simulator model are pinned in the run manifest. NIM can change or retire models; the recordings survive either way.</p></div>
+    <div class="d"><div class="k">Rule 05</div><h4>The key never leaves .env</h4><p><code>NVIDIA_API_KEY</code> lives in a git-ignored <code>.env</code>, is checked at startup, and is scrubbed from recordings and logs by a redaction test.</p></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Models</div>
+  <h2>Who plays which part</h2>
+  <p class="sub">All from NVIDIA's public catalog as of today. The catalog doesn't show which are free or which call tools well, so <strong>P0 measures that with your key</strong> before anything is chosen.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Candidates on NIM</th><th>What P0 checks</th></tr></thead>
+      <tbody>
+        <tr><td>Agent under test</td><td class="mono">moonshotai/kimi-k2.6 · deepseek-ai/deepseek-v4-flash-0731 · nvidia/nemotron-3-super-120b-a12b · z-ai/glm-5.3-flash</td><td>≥ 95% valid tool calls; airline pass rate between <b>35% and 75%</b>, since both successes and failures are needed</td></tr>
+        <tr><td>Simulated user</td><td class="mono">nvidia/nemotron-3.5-lightning-30b-a3b · openai/gpt-oss-20b</td><td>Fast and cheap; stays in character; pinned for the whole study</td></tr>
+        <tr><td>Judge · repair</td><td class="mono">moonshotai/kimi-k3 · nvidia/nemotron-3-ultra-550b-a55b</td><td>Strongest available; used sparingly (one call per diagnosis)</td></tr>
+        <tr><td>Local fallback</td><td class="mono">mlx-community/Llama-3.1-8B-Instruct-4bit · Llama-3.2-3B-Instruct-4bit</td><td>Already on the Mac; both produced valid tool calls today (2.8 s and 1.5 s on a short prompt). Served by <code>mlx_lm.server</code> for offline development</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Call budget</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>What spends calls</th><th>Estimate</th><th>At 40/min</th></tr></thead>
+      <tbody>
+        <tr><td>P0 model choice</td><td>3 agents × 20 airline tasks</td><td class="mono">~1,500</td><td class="mono">~40 min</td></tr>
+        <tr><td>P1–P2 record</td><td>40 recorded runs</td><td class="mono">~1,000</td><td class="mono">~25 min</td></tr>
+        <tr><td>P3 planted faults</td><td>successes, stability re-runs, flip checks</td><td class="mono">~8–12k</td><td class="mono">~4–5 h</td></tr>
+        <tr><td>P5 evaluation</td><td>3 methods × test split, flaky ablation</td><td class="mono">~10–15k</td><td class="mono">~4–6 h</td></tr>
+        <tr><td>P7 PR-check demo</td><td>scenario suite, live mode only</td><td class="mono">~1,000</td><td class="mono">~25 min</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="cap">Order-of-magnitude estimates, assuming ~10 calls per re-run. The ledger enforces a configurable daily cap, so the loop pauses and resumes across nights instead of burning through the quota. Tests, the viewer and the report cost zero calls.</div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Interface</div>
+  <h2>The viewer</h2>
+  <p class="sub">A local web page served by <code>bisect serve</code>. The run is on the left with a blame heat stripe; the selected step's intervention and its effect are on the right.</p>
+  <div class="viewer">
+    <div class="vbar"><span>run <b>airline-17 · r3</b></span><span class="pill fail">✕ failed · reward 0.0</span><span>12 steps · kimi-k2.6</span><span>decisive: <b>step 7</b></span></div>
+    <div class="vbody">
+      <div class="steps" id="vSteps"></div>
+      <div class="detail" id="vDetail"></div>
+    </div>
+  </div>
+  <div class="cap">Illustrative mock with example data. The heat stripe is the effect estimate per tested step; untested steps stay hatched rather than getting a guessed value.</div>
+
+  <div class="two">
+    <div>
+      <h4>Design direction</h4>
+      <ul>
+        <li>Same <strong>Instrument</strong> tokens as AcceptRate (this page's palette), so the portfolio reads as one body of work.</li>
+        <li>Amber means <em>blame</em>, teal means <em>measurement</em>, green and red mean pass and fail, always paired with ✓ / ✕ glyphs.</li>
+        <li>An interval is always drawn next to its estimate; a point estimate never appears alone.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Deliberately smaller than AcceptRate</h4>
+      <ul>
+        <li>No Go TUI this time. The CLI prints plain summaries, and the viewer is the visual surface.</li>
+        <li>No live streaming: the viewer reads finished recordings, which keeps it simple and cacheable.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Deliberately not used</h3>
+  <div class="dont">
+    <div><div class="x">Docker</div><p>τ²-bench runs in-process; containers add nothing until a SWE-bench adapter exists.</p></div>
+    <div><div class="x">OpenTelemetry as the source</div><p>GenAI conventions are still “Development”, and message content is off by default, so OTel traces usually can't be replayed. Export only.</p></div>
+    <div><div class="x">A LangGraph dependency</div><p>An adapter later, maybe. The core stays framework-free so Branchpoint can reuse it.</p></div>
+    <div><div class="x">Postgres · Redis · PyTorch</div><p>SQLite and files cover one machine. Nothing here trains a network.</p></div>
+  </div>
+</section>
+</div>
+
+<!-- ================= 06 PHASES ================= -->
+<div class="tp" id="tp6" hidden>
+<section class="sec">
+  <div class="eyebrow">Where the credibility lives</div>
+  <h2>Rules that keep the number honest</h2>
+  <div class="two">
+    <div>
+      <h4>Before measuring</h4>
+      <ul>
+        <li><strong>Freeze the split first.</strong> Dev and test planted-fault sets are fixed, with a manifest hash, before any tuning.</li>
+        <li><strong>Pre-register the settings:</strong> max N, δ, the shortlist size m and the stopping rule, written to <code>docs/decisions/</code>.</li>
+        <li><strong>Always run a control.</strong> An effect without one is never reported.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>When reporting</h4>
+      <ul>
+        <li>Accuracy comes with a bootstrap 95% CI, and so does the difference between methods.</li>
+        <li>Report <strong>recall@m</strong>, cost per diagnosis, and the cases where Bisect was wrong.</li>
+        <li>A failed gate stays failed, with its reason written up, as AcceptRate's P5 was.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Execution plan</div>
+  <h2>Nine phases, each with a check a machine can run</h2>
+  <p class="sub">Written for an autonomous loop: every phase ends in a condition a script can verify, with the evidence saved to <code>docs/gates/Pn.md</code>.</p>
+  <div class="phases">
+    <div class="ph"><div class="tag">P0</div><div><h4>Setup and model choice</h4><div class="what">uv project, tau2-bench pinned, <code>.env</code> loading, LiteLLM routed to NIM through the limiter. Probe the agent candidates on 20 airline tasks and record the choice with its numbers.</div></div><div class="ac"><b>Gate</b><code>bisect doctor</code> exits 0: key found, chosen agent ≥ 95% valid tool calls with pass rate 35–75%, one τ² task end to end with a reward<span class="calls">~1.5k calls</span></div></div>
+    <div class="ph"><div class="tag">P1</div><div><h4>Record and snapshot</h4><div class="what">Step records, blob store, τ² DB snapshotter, SQLite index, budget ledger, redaction.</div></div><div class="ac"><b>Gate</b>20 recorded runs; restoring any step's snapshot reproduces its recorded DB hash at 100% of steps; no key in any blob<span class="calls">~500 calls</span></div></div>
+    <div class="ph"><div class="tag">P2</div><div><h4>Replay with zero drift</h4><div class="what">TapeLLM and TapeTools; restore(k) plus the rest of the run from tape; divergence detection.</div></div><div class="ac"><b>Gate</b>20/20 runs replay step-identical with the same reward, network blocked; a deliberately altered request raises DivergenceError<span class="calls">0 calls</span></div></div>
+    <div class="ph"><div class="tag">P3</div><div><h4>Interventions and planted faults</h4><div class="what">The five intervention types; <code>bisect inject</code>; flaky-world variant; dataset frozen and split 1:2 dev:test.</div></div><div class="ac"><b>Gate</b>≥ 120 labelled failures, each with a stable base (pass ≥ 0.75) and a flipped faulted run (pass ≤ 0.25); manifest hash committed<span class="calls">~8–12k calls</span></div></div>
+    <div class="ph"><div class="tag">P4</div><div><h4>The estimator, proven on fakes</h4><div class="what">Treated vs shared control, Wilson/Newcombe, early stopping, earliest-step rule, tested against scripted agents with a planted causal step.</div></div><div class="ac"><b>Gate</b>On 200 synthetic runs: planted step found ≥ 95%; 95% CI coverage of the true effect between 92% and 98%<span class="calls">0 calls</span></div></div>
+    <div class="ph"><div class="tag">P5</div><div><h4>Blame, against baselines</h4><div class="what">Judge (both Who&amp;When protocols), re-run-live (CAR-style), no-control ablation, and Bisect; plus the flaky-world comparison.</div></div><div class="ac"><b>Gate</b>On the test split, Bisect step accuracy ≥ best judge + 15 points, with the 95% bootstrap CI of the gap above 0; flaky world: no-snapshot baseline measurably worse<span class="calls">~10–15k calls</span></div></div>
+    <div class="ph"><div class="tag">P6</div><div><h4>The viewer</h4><div class="what">Svelte viewer: timeline, heat stripe, step diff, forest plot; served by FastAPI from the wheel.</div></div><div class="ac"><b>Gate</b>Playwright: open a 60-step recording, select step 7, forest plot renders; first load &lt; 1.5 s; axe: 0 serious violations<span class="calls">0 calls</span></div></div>
+    <div class="ph"><div class="tag">P7</div><div><h4>The PR check</h4><div class="what">GitHub Action plus a demo repo with a scripted agent, so CI needs no secret; live mode reads the key from repo secrets.</div></div><div class="ac"><b>Gate</b>3 planted-regression PRs: fails and names the planted step 3/3; 3 no-op PRs: 0 false alarms<span class="calls">0 calls (demo)</span></div></div>
+    <div class="ph"><div class="tag">P8</div><div><h4>The report</h4><div class="what">Accuracy table, recall@m, cost curve, flaky-world ablation, failure cases, and the dataset card.</div></div><div class="ac"><b>Gate</b><code>make reproduce</code> on a clean checkout with the network blocked regenerates every figure and table identically<span class="calls">0 calls</span></div></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Definition of done</div>
+  <h2>What exists at the end</h2>
+  <div class="deliv">
+    <div class="d"><div class="k">Artifact 01</div><h4>An installable tool</h4><p><code>uv tool install agent-bisect</code>: record, replay, blame, a viewer and a PR check, with a core Branchpoint can import.</p></div>
+    <div class="d"><div class="k">Artifact 02</div><h4>The planted-fault dataset</h4><p>120+ τ²-bench failures with known causes, full recordings and snapshots. It can be re-run, which static failure logs can't.</p></div>
+    <div class="d"><div class="k">Artifact 03</div><h4>The report</h4><p>Replay vs judge on step accuracy and cost, where snapshots matter, and where Bisect was wrong. Rebuilt offline from recordings.</p></div>
+    <div class="d"><div class="k">Artifact 04</div><h4>The demo</h4><p>A PR comment naming step 7, and a 30-second viewer recording of the blame stripe lighting up.</p></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="eyebrow">Before the overnight run</div>
+  <h2>What needs you</h2>
+  <div class="todo">
+    <div class="item"><div class="box"></div><div><h4>Put the NIM key in <code>.env</code></h4><p>As <code>NVIDIA_API_KEY=…</code> in the project folder. Never pasted into chat, never committed.</p></div></div>
+    <div class="item"><div class="box"></div><div><h4>Create the GitHub repo</h4><p><code>agent-bisect</code>, private to start. Needed for the P7 Action.</p></div></div>
+    <div class="item"><div class="box"></div><div><h4>Accept or change the gate numbers</h4><p>The +15-point P5 bar, the 35–75% pass-rate window and the daily call cap are proposals. Changing them after measuring is not allowed.</p></div></div>
+    <div class="item"><div class="box"></div><div><h4>Confirm the free-tier limits once</h4><p>40 requests/min is reported on NVIDIA's forums, not an official page. P0 logs the real headers, and the budget is re-planned from those.</p></div></div>
+  </div>
+</section>
+</div>
+
+<footer>
+  Compiled 16 Sep 2026. Prior-art and market facts come from each project's README, paper or press release as of that date. Research accuracies aren't strictly comparable across papers. Charts on tabs 01, 02 and 05 are simulations or mocks that illustrate the method, not results. Call and time budgets are estimates; the free-tier rate limit is unofficial.
+</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var NS = "http://www.w3.org/2000/svg";
+  function el(n, a, cls){ var e=document.createElementNS(NS,n); for(var k in a){ e.setAttribute(k,a[k]); } if(cls){ e.setAttribute("class",cls); } return e; }
+  function txt(e, s){ e.textContent = s; return e; }
+  function css(e, s){ e.setAttribute("style", s); return e; }
+
+  /* ---------- tabs ---------- */
+  var KEY = "bisect-brief-tab";
+  var btns = Array.prototype.slice.call(document.querySelectorAll(".tabbar button"));
+  var hooks = { tp2: function(){ drawForest(); calc(); }, tp4: drawArch, tp5: drawViewer };
+  var shown = {};
+  function show(id){
+    btns.forEach(function(b){ var p=document.getElementById(b.getAttribute("aria-controls")); var on=p.id===id; b.setAttribute("aria-selected", on?"true":"false"); p.hidden=!on; });
+    if(!shown[id] && hooks[id]){ shown[id]=true; hooks[id](); }
+    try{ localStorage.setItem(KEY, id); }catch(e){}
+  }
+  btns.forEach(function(b){ b.addEventListener("click", function(){ show(b.getAttribute("aria-controls")); try{ window.scrollTo({top:0, behavior: reduce?"auto":"smooth"}); }catch(e){} }); });
+
+  /* ---------- 01 hero: record / rewind / rerun ---------- */
+  (function(){
+    var host = document.getElementById("heroViz");
+    var W=720, H=190, n=12, L=34, R=34, gap=(W-L-R)/(n-1), Y=92;
+    var nodes = [];
+    var svg = el("svg", {viewBox:"0 0 "+W+" "+H, role:"img", "aria-label":"Twelve agent steps. The run fails at step 12; rewinding to step 7, changing the tool result there, and re-running steps 8 to 12 produces a pass."});
+    svg.appendChild(css(el("line",{x1:L,y1:Y,x2:W-R,y2:Y}),"stroke:var(--line-2);stroke-width:2"));
+    var tapeBand = css(el("rect",{x:L-18,y:Y-24,width:gap*5+36,height:48,rx:8}),"fill:var(--surface-3);opacity:0;transition:opacity .4s");
+    svg.appendChild(tapeBand);
+    var tapeLbl = css(txt(el("text",{x:L+gap*2.5,y:Y+46,"text-anchor":"middle"},"s-lbl"),"read from tape · 0 calls"),"opacity:0;transition:opacity .4s");
+    svg.appendChild(tapeLbl);
+    var sufLbl = css(txt(el("text",{x:L+gap*9,y:Y+46,"text-anchor":"middle"},"s-lbl"),"re-run live × N"),"opacity:0;transition:opacity .4s");
+    svg.appendChild(sufLbl);
+    for(var i=0;i<n;i++){
+      var x=L+i*gap;
+      var c = css(el("circle",{cx:x,cy:Y,r:13},"s-node"),"fill:var(--surface-2);stroke:var(--line-2);transition:fill .3s, stroke .3s");
+      svg.appendChild(c);
+      var t = css(txt(el("text",{x:x,y:Y+4,"text-anchor":"middle"},"s-txt"), String(i+1)),"fill:var(--ink-2)");
+      svg.appendChild(t);
+      nodes.push({c:c,t:t,x:x});
+    }
+    var head = el("g",{});
+    css(head,"transition:transform .7s cubic-bezier(.2,.7,.3,1)");
+    head.appendChild(css(el("path",{d:"M0 -40 L-7 -52 L7 -52 Z"}),"fill:var(--amber)"));
+    head.appendChild(css(el("line",{x1:0,y1:-40,x2:0,y2:-17}),"stroke:var(--amber);stroke-width:1.5"));
+    svg.appendChild(head);
+    var fixTag = css(el("g",{}),"opacity:0;transition:opacity .35s");
+    fixTag.appendChild(css(el("rect",{x:L+gap*6-62,y:Y+60,width:124,height:36,rx:5}),"fill:var(--amber-bg);stroke:var(--amber)"));
+    fixTag.appendChild(css(txt(el("text",{x:L+gap*6,y:Y+75,"text-anchor":"middle"},"s-txt"),"tool result replaced"),"fill:var(--amber)"));
+    fixTag.appendChild(css(txt(el("text",{x:L+gap*6,y:Y+89,"text-anchor":"middle"},"s-txt"),"NM1VX1 → ZFA04Y"),"fill:var(--amber)"));
+    svg.appendChild(fixTag);
+    var endTag = css(txt(el("text",{x:W-R,y:Y-24,"text-anchor":"middle"},"s-txt"), ""),"font-weight:600");
+    svg.appendChild(endTag);
+    host.appendChild(svg);
+
+    var read = document.getElementById("heroRead");
+    var STATES = {idle:["var(--surface-2)","var(--line-2)","var(--ink-2)"], run:["var(--teal-bg)","var(--teal)","var(--ink)"], bad:["var(--bad-bg)","var(--bad)","var(--bad)"], tape:["var(--surface)","var(--line-2)","var(--muted)"], fix:["var(--amber-bg)","var(--amber)","var(--amber)"], ok:["var(--ok-bg)","var(--ok)","var(--ok)"]};
+    function playhead(i){ head.style.transform = "translate("+nodes[i].x+"px,"+Y+"px)"; }
+    function setNode(i, state){ var m=STATES[state]; nodes[i].c.style.fill=m[0]; nodes[i].c.style.stroke=m[1]; nodes[i].t.style.fill=m[2]; }
+    function status(label, value){ read.textContent=""; read.appendChild(document.createTextNode(label+" ")); var b=document.createElement("b"); b.textContent=value; read.appendChild(b); }
+    function end(ok){ endTag.textContent = ok===null ? "" : (ok ? "✓ pass" : "✕ fail"); endTag.style.fill = ok ? "var(--ok)" : "var(--bad)"; }
+    function reset(){ for(var i=0;i<n;i++) setNode(i,"idle"); tapeBand.style.opacity=0; tapeLbl.style.opacity=0; sufLbl.style.opacity=0; fixTag.style.opacity=0; end(null); }
+    function finalState(){
+      for(var i=0;i<6;i++) setNode(i,"tape");
+      setNode(6,"fix"); for(var j=7;j<12;j++) setNode(j,"ok");
+      tapeBand.style.opacity=.8; tapeLbl.style.opacity=1; sufLbl.style.opacity=1; fixTag.style.opacity=1;
+      end(true); playhead(11); status("blame","step 7 · effect +0.75");
+    }
+    if(reduce){ finalState(); return; }
+    var seq = [], t = 0;
+    function at(ms, fn){ seq.push([ms, fn]); }
+    at(t, function(){ reset(); playhead(0); status("state","recording"); });
+    for(var a=0;a<12;a++){ (function(i){ at(t+=260, function(){ playhead(i); setNode(i, i===11?"bad":"run"); if(i===11){ end(false); status("run","failed at step 12"); } }); })(a); }
+    at(t+=1200, function(){ playhead(6); status("rewinding to","step 7"); for(var j=7;j<12;j++) setNode(j,"idle"); end(null); });
+    at(t+=800, function(){ for(var j=0;j<6;j++) setNode(j,"tape"); tapeBand.style.opacity=.8; tapeLbl.style.opacity=1; status("steps 1–6","from tape · 0 calls"); });
+    at(t+=900, function(){ setNode(6,"fix"); fixTag.style.opacity=1; status("step 7","tool result replaced"); });
+    for(var b=7;b<12;b++){ (function(k){ at(t+=(k===7?1000:280), function(){ sufLbl.style.opacity=1; playhead(k); setNode(k,"ok"); if(k===11){ end(true); status("blame","step 7 · effect +0.75"); } }); })(b); }
+    var total = t + 3000;
+    function cycle(){ seq.forEach(function(s){ setTimeout(s[1], s[0]); }); setTimeout(cycle, total); }
+    cycle();
+  })();
+
+  /* ---------- 02 forest plot ---------- */
+  var PT = [0.10,0.12,0.12,0.18,0.10,0.10,0.88,0.40,0.30,0.18,0.12,0.10];
+  var PC = 0.10;
+  var selK = 7;
+  function rng(seed){ var s = seed >>> 0; return function(){ s = (s + 0x6D2B79F5) >>> 0; var t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function draws(p, N, seed){ var r=rng(seed), out=[]; for(var i=0;i<N;i++) out.push(r()<p?1:0); return out; }
+  function wilson(x, n){ var z=1.96, p=x/n, d=1+z*z/n, c=(p+z*z/(2*n))/d, h=z*Math.sqrt(p*(1-p)/n + z*z/(4*n*n))/d; return [Math.max(0,c-h), Math.min(1,c+h)]; }
+  function newcombe(x1,n1,x2,n2){ var p1=x1/n1, p2=x2/n2, a=wilson(x1,n1), b=wilson(x2,n2), d=p1-p2; return [d, d-Math.sqrt(Math.pow(p1-a[0],2)+Math.pow(b[1]-p2,2)), d+Math.sqrt(Math.pow(a[1]-p1,2)+Math.pow(p2-b[0],2))]; }
+  function sum(a){ return a.reduce(function(s,v){ return s+v; },0); }
+  function paintDots(id, arr){ var h=document.getElementById(id); h.innerHTML=""; arr.forEach(function(v){ var i=document.createElement("i"); i.className=v?"p":"f"; i.textContent=v?"✓":"✕"; h.appendChild(i); }); }
+  function drawForest(){
+    var host = document.getElementById("forest");
+    var N = +document.getElementById("nSlider").value;
+    var delta = +document.getElementById("dSlider").value/100;
+    document.getElementById("nOut").textContent = N;
+    document.getElementById("dOut").textContent = delta.toFixed(2);
+    var ctrl = draws(PC, N, 999);
+    var xc = sum(ctrl);
+    var rows = PT.map(function(p,i){ var tr=draws(p, N, 101+i*7); var r=newcombe(sum(tr),N,xc,N); return {k:i+1, tr:tr, d:r[0], lo:r[1], hi:r[2]}; });
+    var blame = null;
+    for(var i=0;i<rows.length;i++){ if(rows[i].lo > delta){ blame = rows[i].k; break; } }
+
+    var W=620, rowH=22, T=26, B=34, L=70, R=20, H=T+rows.length*rowH+B, xmin=-0.6, xmax=1.0;
+    function X(v){ return L + (v-xmin)/(xmax-xmin)*(W-L-R); }
+    host.innerHTML = "";
+    var svg = el("svg", {viewBox:"0 0 "+W+" "+H, role:"img", "aria-label":"Forest plot of the estimated effect of fixing each of 12 steps, with 95% intervals"});
+    rows.forEach(function(r, i){
+      var y = T + i*rowH + rowH/2;
+      var hit = el("rect",{x:0,y:y-rowH/2,width:W,height:rowH,tabindex:"0",role:"button","aria-label":"step "+r.k+", effect "+r.d.toFixed(2)}, "s-row"+(r.k===selK?" sel":""));
+      hit.addEventListener("click", function(){ selK=r.k; drawForest(); });
+      hit.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); selK=r.k; drawForest(); } });
+      svg.appendChild(hit);
+    });
+    [-0.5,0,0.5,1].forEach(function(g){
+      svg.appendChild(css(el("line",{x1:X(g),y1:T-6,x2:X(g),y2:H-B+4}, g===0?"s-zero":"s-grid"),"pointer-events:none"));
+      svg.appendChild(txt(el("text",{x:X(g),y:H-B+18,"text-anchor":"middle"},"s-lbl"), (g>0?"+":"")+g.toFixed(1)));
+    });
+    svg.appendChild(css(el("line",{x1:X(delta),y1:T-6,x2:X(delta),y2:H-B+4},"s-thr"),"pointer-events:none"));
+    svg.appendChild(css(txt(el("text",{x:X(delta)+4,y:T-10},"s-lbl"),"δ = "+delta.toFixed(2)),"fill:var(--amber)"));
+    svg.appendChild(txt(el("text",{x:(L+W-R)/2,y:H-4,"text-anchor":"middle"},"s-lbl"),"effect of fixing the step (treated − control pass rate)"));
+    rows.forEach(function(r, i){
+      var y = T + i*rowH + rowH/2;
+      var isB = r.k===blame, clear = r.lo>delta;
+      var col = isB ? "var(--amber)" : (clear ? "var(--teal)" : "var(--muted)");
+      svg.appendChild(css(txt(el("text",{x:10,y:y+4},"s-txt"),"step "+r.k), isB?"fill:var(--amber);font-weight:600;pointer-events:none":"pointer-events:none"));
+      svg.appendChild(css(el("line",{x1:X(Math.max(xmin,r.lo)),y1:y,x2:X(Math.min(xmax,r.hi)),y2:y}),"stroke:"+col+";stroke-width:2;pointer-events:none"));
+      svg.appendChild(css(el("rect",{x:X(r.d)-4,y:y-4,width:8,height:8,rx:1.5}),"fill:"+col+";pointer-events:none"));
+    });
+    host.appendChild(svg);
+
+    var vb = document.getElementById("vBlame"), vs = document.getElementById("vBlameSub");
+    if(blame){ var bb=rows[blame-1]; vb.textContent = "step "+blame; vb.style.color="var(--amber)"; vs.textContent = "effect "+(bb.d>=0?"+":"")+bb.d.toFixed(2)+", 95% CI ["+bb.lo.toFixed(2)+", "+bb.hi.toFixed(2)+"]: the earliest step clearing δ"; }
+    else { vb.textContent = "inconclusive"; vb.style.color="var(--muted)"; vs.textContent = "no step's interval clears δ yet, so sample more"; }
+    document.getElementById("vCalls").textContent = ((12+1)*N*10).toLocaleString();
+
+    var sr = rows[selK-1];
+    document.getElementById("selK").textContent = selK;
+    document.getElementById("selT").textContent = sum(sr.tr)+"/"+N+" pass";
+    document.getElementById("selC").textContent = xc+"/"+N+" pass";
+    paintDots("dotsT", sr.tr); paintDots("dotsC", ctrl);
+  }
+  ["nSlider","dSlider"].forEach(function(id){ document.getElementById(id).addEventListener("input", drawForest); });
+
+  /* ---------- 02 cost calculator ---------- */
+  var RPM = 40;
+  function fmtH(calls){ var m = calls/RPM; return m < 90 ? Math.max(1,Math.round(m))+" min" : (m/60).toFixed(1)+" h"; }
+  function calc(){
+    var n=+document.getElementById("cSteps").value, m=+document.getElementById("cTop").value, N=+document.getElementById("cN").value, c=+document.getElementById("cC").value;
+    m = Math.min(m, n);
+    document.getElementById("oSteps").textContent=n; document.getElementById("oTop").textContent=m; document.getElementById("oN").textContent=N; document.getElementById("oC").textContent=c;
+    var all = (n+1)*N*c, bis = 1 + (m+1)*N*c;
+    document.getElementById("cAll").textContent = all.toLocaleString()+" calls";
+    document.getElementById("cAllSub").textContent = "≈ "+fmtH(all)+" per diagnosis";
+    document.getElementById("cBis").textContent = bis.toLocaleString()+" calls";
+    document.getElementById("cBisSub").textContent = "≈ "+fmtH(bis)+" per diagnosis · 1 judge call, "+m+" suspects, 1 shared control";
+    document.getElementById("cSave").textContent = (all/bis).toFixed(1)+"× fewer";
+  }
+  ["cSteps","cTop","cN","cC"].forEach(function(id){ document.getElementById(id).addEventListener("input", calc); });
+
+  /* ---------- 04 architecture ---------- */
+  function drawArch(){
+    var host = document.getElementById("archViz");
+    var W=720, H=300;
+    var svg = el("svg",{viewBox:"0 0 "+W+" "+H, role:"img", "aria-label":"Architecture: adapters feed the core engine; a wall separates the core from attribution and bench; the CLI, viewer and PR check read results"});
+    function box(x,y,w,h,cls,title,sub){
+      svg.appendChild(el("rect",{x:x,y:y,width:w,height:h,rx:6},"s-box "+cls));
+      if(title) svg.appendChild(txt(el("text",{x:x+w/2,y:y+h/2-3,"text-anchor":"middle"},"s-title"),title));
+      if(sub) svg.appendChild(txt(el("text",{x:x+w/2,y:y+h/2+13,"text-anchor":"middle"},"s-lbl"),sub));
+    }
+    function edge(x1,y1,x2,y2){ svg.appendChild(el("path",{d:"M"+x1+" "+y1+" C"+((x1+x2)/2)+" "+y1+" "+((x1+x2)/2)+" "+y2+" "+x2+" "+y2},"s-edge")); }
+    function vedge(x1,y1,x2,y2){ svg.appendChild(el("path",{d:"M"+x1+" "+y1+" C"+x1+" "+((y1+y2)/2)+" "+x2+" "+((y1+y2)/2)+" "+x2+" "+y2},"s-edge")); }
+    edge(170,48,220,90); edge(170,120,220,120); edge(170,192,220,150);
+    edge(480,75,420,95); edge(480,165,420,150);
+    vedge(290,200,290,236); vedge(380,200,455,236); vedge(595,200,630,236);
+    box(10,20,160,56,"","τ²-bench adapter","db snapshotter · reward");
+    box(10,92,160,56,"","flaky-world variant","random ids · clock · errors");
+    box(10,164,160,56,"","SDK adapter","@bisect.tool · wrapped llm");
+    box(220,40,200,160,"core","","");
+    svg.appendChild(txt(el("text",{x:320,y:66,"text-anchor":"middle"},"s-title"),"core engine"));
+    ["tape · blob store","snapshot · replay","runner · rate limiter","budget ledger"].forEach(function(s,i){ svg.appendChild(txt(el("text",{x:320,y:94+i*24,"text-anchor":"middle"},"s-txt"),s)); });
+    svg.appendChild(el("line",{x1:452,y1:24,x2:452,y2:214},"s-wall"));
+    svg.appendChild(txt(el("text",{x:452,y:14,"text-anchor":"middle"},"s-wall-t"),"wall: core never imports the right side"));
+    box(480,40,230,70,"attr","attribution","interventions · estimate · judge · search");
+    box(480,130,230,70,"attr","bench","inject · baselines · evaluate");
+    box(220,236,140,50,"surf","CLI","bisect …");
+    box(380,236,150,50,"surf","viewer","bisect serve");
+    box(550,236,160,50,"surf","PR check","GitHub Action");
+    host.appendChild(svg);
+  }
+
+  /* ---------- 05 viewer mock ---------- */
+  function drawViewer(){
+    var S = [
+      ["user","I need to change my flight date.",null],
+      ["agent","Sure, I can help. May I have your user id?",null],
+      ["user","It's mia_li_3668.",null],
+      ["agent","get_user_details(mia_li_3668)",null],
+      ["tool","{name: Mia Li, reservations: [ZFA04Y, NM1VX1]}",0.04],
+      ["agent","Which reservation would you like to change?",0.02],
+      ["tool","get_reservation_details → NM1VX1 (the wrong one)",0.71],
+      ["agent","Your flight NM1VX1 on May 20 can be moved to…",0.38],
+      ["user","That's not my booking, it's the Boston one.",null],
+      ["agent","update_reservation_flights(NM1VX1, …)",0.22],
+      ["tool","{status: updated}",null],
+      ["agent","Done! Your flight has been changed.",0.05]
+    ];
+    var box = document.getElementById("vSteps"), det = document.getElementById("vDetail");
+    function heat(v){ if(v===null) return "background:repeating-linear-gradient(90deg,var(--line) 0 3px,transparent 3px 6px)"; return "background:color-mix(in srgb, var(--amber) "+Math.round(12+v*88)+"%, var(--surface-2))"; }
+    function add(parent, tag, cls, text, style){ var e=document.createElement(tag); if(cls) e.className=cls; if(text!==undefined) e.textContent=text; if(style) e.setAttribute("style",style); parent.appendChild(e); return e; }
+    function detail(i){
+      var s=S[i], k=i+1;
+      det.innerHTML = "";
+      add(det,"div","eyebrow","step "+k+" · "+s[0]+(k===7?" · decisive":""));
+      if(s[2]===null){
+        add(det,"h4","","Not tested","margin-top:6px");
+        var p0=add(det,"p","","The judge didn't shortlist this step, so it has no effect estimate. Test it anyway: ","margin-top:6px");
+        add(p0,"code","","bisect blame … --steps "+k);
+        return;
+      }
+      var main = k===7;
+      add(det,"h4",main?"Replacing this tool result flips the run":"Effect of fixing this step","margin-top:6px");
+      var p=add(det,"p","","effect ","margin-top:6px");
+      add(p,"b","","+"+s[2].toFixed(2), "color:var(--"+(main?"amber":"ink")+")");
+      p.appendChild(document.createTextNode(" · treated "+Math.min(12,Math.round((s[2]+0.08)*12))+"/12 ✓ · control 1/12 ✓"));
+      if(main){
+        var d=add(det,"div","diff");
+        add(d,"span","m","- get_reservation_details → NM1VX1"); d.appendChild(document.createTextNode("\n"));
+        add(d,"span","p","+ get_reservation_details → ZFA04Y");
+        add(det,"p","","The earliest step whose interval clears δ = 0.10. Steps 8 and 10 help less, and they come later.","margin-top:8px");
+      } else if(s[2] > 0.1){
+        add(det,"p","","This step clears δ but comes after step 7, so it isn't the decisive one.","margin-top:8px");
+      } else {
+        add(det,"p","","The interval includes zero: fixing this step makes no measurable difference.","margin-top:8px");
+      }
+    }
+    S.forEach(function(s,i){
+      var r=document.createElement("div"); r.className="vstep"+(i===6?" on":""); r.tabIndex=0; r.setAttribute("role","button"); r.setAttribute("aria-label","step "+(i+1)+", "+s[0]);
+      add(r,"span","i",String(i+1)); add(r,"span","who",s[0]); add(r,"span","t",s[1]); add(r,"span","heat",undefined,heat(s[2]));
+      function pick(){ Array.prototype.forEach.call(box.children,function(c){ c.classList.remove("on"); }); r.classList.add("on"); detail(i); }
+      r.addEventListener("click", pick);
+      r.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); pick(); } });
+      box.appendChild(r);
+    });
+    detail(6);
+  }
+
+  var saved=null; try{ saved=localStorage.getItem(KEY); }catch(e){}
+  if(saved && saved!=="tp1" && document.getElementById(saved)) show(saved);
+})();
+</script>

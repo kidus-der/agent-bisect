@@ -15,3 +15,14 @@ node_modules/
 
 # os
 .DS_Store
+
+# bisect: runs, data (fixtures/manifests are tracked), vendored deps, builds
+runs/
+data/
+!data/fixtures/
+!data/manifest*
+vendor/
+web/node_modules/
+dist/
+.coverage
+htmlcov/

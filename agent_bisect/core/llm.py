@@ -1,0 +1,331 @@
+"""Async LiteLLM wrapper for calling NVIDIA NIM.
+
+Provider prefix: NIM models are called through litellm's generic
+OpenAI-compatible route — `openai/<model>` with `api_base` set to NVIDIA's
+endpoint — rather than litellm's dedicated `nvidia_nim/` provider. NIM is
+OpenAI-protocol-compatible, and the generic route avoids provider-specific
+parameter handling that isn't needed here. `LiteLLMTransport.complete`
+constructs the `openai/<model>` string; the bare model id used everywhere
+else (`LLMRequest.model`, the ledger, `config/models.toml`) has no prefix.
+
+Rate limiting: `TokenBucketLimiter` is a single process-wide async
+token-bucket limiter, configurable in requests/min via `config/limits.toml`
+(default 30, until P0b measures the real per-model ceiling).
+
+Retries: exponential backoff with full jitter on HTTP 429/5xx and on
+timeouts/connection errors. A `Retry-After` response header always takes
+precedence over the computed backoff delay. Retries continue until
+`max_elapsed_s` since the first attempt is exhausted — a call is only
+failed after that budget runs out, never on the first error.
+
+Every call is registered in the budget ledger (`core.budget`): the ledger
+is checked *before* each attempt (so a call that would exceed the cap
+never reaches the network) and a row is written after every attempt,
+success or failure. A `record_before_use` callback, when supplied, is
+awaited with `(request, response)` and MUST complete before `complete()`
+returns the response to its caller — this lets a caller durably archive
+raw traffic before any downstream code can act on it.
+
+The HTTP/LLM transport is dependency-injected via the `Transport`
+protocol, so `LLMClient` is tested entirely against fakes — no real
+network call happens in the test suite (`--disable-socket` enforces this).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import random
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Protocol, cast
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from agent_bisect.core.budget import BudgetLedger, CallRecord, current_phase
+from agent_bisect.core.config import redact
+
+DEFAULT_REQUESTS_PER_MINUTE = 30.0
+DEFAULT_MAX_ELAPSED_S = 300.0
+DEFAULT_BASE_DELAY_S = 1.0
+DEFAULT_MAX_DELAY_S = 30.0
+RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+
+
+class LLMRequest(BaseModel):
+    """One chat-completion request. Immutable: build a new instance to change a field."""
+
+    model_config = ConfigDict(frozen=True)
+
+    model: str
+    messages: tuple[dict[str, str], ...]
+    max_tokens: int | None = None
+    tools: tuple[dict, ...] | None = None
+    purpose: str = "unspecified"
+
+
+class LLMResponse(BaseModel):
+    """One chat-completion response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    content: str
+    tokens_in: int
+    tokens_out: int
+    raw: dict = Field(default_factory=dict)
+
+
+class TransportError(Exception):
+    """Raised by a `Transport` on any failure. `message` is redacted before storage."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
+        super().__init__(redact(message))
+        self.status_code = status_code
+        self.retry_after = retry_after
+
+
+class Transport(Protocol):
+    """Dependency-injected transport. Tests supply a fake; production uses `LiteLLMTransport`."""
+
+    async def complete(
+        self, request: LLMRequest, *, api_base: str, api_key: str
+    ) -> LLMResponse: ...
+
+
+class LiteLLMTransport:
+    """Production `Transport`: calls NIM via `litellm.acompletion` on the `openai/` route."""
+
+    async def complete(
+        self, request: LLMRequest, *, api_base: str, api_key: str
+    ) -> LLMResponse:
+        import litellm
+        from litellm.types.utils import ModelResponse
+
+        try:
+            # We never pass stream=True, so litellm always returns a
+            # ModelResponse; its signature's Union with CustomStreamWrapper
+            # only applies to the streaming path.
+            raw = cast(
+                ModelResponse,
+                await litellm.acompletion(
+                    model=f"openai/{request.model}",
+                    messages=list(request.messages),
+                    max_tokens=request.max_tokens,
+                    tools=list(request.tools) if request.tools else None,
+                    api_base=api_base,
+                    api_key=api_key,
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - normalize every litellm failure below
+            status_code = getattr(exc, "status_code", None)
+            retry_after = _extract_retry_after(exc)
+            raise TransportError(
+                redact(str(exc)), status_code=status_code, retry_after=retry_after
+            ) from exc
+
+        choice = raw.choices[0]
+        # `usage` is set dynamically by litellm's ModelResponse.__init__ and
+        # isn't a declared pydantic field, so pyright can't see it statically.
+        usage = getattr(raw, "usage", None)
+        tokens_in = int(usage.prompt_tokens) if usage is not None else 0
+        tokens_out = int(usage.completion_tokens) if usage is not None else 0
+        return LLMResponse(
+            content=choice.message.content or "",
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            raw=raw.model_dump(),
+        )
+
+
+def _extract_retry_after(exc: Exception) -> float | None:
+    headers = getattr(exc, "response", None)
+    headers = getattr(headers, "headers", None) if headers is not None else None
+    if not headers:
+        return None
+    value = headers.get("Retry-After") or headers.get("retry-after")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def compute_backoff_s(
+    attempt: int,
+    *,
+    base_delay_s: float = DEFAULT_BASE_DELAY_S,
+    max_delay_s: float = DEFAULT_MAX_DELAY_S,
+    rand: Callable[[], float] = random.random,
+) -> float:
+    """Full-jitter exponential backoff: `uniform(0, min(max_delay, base * 2**attempt))`."""
+    ceiling = min(max_delay_s, base_delay_s * (2**attempt))
+    return rand() * ceiling
+
+
+class TokenBucketLimiter:
+    """Async token-bucket rate limiter.
+
+    Intended as one process-wide instance shared by every `LLMClient` call
+    site. `clock`/`sleep` are injected so tests run against a fake clock
+    instead of real wall-clock waits.
+    """
+
+    def __init__(
+        self,
+        requests_per_minute: float,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
+        if requests_per_minute <= 0:
+            raise ValueError("requests_per_minute must be positive")
+        self._capacity = requests_per_minute
+        self._tokens = requests_per_minute
+        self._refill_per_s = requests_per_minute / 60.0
+        self._clock = clock
+        self._sleep = sleep
+        self._last_refill = clock()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            while True:
+                now = self._clock()
+                elapsed = now - self._last_refill
+                self._last_refill = now
+                self._tokens = min(self._capacity, self._tokens + elapsed * self._refill_per_s)
+                if self._tokens >= 1:
+                    self._tokens -= 1
+                    return
+                wait_s = (1 - self._tokens) / self._refill_per_s
+                await self._sleep(wait_s)
+
+
+RecordBeforeUse = Callable[[LLMRequest, LLMResponse], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class LLMClientConfig:
+    requests_per_minute: float = DEFAULT_REQUESTS_PER_MINUTE
+    max_elapsed_s: float = DEFAULT_MAX_ELAPSED_S
+    base_delay_s: float = DEFAULT_BASE_DELAY_S
+    max_delay_s: float = DEFAULT_MAX_DELAY_S
+
+
+class LLMClient:
+    """Rate-limited, retrying, budget-tracked NIM client. See module docstring for the contract."""
+
+    def __init__(
+        self,
+        transport: Transport,
+        ledger: BudgetLedger,
+        *,
+        api_base: str,
+        api_key: str,
+        config: LLMClientConfig | None = None,
+        limiter: TokenBucketLimiter | None = None,
+        record_before_use: RecordBeforeUse | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        rand: Callable[[], float] = random.random,
+    ) -> None:
+        self._transport = transport
+        self._ledger = ledger
+        self._api_base = api_base
+        self._api_key = api_key
+        self._config = config or LLMClientConfig()
+        self._limiter = limiter or TokenBucketLimiter(
+            self._config.requests_per_minute, clock=clock, sleep=sleep
+        )
+        self._record_before_use = record_before_use
+        self._clock = clock
+        self._sleep = sleep
+        self._rand = rand
+
+    async def complete(self, request: LLMRequest, *, phase: str | None = None) -> LLMResponse:
+        phase_name = current_phase(phase)
+        start = self._clock()
+        attempt = 0
+        while True:
+            # Checked before every attempt, not just the first: a call that
+            # would exceed the cap never reaches the network, retry or not.
+            self._ledger.check_budget()
+            await self._limiter.acquire()
+            call_start = self._clock()
+            try:
+                response = await self._transport.complete(
+                    request, api_base=self._api_base, api_key=self._api_key
+                )
+            except TransportError as exc:
+                # Every attempt is registered, success or failure, so the
+                # ledger reflects real network calls made (each one counts
+                # against the provider's rate limit and our own budget).
+                delay = self._delay_before_retry(
+                    exc, request, phase_name, call_start, start, attempt
+                )
+                attempt += 1
+                await self._sleep(delay)
+                continue
+            if self._record_before_use is not None:
+                await self._record_before_use(request, response)
+            self._record(
+                request, phase_name, "ok", response.tokens_in, response.tokens_out, call_start
+            )
+            return response
+
+    def _delay_before_retry(
+        self,
+        exc: TransportError,
+        request: LLMRequest,
+        phase: str,
+        call_start: float,
+        start: float,
+        attempt: int,
+    ) -> float:
+        """Record the failed attempt and return the delay before retrying, or re-raise `exc`."""
+        is_retryable = exc.status_code is None or exc.status_code in RETRYABLE_STATUS_CODES
+        elapsed = self._clock() - start
+        if not is_retryable:
+            self._record(request, phase, "error", 0, 0, call_start)
+            raise exc
+        if elapsed >= self._config.max_elapsed_s:
+            self._record(request, phase, "exhausted", 0, 0, call_start)
+            raise exc
+        self._record(request, phase, "retrying", 0, 0, call_start)
+        if exc.retry_after is not None:
+            return exc.retry_after
+        return compute_backoff_s(
+            attempt,
+            base_delay_s=self._config.base_delay_s,
+            max_delay_s=self._config.max_delay_s,
+            rand=self._rand,
+        )
+
+    def _record(
+        self,
+        request: LLMRequest,
+        phase: str,
+        status: str,
+        tokens_in: int,
+        tokens_out: int,
+        call_start: float,
+    ) -> None:
+        self._ledger.record(
+            CallRecord(
+                ts=time.time(),
+                phase=phase,
+                model=request.model,
+                purpose=request.purpose,
+                status=status,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                latency_ms=(self._clock() - call_start) * 1000,
+            )
+        )

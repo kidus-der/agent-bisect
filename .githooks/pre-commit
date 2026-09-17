@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Blocks any commit whose staged content contains what looks like an
+# NVIDIA NIM API key (`nvapi-` followed by 20+ URL-safe characters).
+# Installed via: git config core.hooksPath .githooks
+set -euo pipefail
+
+pattern='nvapi-[A-Za-z0-9_-]{20,}'
+
+if git diff --cached -U0 | grep -Eq "^\+.*${pattern}"; then
+  echo "pre-commit: staged content matches an NVIDIA API key pattern (nvapi-...)." >&2
+  echo "pre-commit: refusing to commit. Remove the secret and re-stage." >&2
+  exit 1
+fi
+
+exit 0
