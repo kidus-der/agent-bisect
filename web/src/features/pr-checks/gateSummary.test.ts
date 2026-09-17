@@ -105,8 +105,27 @@ describe('buildGateSummary', () => {
 })
 
 describe('deltaAxisBound', () => {
-  test('is symmetric around zero at the widest change', () => {
-    expect(deltaAxisBound(buildGateSummary(CHECKS))).toBeCloseTo(0.2917, 4)
+  test('reaches the end of the widest interval, not the widest estimate', () => {
+    // Arrange / Act
+    const summary = buildGateSummary(CHECKS)
+    const bound = deltaAxisBound(summary)
+
+    // Assert — a bound drawn at the widest point estimate clips every interval
+    // that runs past it, and a clipped whisker says the interval stops there.
+    const widestEstimate = Math.max(Math.abs(summary.worstDelta), Math.abs(summary.bestDelta))
+    expect(bound).toBeGreaterThan(widestEstimate)
+    for (const entry of summary.deltas) {
+      if (!entry.interval) continue
+      expect(Math.abs(entry.interval.low)).toBeLessThanOrEqual(bound)
+      expect(Math.abs(entry.interval.high)).toBeLessThanOrEqual(bound)
+    }
+  })
+
+  test('is symmetric around zero, so both sides are comparable', () => {
+    const summary = buildGateSummary(CHECKS)
+    const bound = deltaAxisBound(summary)
+    expect(bound).toBe(Math.abs(bound))
+    expect(bound).toBeGreaterThan(0)
   })
 
   test('never collapses to zero width', () => {
