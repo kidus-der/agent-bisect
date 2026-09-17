@@ -11,6 +11,7 @@ export type RunDetail = Readonly<Schemas['RunDetail']>
 export type StepView = Readonly<Schemas['StepView']>
 export type StepEffect = Readonly<Schemas['StepEffectView']>
 export type RunEstimate = Readonly<Schemas['RunEstimateView']>
+export type EstimatorConfig = Readonly<Schemas['EstimatorConfig']>
 export type JudgePanel = Readonly<Schemas['JudgePanel']>
 export type JudgeRankEntry = Readonly<Schemas['JudgeRankEntry']>
 export type RerunRow = Readonly<Schemas['RerunRow']>

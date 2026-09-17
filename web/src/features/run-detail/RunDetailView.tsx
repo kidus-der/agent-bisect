@@ -6,7 +6,7 @@ import { Panel } from '@/components/primitives/Panel'
 
 import { availableOrNull, useInterventionDiffQuery, useRerunsQuery, useRunDetailQuery } from './api'
 import { BlameReadout } from './BlameReadout'
-import { DELTA, blameVerdict, effectDomain, forestRows, heatCells } from './blame'
+import { blameVerdict, deltaFor, effectDomain, forestRows, heatCells } from './blame'
 import { DotMatrix } from './DotMatrix'
 import { ForestPlot } from './ForestPlot'
 import { interventionSummary } from './intervention'
@@ -70,16 +70,20 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
   }
   if (!detail) return <RunNotFound runId={runId} />
 
-  const verdict = blameVerdict(detail.estimate)
-  const cells = heatCells(nSteps, effects)
-  const rows = forestRows(effects, DELTA, detail.estimate?.blamed_step ?? null)
-  const domain = effectDomain(effects, DELTA)
-  const summary = interventionSummary(
-    intervention.data ? availableOrNull(intervention.data.data) : null,
-  )
   // `!= null` on purpose: a payload that omits `estimate` must not crash the page.
   const bisected = detail.estimate != null
   const blamedStep = detail.estimate?.blamed_step ?? null
+  // The threshold and shortlist size this run was actually decided with.
+  const config = detail.estimate?.config ?? null
+  const delta = deltaFor(detail.estimate)
+
+  const verdict = blameVerdict(detail.estimate)
+  const cells = heatCells(nSteps, effects)
+  const rows = forestRows(effects, delta, blamedStep)
+  const domain = effectDomain(effects, delta)
+  const summary = interventionSummary(
+    intervention.data ? availableOrNull(intervention.data.data) : null,
+  )
   const states = tapeStepStates({
     nSteps,
     playhead,
@@ -121,9 +125,10 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
         <div className="shrink-0 border-t border-line pt-4 xl:w-56 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
           <BlameReadout
             verdict={verdict}
-            delta={DELTA}
+            delta={delta}
             testedSteps={effects.length}
             bisected={bisected}
+            config={config}
           />
         </div>
       </Panel>
@@ -135,7 +140,7 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
       ) : null}
 
       {bisected && blamedStep === null ? (
-        <NoStepBlamed tested={effects.length} delta={DELTA} />
+        <NoStepBlamed tested={effects.length} delta={delta} />
       ) : null}
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -153,7 +158,7 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
             <ForestPlot
               rows={rows}
               domain={domain}
-              delta={DELTA}
+              delta={delta}
               selectedStep={playhead}
               onSelectStep={setPlayhead}
             />
@@ -186,6 +191,7 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
             judge={detail.judge}
             effects={effects}
             blamedStep={blamedStep}
+            shortlistM={config?.shortlist_m ?? null}
             selectedStep={playhead}
             onSelectStep={setPlayhead}
           />

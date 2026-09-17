@@ -1,6 +1,7 @@
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { formatEffect, formatInterval } from '@/lib/format'
 
+import type { EstimatorConfig } from './api'
 import type { BlameVerdict } from './blame'
 
 interface BlameReadoutProps {
@@ -8,17 +9,49 @@ interface BlameReadoutProps {
   readonly delta: number
   readonly testedSteps: number
   readonly bisected: boolean
+  /** The settings this run's estimate was actually produced with. */
+  readonly config: EstimatorConfig | null
 }
 
 function Caption({ children }: { readonly children: React.ReactNode }) {
   return <p className="text-small text-pretty text-ink-muted">{children}</p>
 }
 
+const BOUNDARY_LABELS: Readonly<Record<EstimatorConfig['efficacy_boundary'], string>> = {
+  obf: 'O’Brien-Fleming',
+  none: 'none',
+}
+
+/** The estimator's own settings, read off the run rather than assumed. */
+function Method({ config }: { readonly config: EstimatorConfig }) {
+  const facts: ReadonlyArray<readonly [string, string]> = [
+    ['δ', config.delta.toFixed(2)],
+    ['conf', `${Math.round(config.conf * 100)}%`],
+    ['N ≤', String(config.max_n)],
+    ['batch', String(config.batch)],
+    ['control', config.control_mode],
+    ['boundary', BOUNDARY_LABELS[config.efficacy_boundary]],
+  ]
+  return (
+    <dl
+      data-testid="estimator-config"
+      className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-line pt-3"
+    >
+      {facts.map(([label, value]) => (
+        <div key={label} className="flex items-baseline justify-between gap-2">
+          <dt className="text-[11px] text-ink-muted">{label}</dt>
+          <dd className="num text-[11px] text-ink">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 /**
  * The number the whole product exists to produce, at stat size beside the tape.
  * It is never shown without its interval or without the threshold it cleared.
  */
-export function BlameReadout({ verdict, delta, testedSteps, bisected }: BlameReadoutProps) {
+export function BlameReadout({ verdict, delta, testedSteps, bisected, config }: BlameReadoutProps) {
   if (!bisected) {
     return (
       <div className="flex flex-col gap-2">
@@ -37,6 +70,7 @@ export function BlameReadout({ verdict, delta, testedSteps, bisected }: BlameRea
         <Caption>
           {testedSteps} steps tested; no interval cleared δ&nbsp;{delta.toFixed(2)}.
         </Caption>
+        {config ? <Method config={config} /> : null}
       </div>
     )
   }
@@ -55,9 +89,10 @@ export function BlameReadout({ verdict, delta, testedSteps, bisected }: BlameRea
         {formatInterval(verdict.low, verdict.high)}
       </p>
       <Caption>
-        Earliest step whose 95% interval clears δ&nbsp;{delta.toFixed(2)}, out of {testedSteps}{' '}
-        tested.
+        Earliest step whose {config ? Math.round(config.conf * 100) : 95}% interval clears δ&nbsp;
+        {delta.toFixed(2)}, out of {testedSteps} tested.
       </Caption>
+      {config ? <Method config={config} /> : null}
     </div>
   )
 }

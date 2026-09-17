@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import type { StepEffect } from './api'
 import {
-  DELTA,
+  FALLBACK_DELTA,
   blameVerdict,
+  deltaFor,
   clearsDelta,
   earliestClearingStep,
   forestRows,
@@ -24,11 +25,27 @@ function effect(step: number, value: number, low: number, high: number): StepEff
   }
 }
 
+describe('deltaFor', () => {
+  it('uses the threshold the estimator actually ran with', () => {
+    // Arrange: the server reports its own SequentialConfig.
+    const estimate = { config: { delta: 0.25 } }
+
+    // Act / Assert
+    expect(deltaFor(estimate)).toBe(0.25)
+  })
+
+  it('falls back only when the run carries no config at all', () => {
+    expect(deltaFor({})).toBe(FALLBACK_DELTA)
+    expect(deltaFor({ config: null })).toBe(FALLBACK_DELTA)
+    expect(deltaFor(null)).toBe(FALLBACK_DELTA)
+  })
+})
+
 describe('clearsDelta', () => {
   it('needs the interval lower bound strictly above delta, not the estimate', () => {
     // A big estimate whose interval still touches delta is not blame.
-    expect(clearsDelta(effect(3, 0.9, 0.05, 0.99), DELTA)).toBe(false)
-    expect(clearsDelta(effect(3, 0.4, 0.11, 0.7), DELTA)).toBe(true)
+    expect(clearsDelta(effect(3, 0.9, 0.05, 0.99), FALLBACK_DELTA)).toBe(false)
+    expect(clearsDelta(effect(3, 0.4, 0.11, 0.7), FALLBACK_DELTA)).toBe(true)
   })
 })
 
@@ -42,18 +59,18 @@ describe('earliestClearingStep', () => {
     ]
 
     // Act
-    const blamed = earliestClearingStep(effects, DELTA)
+    const blamed = earliestClearingStep(effects, FALLBACK_DELTA)
 
     // Assert
     expect(blamed).toBe(4)
   })
 
   it('returns null when no step clears delta', () => {
-    expect(earliestClearingStep([effect(1, 0.2, -0.1, 0.5)], DELTA)).toBeNull()
+    expect(earliestClearingStep([effect(1, 0.2, -0.1, 0.5)], FALLBACK_DELTA)).toBeNull()
   })
 
   it('returns null for a run with no tested steps', () => {
-    expect(earliestClearingStep([], DELTA)).toBeNull()
+    expect(earliestClearingStep([], FALLBACK_DELTA)).toBeNull()
   })
 })
 
@@ -102,7 +119,7 @@ describe('forestRows', () => {
     ]
 
     // Act
-    const rows = forestRows(effects, DELTA, 4)
+    const rows = forestRows(effects, FALLBACK_DELTA, 4)
 
     // Assert
     expect(rows.map((row) => row.step)).toEqual([2, 4, 9])
@@ -112,7 +129,7 @@ describe('forestRows', () => {
 
   it('does not mutate the effects it was handed', () => {
     const effects = [effect(9, 0.8, 0.5, 0.95), effect(4, 0.4, 0.2, 0.6)]
-    forestRows(effects, DELTA, 4)
+    forestRows(effects, FALLBACK_DELTA, 4)
     expect(effects.map((entry) => entry.step)).toEqual([9, 4])
   })
 })

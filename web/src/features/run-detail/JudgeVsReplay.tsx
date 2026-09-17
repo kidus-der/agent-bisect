@@ -76,6 +76,8 @@ interface JudgeVsReplayProps {
   readonly judge: JudgePanel
   readonly effects: readonly StepEffect[]
   readonly blamedStep: number | null
+  /** Pre-registered judge shortlist size, as the run reports it. */
+  readonly shortlistM: number | null
   readonly selectedStep: number
   readonly onSelectStep: (step: number) => void
 }
@@ -85,6 +87,7 @@ export function JudgeVsReplay({
   judge,
   effects,
   blamedStep,
+  shortlistM,
   selectedStep,
   onSelectStep,
 }: JudgeVsReplayProps) {
@@ -128,8 +131,9 @@ export function JudgeVsReplay({
         >
           <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-fail" />
           <span>
-            The judge never shortlisted step {blamedStep}. Replay can only test what the judge
-            proposes, so this run is a recall failure, not an accuracy one.
+            The judge never shortlisted step {blamedStep}
+            {shortlistM === null ? '' : ` in its top ${shortlistM}`}. Replay can only test what the
+            judge proposes, so this run is a recall failure, not an accuracy one.
           </span>
         </p>
       ) : null}
@@ -137,7 +141,9 @@ export function JudgeVsReplay({
       <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:gap-0">
         <ul className="min-w-0 flex-1">
           <li className="mb-1">
-            <InstrumentLabel>judge ranking</InstrumentLabel>
+            <InstrumentLabel>
+              judge ranking{shortlistM === null ? '' : ` · top ${shortlistM}`}
+            </InstrumentLabel>
           </li>
           {ranking.map((entry) => (
             <li key={entry.step} style={{ height: ROW_HEIGHT }}>

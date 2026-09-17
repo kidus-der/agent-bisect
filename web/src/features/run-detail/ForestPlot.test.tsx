@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { DELTA, type ForestRow } from './blame'
+import { FALLBACK_DELTA, type ForestRow } from './blame'
 import { ForestPlot } from './ForestPlot'
 
 const ROWS: readonly ForestRow[] = [
@@ -16,7 +16,7 @@ function renderPlot(onSelectStep = vi.fn(), selectedStep = 7) {
     <ForestPlot
       rows={ROWS}
       domain={[-0.4, 1]}
-      delta={DELTA}
+      delta={FALLBACK_DELTA}
       selectedStep={selectedStep}
       onSelectStep={onSelectStep}
     />,

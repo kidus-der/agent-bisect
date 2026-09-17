@@ -3,14 +3,22 @@
  * blame is the EARLIEST step whose 95% CI lower bound clears delta, never the
  * largest effect (docs/brief/summary.md §9.1).
  */
-import type { JudgeRankEntry, StepEffect } from './api'
+import type { EstimatorConfig, JudgeRankEntry, StepEffect } from './api'
 
 /**
- * Decision threshold. Mirrors `DEFAULT_DELTA` in
- * `agent_bisect/attribution/estimate.py`; the API does not carry it per run, so
- * the page labels the line it draws with this value rather than leaving it bare.
+ * Only for a run whose estimate predates `estimate.config`. Every current run
+ * reports the threshold its own estimator ran with, so the page draws that.
  */
-export const DELTA = 0.1
+export const FALLBACK_DELTA = 0.1
+
+interface ConfiguredEstimate {
+  readonly config?: Pick<EstimatorConfig, 'delta'> | null
+}
+
+/** The delta this run's blame result was actually decided against. */
+export function deltaFor(estimate: ConfiguredEstimate | null | undefined): number {
+  return estimate?.config?.delta ?? FALLBACK_DELTA
+}
 
 export function clearsDelta(effect: StepEffect, delta: number): boolean {
   return effect.ci_low > delta
