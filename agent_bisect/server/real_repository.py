@@ -144,7 +144,11 @@ class RealRepository:
         return [Step.model_validate_json(row[0]) for row in rows]
 
     def _run_summary(
-        self, manifest: RunManifest, outcome: Outcome | None, steps: list[Step]
+        self,
+        manifest: RunManifest,
+        outcome: Outcome | None,
+        steps: list[Step],
+        calls: int | None,
     ) -> RunSummary:
         sparkline = tuple(
             SparkPoint(
@@ -170,18 +174,43 @@ class RealRepository:
             decisive_step=None,
             fault_type=None,
             planted_step=None,
-            # Not 0.0/0: the ledger has no run_id column yet (P1b), so
-            # per-run cost/calls genuinely aren't attributable, not free.
+            # cost_usd: not 0.0 -- no per-model USD price exists anywhere in
+            # this codebase to multiply the (now real) call count by.
             cost_usd=None,
-            calls=None,
+            calls=calls,
             sparkline=sparkline,
             blame_stripe=blame_stripe,
         )
+
+    def _calls_per_run(self, conn: sqlite3.Connection) -> dict[str, int]:
+        """Real per-run call counts from the ledger's `run_id` column (P1b),
+        mirroring `BudgetLedger.totals_per_run()` without ever
+        instantiating `BudgetLedger` -- its constructor migrates the schema
+        (an `ALTER TABLE`), which this read-only module must never risk
+        triggering. A ledger from before the column existed is treated as
+        "nothing attributable", not an error."""
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(calls)")}
+        if "run_id" not in columns:
+            return {}
+        rows = conn.execute(
+            "SELECT run_id, COUNT(*) FROM calls WHERE run_id IS NOT NULL GROUP BY run_id"
+        ).fetchall()
+        return dict(rows)
+
+    def _calls_per_run_or_empty(self) -> dict[str, int]:
+        conn = self._ledger_conn()
+        if conn is None:
+            return {}
+        try:
+            return self._calls_per_run(conn)
+        finally:
+            conn.close()
 
     def list_runs(self, filters: RunFilter) -> tuple[tuple[RunSummary, ...], int]:
         conn = _ro_connect(self._index_path)
         if conn is None:
             raise DataNotAvailable("no recordings yet (runs/index.sqlite not found)")
+        calls_by_run = self._calls_per_run_or_empty()
         try:
             rows = []
             for manifest, outcome in self._all_manifests(conn):
@@ -189,7 +218,8 @@ class RealRepository:
                 # status="recording", never silently hidden or shown as
                 # "fail" (`_run_summary` handles both null-outcome states).
                 steps = self._steps_for(conn, manifest.run_id)
-                summary = self._run_summary(manifest, outcome, steps)
+                calls = calls_by_run.get(manifest.run_id)
+                summary = self._run_summary(manifest, outcome, steps, calls)
                 tool_names = tuple(sorted({s.tool_name for s in steps if s.tool_name}))
                 rows.append(RunSearchRow(summary=summary, tool_names=tool_names))
         finally:
