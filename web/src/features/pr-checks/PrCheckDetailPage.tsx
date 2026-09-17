@@ -39,7 +39,7 @@ function DetailBody({ check }: { readonly check: PrCheckDetail }) {
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
       <PassRateCompare check={check} />
-      <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <DecisiveStepChange check={check} />
         <CommentPreview markdown={check.comment_markdown} prNumber={check.pr_number} />
       </div>
