@@ -38,3 +38,6 @@ web/coverage/
 
 # built dashboard — a release build is committed at the end of P6
 agent_bisect/server/static/
+
+# `runs/` above is any directory of that name; the dashboard feature folder is source.
+!web/src/features/runs/
