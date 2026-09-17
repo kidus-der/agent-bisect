@@ -11,6 +11,7 @@ import { ParentSize } from '@visx/responsive'
 import { scaleLinear, scaleLog } from '@visx/scale'
 import { motion, useInView, useReducedMotion } from 'motion/react'
 import { useRef } from 'react'
+import useMeasure from 'react-use-measure'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { PercentYAxis } from '@/components/chart-theme/PercentYAxis'
@@ -39,6 +40,13 @@ const CAP_HALF = 4
 const POINT_DELAY_SECONDS = 0.07
 const IN_VIEW_AMOUNT = 0.3
 const MIN_COST_USD = 0.02
+/**
+ * Plot width below which five labels cannot be placed without colliding, so the
+ * points are numbered and named in a legend instead. Measured on the plot, not
+ * the viewport: at 1440 this chart is one of two columns and is already ~640px.
+ */
+const LABEL_WIDTH_FLOOR_PX = 520
+const BADGE_RADIUS = 9
 
 /**
  * Colour is a role, not an identity: measurement cyan for the methods that
@@ -84,9 +92,11 @@ interface PlotProps {
   readonly height: number
   readonly revealed: boolean
   readonly reduced: boolean
+  /** Numbered points plus a legend, for widths where labels cannot fit. */
+  readonly numbered: boolean
 }
 
-function Plot({ points, width, height, revealed, reduced }: PlotProps) {
+function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps) {
   const innerWidth = Math.max(width - MARGIN.left - MARGIN.right, 0)
   const innerHeight = Math.max(height - MARGIN.top - MARGIN.bottom, 0)
   const costs = points.map((point) => Math.max(point.mean_cost_usd, MIN_COST_USD))
@@ -97,14 +107,17 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
   const y = scaleLinear<number>({ domain: [...Y_DOMAIN], range: [innerHeight, 0] })
   const pointX = (point: ScatterPoint): number => x(Math.max(point.mean_cost_usd, MIN_COST_USD))
   const labels = new Map(
-    placeLabels(
-      points.map((point) => ({
-        id: point.method,
-        x: pointX(point),
-        y: y(point.accuracy),
-        length: methodLabel(point.method).length,
-      })),
-      innerWidth,
+    (numbered
+      ? []
+      : placeLabels(
+          points.map((point) => ({
+            id: point.method,
+            x: pointX(point),
+            y: y(point.accuracy),
+            length: methodLabel(point.method).length,
+          })),
+          innerWidth,
+        )
     ).map((entry) => [entry.id, entry]),
   )
 
@@ -190,26 +203,67 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
                 stroke={colour}
                 strokeWidth={2}
               />
-              {/* Direct labels: no legend to cross-reference. A halo in the panel
-                  fill keeps one readable where it crosses a neighbour's whisker. */}
-              <text
-                x={cx + (label?.dx ?? 0)}
-                y={cy + (label?.dy ?? 0)}
-                textAnchor={label?.anchor ?? 'start'}
-                stroke={chartColours.background}
-                strokeWidth={3}
-                paintOrder="stroke"
-                fontSize={12}
-                fontWeight={isHeadline ? 650 : 500}
-                fill={isHeadline ? colour : chartColours.foreground}
-              >
-                {methodLabel(point.method)}
-              </text>
+              {numbered ? (
+                // Too narrow to label in place: the point carries its index and
+                // the legend under the plot carries the name.
+                <text
+                  x={cx}
+                  y={cy + BADGE_RADIUS + 12}
+                  textAnchor="middle"
+                  stroke={chartColours.background}
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                  fontSize={11}
+                  fontWeight={650}
+                  fill={colour}
+                  className="num"
+                >
+                  {index + 1}
+                </text>
+              ) : (
+                /* Direct labels: no legend to cross-reference. A halo in the panel
+                   fill keeps one readable where it crosses a neighbour's whisker. */
+                <text
+                  x={cx + (label?.dx ?? 0)}
+                  y={cy + (label?.dy ?? 0)}
+                  textAnchor={label?.anchor ?? 'start'}
+                  stroke={chartColours.background}
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                  fontSize={12}
+                  fontWeight={isHeadline ? 650 : 500}
+                  fill={isHeadline ? colour : chartColours.foreground}
+                >
+                  {methodLabel(point.method)}
+                </text>
+              )}
             </motion.g>
           )
         })}
       </Group>
     </svg>
+  )
+}
+
+/** The key for the numbered points, shown only when the plot is numbering them. */
+function ScatterLegend({ points }: { readonly points: readonly ScatterPoint[] }) {
+  return (
+    <ul
+      aria-hidden="true"
+      className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-ink-muted"
+    >
+      {points.map((point, index) => (
+        <li key={point.method} className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="shrink-0 num font-semibold"
+            style={{ color: methodColour(point.method) }}
+          >
+            {index + 1}
+          </span>
+          <span className="truncate">{methodLabel(point.method)}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -223,13 +277,17 @@ export function CostAccuracyScatter({ points, intervalsUnavailable }: CostAccura
   const reduced = useReducedMotion() ?? false
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inView = useInView(containerRef, { amount: IN_VIEW_AMOUNT, once: true })
+  // Measured, not a media query: the plot's width depends on its grid column.
+  const [plotRef, plotBounds] = useMeasure()
+  const numbered = plotBounds.width > 0 && plotBounds.width < LABEL_WIDTH_FLOOR_PX
 
   return (
     <ChartFrame
       label="cost_vs_accuracy"
       title="What the accuracy costs"
       description={describe(points)}
-      heightClassName="h-64"
+      // The legend needs its own room; it must never sit over the axis.
+      heightClassName={numbered ? 'h-80' : 'h-64'}
       legend={
         intervalsUnavailable ? (
           <span className="label-instrument">intervals unavailable_</span>
@@ -238,25 +296,31 @@ export function CostAccuracyScatter({ points, intervalsUnavailable }: CostAccura
         )
       }
     >
-      <div ref={containerRef} className="size-full">
+      <div ref={containerRef} className="flex size-full flex-col">
         {points.length === 0 ? (
           <p className="flex size-full items-center text-small text-ink-muted">
             No cost-versus-accuracy points reported.
           </p>
         ) : (
-          <ParentSize debounceTime={0}>
-            {({ width, height }) =>
-              width === 0 ? null : (
-                <Plot
-                  points={points}
-                  width={width}
-                  height={Math.max(height, MIN_HEIGHT)}
-                  revealed={inView}
-                  reduced={reduced}
-                />
-              )
-            }
-          </ParentSize>
+          <>
+            <div ref={plotRef} className="min-h-0 flex-1">
+              <ParentSize debounceTime={0}>
+                {({ width, height }) =>
+                  width === 0 ? null : (
+                    <Plot
+                      points={points}
+                      width={width}
+                      height={Math.max(height, MIN_HEIGHT)}
+                      revealed={inView}
+                      reduced={reduced}
+                      numbered={numbered}
+                    />
+                  )
+                }
+              </ParentSize>
+            </div>
+            {numbered ? <ScatterLegend points={points} /> : null}
+          </>
         )}
       </div>
     </ChartFrame>
