@@ -80,7 +80,7 @@ def load_probe_results(model: str) -> list[TaskProbeResult]:
         return []
     rows = []
     for path in sorted(directory.glob("*.json")):
-        if path.name.endswith(".simulation.json"):
+        if path.name.endswith((".simulation.json", ".error.json")):
             continue
         payload = json.loads(path.read_text())
         payload["invalid_reasons"] = tuple(payload.get("invalid_reasons") or ())

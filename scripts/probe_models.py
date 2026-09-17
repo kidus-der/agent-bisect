@@ -106,6 +106,8 @@ def checkpoint_path(model: str, task_id: str) -> Path:
 
 
 def load_checkpoint(model: str, task_id: str) -> TaskProbeResult | None:
+    if task_id.endswith((".error", ".simulation")):
+        return None
     path = checkpoint_path(model, task_id)
     if not path.exists():
         return None
@@ -120,21 +122,40 @@ def load_checkpoint(model: str, task_id: str) -> TaskProbeResult | None:
 
 
 def save_checkpoint(result: TaskProbeResult, simulation_json: str | None) -> None:
+    """Write a finished task's checkpoint, or an infra failure's error file.
+
+    An attempt that died on infrastructure (429/5xx past our retry budget,
+    a timeout, a crash in our code) must NOT land at `<task_id>.json`:
+    that path is what `load_checkpoint` treats as "this task is done", so
+    the task would never be retried and would be scored as a failure —
+    exactly what protocol 0004 §3 forbids. It goes to `<task_id>.error.json`
+    instead, which keeps it visible for diagnosis while leaving the task
+    outstanding.
+    """
     path = checkpoint_path(result.model, result.task_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {**asdict(result), "invalid_reasons": list(result.invalid_reasons)}
+    if result.error is not None:
+        path.with_suffix(".error.json").write_text(
+            redact(json.dumps(payload, indent=2, sort_keys=True))
+        )
+        return
     path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    # A task that eventually succeeded is no longer a failure to explain.
+    path.with_suffix(".error.json").unlink(missing_ok=True)
     if simulation_json is not None:
-        sibling = path.with_suffix(".simulation.json")
-        sibling.write_text(redact(simulation_json))
+        path.with_suffix(".simulation.json").write_text(redact(simulation_json))
 
 
 def load_all(model: str) -> list[TaskProbeResult]:
     directory = PROBE_DIR / slug(model)
     if not directory.exists():
         return []
-    rows = [load_checkpoint(model, path.stem) for path in sorted(directory.glob("*.json"))
-            if not path.name.endswith(".simulation.json")]
+    rows = [
+        load_checkpoint(model, path.stem)
+        for path in sorted(directory.glob("*.json"))
+        if not path.name.endswith((".simulation.json", ".error.json"))
+    ]
     return [row for row in rows if row is not None]
 
 
