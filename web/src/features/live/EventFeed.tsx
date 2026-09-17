@@ -41,38 +41,46 @@ export function EventFeed({ events }: EventFeedProps) {
       {events.length === 0 ? (
         <p className="py-6 text-ink-muted">No events yet on this connection.</p>
       ) : (
-        <ol
-          // A scrollable region must be reachable by keyboard, and needs a name
-          // once it is (WCAG 2.1.1 / axe scrollable-region-focusable).
+        // A scrollable region must be reachable by keyboard and needs a name once
+        // it is (WCAG 2.1.1, axe `scrollable-region-focusable`). jsx-a11y objects
+        // to tabIndex on a non-interactive role; WCAG wins, and the focus sits on
+        // a wrapper — as in DataTable — so the list keeps its list semantics.
+        <div
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- WCAG 2.1.1 wins
           tabIndex={0}
+          role="group"
           aria-label="Recent events, newest first"
-          aria-live="polite"
-          aria-relevant="additions"
-          className="m-0 flex max-h-72 list-none flex-col overflow-y-auto p-0 -outline-offset-2"
+          className="max-h-72 overflow-y-auto -outline-offset-2"
         >
-          {events.map((event) => {
-            const level = LEVEL_STYLES[event.level]
-            return (
-              <li
-                key={`${event.ts}-${event.message}`}
-                className="flex items-baseline gap-3 border-b border-line py-2 last:border-b-0"
-              >
-                <span className="shrink-0 num text-[12px] text-ink-muted">
-                  {formatTime(event.ts)}
-                </span>
-                <span
-                  className={cn(
-                    'w-14 shrink-0 label-instrument whitespace-nowrap',
-                    level.className,
-                  )}
+          <ol
+            aria-live="polite"
+            aria-relevant="additions"
+            className="m-0 flex list-none flex-col p-0"
+          >
+            {events.map((event) => {
+              const level = LEVEL_STYLES[event.level]
+              return (
+                <li
+                  key={`${event.ts}-${event.message}`}
+                  className="flex items-baseline gap-3 border-b border-line py-2 last:border-b-0"
                 >
-                  <span aria-hidden="true">{level.glyph}</span> {event.level}
-                </span>
-                <span className="min-w-0 text-small text-pretty text-ink">{event.message}</span>
-              </li>
-            )
-          })}
-        </ol>
+                  <span className="shrink-0 num text-[12px] text-ink-muted">
+                    {formatTime(event.ts)}
+                  </span>
+                  <span
+                    className={cn(
+                      'w-14 shrink-0 label-instrument whitespace-nowrap',
+                      level.className,
+                    )}
+                  >
+                    <span aria-hidden="true">{level.glyph}</span> {event.level}
+                  </span>
+                  <span className="min-w-0 text-small text-pretty text-ink">{event.message}</span>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
       )}
     </Panel>
   )

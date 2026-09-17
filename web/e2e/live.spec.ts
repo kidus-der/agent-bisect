@@ -1,13 +1,13 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page, expect, test } from '@playwright/test'
 
-import { horizontalOverflow, mockP6eApi, useTheme } from './p6e.fixtures'
+import { horizontalOverflow, mockP6eApi, applyTheme } from './p6e.fixtures'
 
 const MOBILE = { width: 390, height: 844 } as const
 const STREAM_FRAMES = 3
 
 async function openLive(page: Page, theme: 'dark' | 'light' = 'dark'): Promise<void> {
-  await useTheme(page, theme)
+  await applyTheme(page, theme)
   await page.goto('/live')
   await page.getByRole('heading', { level: 2, name: 'What the models are doing' }).waitFor()
 }
@@ -40,10 +40,10 @@ test('the event feed is a keyboard-reachable, politely announced log', async ({ 
   await mockP6eApi(page)
   await openLive(page)
 
-  const feed = page.getByRole('list', { name: /Recent events, newest first/ })
-  await expect(feed).toHaveAttribute('aria-live', 'polite')
+  const feed = page.getByRole('group', { name: /Recent events, newest first/ })
   await feed.focus()
   await expect(feed).toBeFocused()
+  await expect(feed.getByRole('list')).toHaveAttribute('aria-live', 'polite')
 })
 
 test('simulated traffic says so', async ({ page }) => {
@@ -64,7 +64,7 @@ test('a stream that never connects is reported, with a way to retry', async ({ p
 
 test('an unmeasured live endpoint is reported, never filled in with numbers', async ({ page }) => {
   await mockP6eApi(page, { unmeasured: true })
-  await useTheme(page, 'dark')
+  await applyTheme(page, 'dark')
   await page.goto('/live')
 
   await expect(page.getByText(/live · not measured/i)).toBeVisible()
