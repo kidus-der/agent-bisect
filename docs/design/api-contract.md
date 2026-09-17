@@ -44,9 +44,19 @@ HTTP 422. Both still carry the envelope shape.
 | GET | `/api/pr-checks/{check_id}` | 6 | detail + rendered comment markdown |
 
 `run_id`/`check_id`/`rerun_id` path params: `^[A-Za-z0-9_-]+$`, else 422/404.
-`limit` ≤ 200. `sort` is checked against an allow-list of sortable fields
-server-side; an unrecognized value silently falls back to `run_id` rather
-than erroring, since it only affects ordering, not correctness.
+`limit` ≤ 200. `sort` is checked against `run_sorting.SORTABLE_RUN_FIELDS`
+(`run_id`, `n_steps`, `cost_usd`, `calls`, `outcome`, `domain`; `-`-prefixed
+= descending) — one allow-list shared by `FixtureRepository` and
+`RealRepository.list_runs`, so real mode can't silently ignore the
+requested field; an unrecognized value falls back to `run_id` rather than
+erroring, since it only affects ordering, not correctness.
+
+**Nullable, honestly:** `RunSummary.cost_usd`/`calls`, `SparkPoint.latency_ms`/
+`tokens`, and `RunDetail.reward` are `T | null`. Fixture mode always has a
+real number; real mode returns `null` (never a fake `0`) wherever the
+underlying data genuinely isn't known yet — per-run cost/calls (the ledger
+has no `run_id` column until P1b), a step that never recorded telemetry, or
+a run with no outcome row yet.
 
 ## Example responses
 
@@ -151,6 +161,17 @@ than erroring, since it only affects ordering, not correctness.
  "meta": {"simulated": false, "data_source": "real", "total": null, "page": null, "limit": null, "next_cursor": null}}
 ```
 
+## Real-mode `null` example (a run recorded but not yet cost-attributed)
+
+```json
+{"data": {"runs": [{"run_id": "real-run-1", "domain": "airline", "outcome": "pass", "n_steps": 1,
+ "decisive_step": null, "fault_type": null, "planted_step": null,
+ "cost_usd": null, "calls": null,
+ "sparkline": [{"step_idx": 0, "actor": "tool", "latency_ms": null, "tokens": null}],
+ "blame_stripe": [{"step_idx": 0, "effect": null, "tested": false}]}]},
+ "meta": {"simulated": false, "data_source": "real"}}
+```
+
 ## Security
 
 Binds `127.0.0.1` by default (`agent_bisect/server/runserver.py`); a
@@ -160,3 +181,9 @@ warning when it is. CORS allows only `http://127.0.0.1:5173` /
 Every response carries `X-Content-Type-Options: nosniff` and a CSP
 (`default-src 'self'; frame-ancestors 'none'`). All SQLite access in
 `real_repository.py` opens `mode=ro`; nothing in `server/` ever writes.
+Every route handler except `/api/live/stream` is a plain `def`, so FastAPI
+already runs it in its threadpool; `/api/live/stream`'s async generator
+(`sse.py`) offloads its one blocking call (`repository.live_snapshot()`)
+via `asyncio.to_thread` so it can't stall the event loop for other
+concurrent requests, and closes promptly (no lingering task) on client
+disconnect.
