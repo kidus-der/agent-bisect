@@ -90,12 +90,13 @@ is used **only** in `mode: demo`. `mode: live` (not exercised in this phase;
 Unchanged from `docs/decisions/0013-suspect-interventions.md`:
 `TruthfulToolResult` on tool steps, `Resample` on agent/user steps, shared
 control forked at the earliest tested step
-(`docs/decisions/0005-shared-control.md`). `SequentialConfig(batch=16,
-max_n=16, delta=0.10, efficacy_boundary="none")` — a single-look fixed-N
+(`docs/decisions/0005-shared-control.md`). `SequentialConfig(batch=8,
+max_n=8, delta=0.10, efficacy_boundary="none")` — a single-look fixed-N
 design, not P5's `obf` primary, because the demo suite has no
 interim-monitoring requirement and every re-run here is scripted (no API
-call, no cost, no rate limit), so there is no reason to economize on `N`
-the way a live-model confirmation must. N=16 gives the demo's own
+call, no cost, no rate limit) — the limit on `N` is wall time (each re-run
+still drives a real tau2 orchestrator, and one gate invocation confirms
+every new failure separately), not budget. N=8 gives the demo's own
 agent-decision steps (`use_stated_title`, `set_completed_status`,
 `escalate_impossible_requests`, confirmed through `Resample`) a real chance
 to clear delta at their modest default slip probabilities, where N=4 would

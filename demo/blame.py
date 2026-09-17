@@ -34,9 +34,12 @@ from agent_bisect.core.tape import Step, TapeReader, TapeWriter
 
 from demo.tasks import DOMAIN, scenario
 
-#: Free (no cost, no rate limit -- every re-run is scripted): confirmation
-#: can afford a generous N (`docs/decisions/0019-gate-rule.md`).
-DEMO_SEQUENTIAL = SequentialConfig(batch=16, max_n=16, delta=0.10, efficacy_boundary="none")
+#: Free (no cost, no rate limit -- every re-run is scripted), but each
+#: re-run still spins up a real tau2 orchestrator, and a suite-level
+#: regression routinely produces several new failures at once, each
+#: confirmed separately -- N=8 (`docs/decisions/0019-gate-rule.md`) is
+#: chosen for practical PR-check wall time, not for cost.
+DEMO_SEQUENTIAL = SequentialConfig(batch=8, max_n=8, delta=0.10, efficacy_boundary="none")
 DEMO_TOP_M = 3
 
 FIRST_DIVERGENCE_PROTOCOL = "all_at_once"
