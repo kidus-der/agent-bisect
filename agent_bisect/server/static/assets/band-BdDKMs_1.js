@@ -1,0 +1,1 @@
+import{t as e}from"./band-CbBASmpH.js";import{t}from"./scaleOperator-BdkQH5C0.js";var n=t(`domain`,`range`,`reverse`,`align`,`padding`,`round`);function r(t){return n(e(),t)}export{r as t};

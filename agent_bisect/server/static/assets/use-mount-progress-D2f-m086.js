@@ -1,0 +1,1 @@
+import{dt as e,lt as t}from"./utils-B1B64zzx.js";import{t as n}from"./animate-DmcT6k60.js";import{n as r}from"./use-transform-BtX3YxOC.js";import{n as i}from"./animation-CWagmuP_.js";var a=e(t(),1);function o(e,t,o){let s=r(0),c=(0,a.useRef)(e);return c.current=e,(0,a.useEffect)(()=>{s.set(0);let e=n(s,1,{...c.current??i,delay:t});return()=>e.stop()},[t,o,s]),s}export{o as t};

@@ -1,0 +1,1 @@
+import{t as e}from"./scaleOperator-BdkQH5C0.js";import{t}from"./time-CyzdDnxA.js";var n=e(`domain`,`range`,`reverse`,`clamp`,`interpolate`,`nice`,`round`);function r(e){return n(t(),e)}export{r as t};

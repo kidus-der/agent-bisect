@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="Bisect: counterfactual replay for LLM agent failures. Rewind a recorded run, change one step, measure the causal effect."
+    />
+    <title>Bisect</title>
+    <script>
+      // Set the theme before first paint. Keep in sync with src/design/theme.ts.
+      ;(function () {
+        var theme = null
+        try {
+          theme = window.localStorage.getItem('bisect.theme')
+        } catch (error) {
+          theme = null
+        }
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        }
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-OGQmNd-c.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/utils-B1B64zzx.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-dom-B1stYjek.js">
+    <link rel="modulepreload" crossorigin href="/assets/animate-DmcT6k60.js">
+    <link rel="modulepreload" crossorigin href="/assets/Skeleton-BlApXnar.js">
+    <link rel="modulepreload" crossorigin href="/assets/useSelector-BrYxtqDA.js">
+    <link rel="modulepreload" crossorigin href="/assets/Panel-Bghh4pct.js">
+    <link rel="modulepreload" crossorigin href="/assets/ErrorState-DiiX4jeq.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DPnN-BMM.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

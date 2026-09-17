@@ -1,0 +1,1 @@
+var e=`cubic-bezier(0.85, 0, 0.15, 1)`,t=1100,n={type:`tween`,duration:t/1e3,ease:[.85,0,.15,1]};function r(e){return e?.type===`tween`?{...e,ease:e.ease??n.ease}:{type:`tween`,duration:typeof e?.duration==`number`?e.duration:t/1e3,ease:n.ease}}export{n,r,e as t};

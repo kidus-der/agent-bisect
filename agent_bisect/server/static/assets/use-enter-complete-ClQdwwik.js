@@ -1,0 +1,1 @@
+import{dt as e,lt as t}from"./utils-B1B64zzx.js";var n=e(t(),1);function r(e){let[t,r]=(0,n.useState)(()=>e.get()>=1);return(0,n.useEffect)(()=>{if(e.get()>=1){r(!0);return}return e.on(`change`,e=>{e>=1&&r(!0)})},[e]),t}export{r as t};

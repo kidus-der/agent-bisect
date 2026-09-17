@@ -1,0 +1,1 @@
+import{n as e}from"./animation-CWagmuP_.js";function t(t,n,r=e){return{...t??r,delay:n}}export{t};

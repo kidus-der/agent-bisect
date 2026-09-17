@@ -1,0 +1,1 @@
+import{r as e}from"./utils-B1B64zzx.js";function t(e){return e.replace(/[A-Z]/g,e=>`-${e.toLowerCase()}`)}[...e.flatMap(e=>[[t(e),`--bx-${t(e)}`],[`${t(e)}-tint`,`--bx-${t(e)}-tint`]])];export{t};

@@ -1,0 +1,1 @@
+var e=class{x=0;y=0;constructor(e){let{x:t=0,y:n=0}=e;this.x=t,this.y=n}value(){return{x:this.x,y:this.y}}toArray(){return[this.x,this.y]}};export{e as t};

@@ -1,0 +1,1 @@
+var e=new Intl.DateTimeFormat(`en-US`,{month:`short`,day:`numeric`}),t=new Intl.DateTimeFormat(`en-US`,{weekday:`short`,month:`short`,day:`numeric`}),n=new Intl.DateTimeFormat(`en-US`,{hour:`2-digit`,minute:`2-digit`,second:`2-digit`,hour12:!1}),r=new Intl.NumberFormat(`en-US`).format;export{t as i,r as n,e as r,n as t};
