@@ -14,7 +14,12 @@ const ROW_HEIGHT = 34
 const STACKED_ROW_HEIGHT = 52
 const WIDE_QUERY = '(min-width: 640px)'
 const OVERSCAN = 6
-const MAX_VISIBLE_ROWS = 11
+/**
+ * Control plus twelve steps: a typical run shows every arm without scrolling,
+ * so the matrix cannot be misread as a shorter run than the forest plot above
+ * it. Longer runs still scroll rather than running down the page.
+ */
+const MAX_VISIBLE_ROWS = 13
 /** A dot stays a legible target while the grid fills the panel. */
 const DOT_MAX_PX = 26
 
