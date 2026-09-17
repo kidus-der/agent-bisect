@@ -295,18 +295,23 @@ export function LiveLine({
           <g transform={`translate(${liveDotX + 12},${liveDotY})`}>
             <rect
               fill="var(--popover)"
-              height={24}
+              height={22}
               opacity={0.95}
-              rx={6}
+              rx={4}
+              stroke="var(--bx-line-strong)"
+              strokeWidth={1}
               width={formatValue(liveValue).length * 7.5 + 16}
               x={0}
-              y={-12}
+              y={-11}
             />
             <text
+              // Local change: the design system's mono face and micro-label size,
+              // instead of the registry's hard-coded "SF Mono" stack.
               fill="var(--popover-foreground)"
-              fontFamily="SF Mono, Menlo, Monaco, monospace"
+              fontFamily="var(--font-mono)"
               fontSize={11}
               fontWeight={500}
+              style={{ fontVariantNumeric: "tabular-nums" }}
               x={8}
               y={4}
             >
