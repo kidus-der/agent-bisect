@@ -360,3 +360,44 @@ def test_both_arms_are_bought_for_each_tested_step(tmp_path, monkeypatch, arm):
 
     # Assert
     assert any(request.arm == arm for request in executor.requests)
+
+
+# ---- the per-step control sensitivity (decision 0016, dev split only) ----
+
+
+def test_the_per_step_sensitivity_is_refused_on_the_test_split(tmp_path, monkeypatch):
+    # Arrange
+    from agent_bisect.cli_eval import SENSITIVITY_SPLIT_EXIT_CODE
+
+    path = _frozen(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    # Act
+    result = runner.invoke(
+        _app(),
+        [
+            "--manifest", str(path), "--split", "test", "--per-step-sensitivity",
+            "--out-dir", str(tmp_path / "p5"),
+        ],
+    )
+
+    # Assert: refused before the split lock is even consulted
+    assert result.exit_code == SENSITIVITY_SPLIT_EXIT_CODE
+
+
+def test_the_refusal_explains_that_the_test_split_is_touched_once(tmp_path, monkeypatch):
+    # Arrange
+    path = _frozen(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    # Act
+    result = runner.invoke(
+        _app(),
+        [
+            "--manifest", str(path), "--split", "test", "--per-step-sensitivity",
+            "--out-dir", str(tmp_path / "p5"),
+        ],
+    )
+
+    # Assert
+    assert "touched once" in (result.output + str(result.stderr or ""))
