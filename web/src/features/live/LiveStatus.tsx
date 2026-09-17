@@ -29,7 +29,7 @@ const STATUS: Readonly<Record<LiveConnectionState, StatusCopy>> = {
   },
   reconnecting: {
     label: 'reconnecting',
-    dot: 'bg-blame',
+    dot: 'bg-ink-muted',
     text: 'text-ink',
     border: 'border-line-strong',
     pulse: true,
@@ -59,9 +59,9 @@ interface LiveStatusProps {
 }
 
 /**
- * The connection itself, stated. `reconnecting` uses blame amber's neighbour on
- * the dot only — never as a blame signal — and every state carries its word, so
- * the dot is decoration rather than the message.
+ * The connection itself, stated. Every state carries its word, so the dot is
+ * decoration rather than the message; only `offline` spends a semantic colour
+ * (fail), because amber means blame and nothing else (§3, principle 2).
  */
 export function LiveStatus({ connection, updates, onRetry }: LiveStatusProps) {
   const reduced = useReducedMotion() ?? false
