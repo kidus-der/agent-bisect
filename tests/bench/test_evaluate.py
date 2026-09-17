@@ -279,3 +279,27 @@ def test_a_split_with_no_items_is_refused():
     # Arrange / Act / Assert
     with pytest.raises(ValueError, match="no items"):
         build_report((), split="test", seed=1)
+
+
+def test_the_report_says_how_far_recall_was_actually_measured():
+    # Arrange / Act
+    report = _report()
+
+    # Assert
+    provenance = report["recall_provenance"]
+    assert provenance["measured_to_m"] == 3
+    assert provenance["beyond_is_judge_ranking_only"] is True
+    assert "MEASURED" in provenance["note"]
+
+
+def test_a_different_shortlist_size_moves_the_measured_boundary():
+    # Arrange
+    scores = score_outcomes(_dataset(6), _outcomes(5, 2, 6))
+
+    # Act
+    report = build_report(
+        scores, split="test", seed=1, bootstrap_resamples=50, measured_to_m=1
+    )
+
+    # Assert
+    assert report["recall_provenance"]["measured_to_m"] == 1
