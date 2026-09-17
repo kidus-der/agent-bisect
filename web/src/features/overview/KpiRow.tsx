@@ -2,6 +2,9 @@
  * The four numbers the project is accountable for. Deltas are absent because
  * `/api/overview` reports none — a KPI never invents its own trend.
  */
+import { useInView } from 'motion/react'
+import { useRef } from 'react'
+
 import { StatTicker } from '@/components/primitives/StatTicker'
 import { cn } from '@/lib/utils'
 
@@ -9,6 +12,8 @@ import type { Kpis } from './api'
 
 /** The four numbers read in sequence rather than all landing at once. */
 const KPI_STAGGER_SECONDS = 0.09
+/** Enough of the rail on screen to be worth counting up for. */
+const IN_VIEW_AMOUNT = 0.4
 
 interface KpiRowProps {
   readonly kpis: Kpis
@@ -56,10 +61,16 @@ function kpiSpecs(kpis: Kpis): readonly KpiSpec[] {
 }
 
 export function KpiRow({ kpis, className }: KpiRowProps) {
+  const railRef = useRef<HTMLElement | null>(null)
+  // Counting up on mount finished behind the page's own fade, so every number
+  // was already final by the time it could be read. It waits to be looked at.
+  const inView = useInView(railRef, { amount: IN_VIEW_AMOUNT, once: true })
+
   return (
     // One rail, not four cards: a single 10px container divided by hairlines, so
     // the fold carries one object instead of four competing ones.
     <section
+      ref={railRef}
       aria-label="Key figures"
       className={cn(
         // Secondary to the headline panel: one fill step up, stronger hairline (as Panel's kpi variant).
@@ -77,6 +88,7 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
             decimals={spec.decimals}
             prefix={spec.prefix}
             delaySeconds={index * KPI_STAGGER_SECONDS}
+            play={inView}
           />
         </div>
       ))}
