@@ -1,14 +1,23 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Command } from 'cmdk'
-import { Search } from 'lucide-react'
+import { Radio, Search, Tag } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
 import { useState } from 'react'
 
+import {
+  MIN_SEARCH_CHARS,
+  SEARCH_DEBOUNCE_MS,
+  type SearchHit,
+  runHits,
+  useSearchQuery,
+} from '@/api/search'
 import { Kbd } from '@/components/primitives/Kbd'
 import { useSpringTransition } from '@/design/motion'
 import { toggleTheme } from '@/design/theme'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { copyText } from '@/lib/useCopy'
+import { cn } from '@/lib/utils'
 
 import { PALETTE_GROUPS, PALETTE_ITEMS, type PaletteItem } from './paletteItems'
 
@@ -47,12 +56,45 @@ function DetailPane({ item }: { readonly item: PaletteItem | undefined }) {
   )
 }
 
+/** A run from `/api/search`. Recording runs carry their own glyph, never an outcome. */
+function RunHitItem({ hit, onRun }: { readonly hit: SearchHit; readonly onRun: () => void }) {
+  const recording = hit.status === 'recording'
+  const Icon = recording ? Radio : Tag
+  return (
+    <Command.Item
+      value={`run:${hit.id}`}
+      keywords={[hit.title, hit.subtitle ?? '']}
+      onSelect={onRun}
+      className="flex h-10 cursor-pointer items-center gap-2.5 rounded-control px-2 text-[14px] text-ink-muted data-[selected=true]:bg-surface data-[selected=true]:text-ink"
+    >
+      <Icon
+        aria-hidden="true"
+        className={cn('size-4 shrink-0', recording && 'text-measure')}
+      />
+      <span className="num truncate">{hit.title}</span>
+      {hit.subtitle ? (
+        <span className="truncate text-[12px] text-ink-muted">{hit.subtitle}</span>
+      ) : null}
+      {recording ? (
+        <span className="ml-auto shrink-0 label-instrument">recording</span>
+      ) : null}
+    </Command.Item>
+  )
+}
+
 /** ⌘K. Raycast layout: filter input, result list, detail preview. Filtering is instant. */
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate()
   const transition = useSpringTransition('snap')
   const [selectedId, setSelectedId] = useState<string>(PALETTE_ITEMS[0]?.id ?? '')
+  const [query, setQuery] = useState('')
   const selected = PALETTE_ITEMS.find((item) => item.id === selectedId)
+
+  // Runs come from the server; the static items above are filtered by cmdk.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
+  const search = useSearchQuery(debouncedQuery)
+  const hits = runHits(search.data?.data)
+  const searching = query.trim().length >= MIN_SEARCH_CHARS
 
   const run = (item: PaletteItem): void => {
     onOpenChange(false)
@@ -90,7 +132,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <div className="flex h-12 items-center gap-2.5 border-b border-line px-4">
                 <Search aria-hidden="true" className="size-4 shrink-0 text-ink-muted" />
                 <Command.Input
-                  placeholder="Jump to a page or run a command"
+                  value={query}
+                  onValueChange={setQuery}
+                  placeholder="Search runs, jump to a page, or run a command"
                   className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-muted"
                 />
                 <Kbd>esc</Kbd>
@@ -98,8 +142,31 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <div className="flex min-h-0">
                 <Command.List className="max-h-[min(420px,56vh)] min-w-0 flex-1 overflow-y-auto p-2">
                   <Command.Empty className="px-3 py-8 text-center text-small text-ink-muted">
-                    Nothing matches. Try a page name or “copy”.
+                    Nothing matches. Try a run id, a page name or “copy”.
                   </Command.Empty>
+                  {searching ? (
+                    <Command.Group
+                      heading="Runs"
+                      className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:label-instrument"
+                    >
+                      {hits.length === 0 ? (
+                        <p className="px-2 py-1.5 text-small text-ink-muted">
+                          {search.isPending ? 'Searching…' : 'No run matches.'}
+                        </p>
+                      ) : (
+                        hits.map((hit) => (
+                          <RunHitItem
+                            key={hit.id}
+                            hit={hit}
+                            onRun={() => {
+                              onOpenChange(false)
+                              void navigate({ to: hit.href })
+                            }}
+                          />
+                        ))
+                      )}
+                    </Command.Group>
+                  ) : null}
                   {PALETTE_GROUPS.map((group) => (
                     <Command.Group
                       key={group}
