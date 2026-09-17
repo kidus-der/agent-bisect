@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react'
 
+import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { springTransition } from '@/design/motion'
 import { formatPercent } from '@/lib/stats'
@@ -44,40 +45,53 @@ const JOB_STATE: Readonly<Record<JobState, StateCopy>> = {
 
 const JOB_ORDER: readonly JobState[] = ['running', 'queued', 'failed', 'done']
 
-function JobRow({ job, index }: { readonly job: JobStatus; readonly index: number }) {
+/**
+ * A finished job is complete whatever the last progress sample said — the API
+ * reports progress at the moment of the snapshot, so a `done` job can carry a
+ * stale fraction and render as an empty track.
+ */
+function displayProgress(job: JobStatus): number {
+  if (job.state === 'done') return 1
+  return Math.min(1, Math.max(0, job.progress))
+}
+
+function JobTile({ job, index }: { readonly job: JobStatus; readonly index: number }) {
   const reduced = useReducedMotion() ?? false
   const copy = JOB_STATE[job.state]
-  const fraction = Math.min(1, Math.max(0, job.progress))
+  const fraction = displayProgress(job)
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-line py-3 last:border-b-0 sm:grid-cols-[8rem_minmax(0,1fr)_5rem_4rem]">
-      <span className="num text-small text-ink">{job.job_id}</span>
-      <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
-        <span aria-hidden="true" className="block h-2 w-full rounded-pill bg-elevated">
-          <motion.span
-            className={cn('block h-full origin-left rounded-pill', copy.bar)}
-            initial={false}
-            animate={{ scaleX: fraction }}
-            transition={{
-              ...springTransition('settle', reduced),
-              delay: reduced ? 0 : index * 0.04,
-            }}
-            style={{ width: '100%' }}
-          />
+    <li className="flex min-w-0 flex-col gap-2.5 rounded-kpi border border-line bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate num text-h3 font-semibold text-ink">{job.job_id}</span>
+          <InstrumentLabel>{job.kind}</InstrumentLabel>
         </span>
-      </span>
-      <span className="text-right num text-small text-ink-muted sm:text-left">{job.kind}</span>
-      <span className="flex items-center justify-end gap-2">
-        <span className="num text-small text-ink">{formatPercent(fraction, 0)}</span>
         <span
           className={cn(
-            'inline-flex items-center gap-1 rounded-pill border px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap',
+            'inline-flex shrink-0 items-center gap-1 rounded-pill border px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap',
             copy.chip,
           )}
         >
           <span aria-hidden="true">{copy.glyph}</span>
           {copy.label}
         </span>
-      </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="block h-2 min-w-0 flex-1 rounded-pill bg-elevated">
+          <motion.span
+            className={cn('block h-full w-full origin-left rounded-pill', copy.bar)}
+            initial={false}
+            animate={{ scaleX: fraction }}
+            transition={{
+              ...springTransition('settle', reduced),
+              delay: reduced ? 0 : index * 0.04,
+            }}
+          />
+        </span>
+        <span className="w-10 shrink-0 text-right num text-small text-ink">
+          {formatPercent(fraction, 0)}
+        </span>
+      </div>
     </li>
   )
 }
@@ -105,9 +119,11 @@ export function JobQueue({ jobs }: JobQueueProps) {
           Nothing is queued. Start a blame job and it appears here as it runs.
         </p>
       ) : (
-        <ul className="m-0 flex list-none flex-col p-0">
+        // Tiles rather than full-width rows: three jobs across 1400px turned the
+        // progress bar into a 1000px rule that said nothing extra.
+        <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
           {ordered.map((job, index) => (
-            <JobRow key={job.job_id} job={job} index={index} />
+            <JobTile key={job.job_id} job={job} index={index} />
           ))}
         </ul>
       )}
