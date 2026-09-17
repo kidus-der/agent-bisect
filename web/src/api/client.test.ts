@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { ApiError, apiFetch } from './client'
+import { ApiError, apiFetch, availableOrNull, isNotAvailable } from './client'
 
 const META = { simulated: true, data_source: 'fixture' }
 
@@ -98,5 +98,30 @@ describe('apiFetch', () => {
     mockFetch(jsonResponse({ success: false, data: null, error: null, meta: META }, 500))
     const error = await captureError(apiFetch('/meta'))
     expect(error).toMatchObject({ kind: 'api', code: 'unknown_error', status: 500 })
+  })
+})
+
+describe('isNotAvailable', () => {
+  test('recognises the server’s not_available placeholder', () => {
+    expect(isNotAvailable({ status: 'not_available', reason: 'no recordings yet' })).toBe(true)
+  })
+
+  test('treats real payloads and nullish values as available', () => {
+    expect(isNotAvailable({ status: 'complete' })).toBe(false)
+    expect(isNotAvailable(null)).toBe(false)
+    expect(isNotAvailable(undefined)).toBe(false)
+    expect(isNotAvailable('not_available')).toBe(false)
+  })
+})
+
+describe('availableOrNull', () => {
+  test('returns the payload when the server answered with one', () => {
+    const payload = { runs_recorded: 266 }
+    expect(availableOrNull(payload)).toBe(payload)
+  })
+
+  test('narrows not_available to null so no number can be rendered from it', () => {
+    expect(availableOrNull({ status: 'not_available', reason: 'no recordings yet' })).toBeNull()
+    expect(availableOrNull(null)).toBeNull()
   })
 })

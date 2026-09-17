@@ -11,6 +11,7 @@ export type Schemas = components['schemas']
 export type DataSource = Schemas['ResponseMeta']['data_source']
 export type ResponseMeta = Readonly<Schemas['ResponseMeta']>
 export type ApiErrorInfo = Readonly<Schemas['ErrorInfo']>
+export type NotAvailable = Readonly<Schemas['NotAvailable']>
 
 export interface ApiResult<T> {
   readonly data: T
@@ -51,6 +52,20 @@ const API_PREFIX = '/api'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+/**
+ * A field this server cannot answer yet comes back as `{status: "not_available"}`
+ * with HTTP 200, never as a fabricated number (docs/design/api-contract.md).
+ */
+export function isNotAvailable(value: unknown): value is NotAvailable {
+  return isRecord(value) && value.status === 'not_available'
+}
+
+/** Narrows `not_available` to `null`, so a caller cannot render a number from it. */
+export function availableOrNull<T>(value: T | NotAvailable | null): T | null {
+  if (value === null || isNotAvailable(value)) return null
+  return value
 }
 
 function isResponseMeta(value: unknown): value is ResponseMeta {
