@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -170,11 +171,18 @@ def compute_backoff_s(
 
 
 class TokenBucketLimiter:
-    """Async token-bucket rate limiter.
+    """Token-bucket rate limiter, usable from coroutines *and* from threads.
 
-    Intended as one process-wide instance shared by every `LLMClient` call
-    site. `clock`/`sleep` are injected so tests run against a fake clock
-    instead of real wall-clock waits.
+    Intended as one process-wide instance shared by every call site (see
+    `core.limits.get_shared_limiter`). τ²-bench runs its tasks in a thread
+    pool and calls LiteLLM synchronously, while our own code is async — so
+    the bucket's state is guarded by a `threading.Lock` rather than an
+    `asyncio.Lock`, and the lock is never held across a sleep. `_reserve()`
+    is the only critical section: it either grants a token or reports how
+    long the caller must wait before trying again.
+
+    `clock`/`sleep`/`sleep_sync` are injected so tests run against a fake
+    clock instead of real wall-clock waits.
     """
 
     def __init__(
@@ -183,6 +191,7 @@ class TokenBucketLimiter:
         *,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        sleep_sync: Callable[[float], None] = time.sleep,
     ) -> None:
         if requests_per_minute <= 0:
             raise ValueError("requests_per_minute must be positive")
@@ -191,21 +200,40 @@ class TokenBucketLimiter:
         self._refill_per_s = requests_per_minute / 60.0
         self._clock = clock
         self._sleep = sleep
+        self._sleep_sync = sleep_sync
         self._last_refill = clock()
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()
+
+    @property
+    def requests_per_minute(self) -> float:
+        return self._capacity
+
+    def _reserve(self) -> float:
+        """Take a token and return 0.0, or return the seconds to wait first."""
+        with self._lock:
+            now = self._clock()
+            elapsed = now - self._last_refill
+            self._last_refill = now
+            self._tokens = min(self._capacity, self._tokens + elapsed * self._refill_per_s)
+            if self._tokens >= 1:
+                self._tokens -= 1
+                return 0.0
+            return (1 - self._tokens) / self._refill_per_s
 
     async def acquire(self) -> None:
-        async with self._lock:
-            while True:
-                now = self._clock()
-                elapsed = now - self._last_refill
-                self._last_refill = now
-                self._tokens = min(self._capacity, self._tokens + elapsed * self._refill_per_s)
-                if self._tokens >= 1:
-                    self._tokens -= 1
-                    return
-                wait_s = (1 - self._tokens) / self._refill_per_s
-                await self._sleep(wait_s)
+        while True:
+            wait_s = self._reserve()
+            if wait_s <= 0:
+                return
+            await self._sleep(wait_s)
+
+    def acquire_sync(self) -> None:
+        """Blocking `acquire()`, for τ²'s synchronous, threaded call sites."""
+        while True:
+            wait_s = self._reserve()
+            if wait_s <= 0:
+                return
+            self._sleep_sync(wait_s)
 
 
 RecordBeforeUse = Callable[[LLMRequest, LLMResponse], Awaitable[None]]

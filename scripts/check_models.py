@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-
 from agent_bisect.core.budget import BudgetLedger
 from agent_bisect.core.config import get_settings
 from agent_bisect.core.llm import LiteLLMTransport, LLMClient, LLMClientConfig, LLMRequest
@@ -139,11 +138,16 @@ async def smoke_tool_call(client: LLMClient, model: str) -> bool:
     return bool(message.get("tool_calls"))
 
 
-async def check_candidate(client: LLMClient, model: str, listed_models: list[str]) -> CandidateResult:
+async def check_candidate(
+    client: LLMClient, model: str, listed_models: list[str]
+) -> CandidateResult:
     role = role_for(model)
     if model not in listed_models:
         return CandidateResult(
-            model=model, role=role, listed=False, close_matches=find_close_matches(model, listed_models)
+            model=model,
+            role=role,
+            listed=False,
+            close_matches=find_close_matches(model, listed_models),
         )
 
     smoke_status, latency = await smoke_chat(client, model)
