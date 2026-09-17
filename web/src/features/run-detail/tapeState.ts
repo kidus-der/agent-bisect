@@ -22,6 +22,8 @@ export interface TapeModel {
   /** 1-based playhead. */
   readonly playhead: number
   readonly outcome: 'pass' | 'fail' | null
+  /** The step blame landed on, marked on the tape before any rewind is played. */
+  readonly blamedStep: number | null
   readonly rewind: RewindState | null
 }
 
@@ -30,11 +32,16 @@ function outcomeState(passed: boolean | null): TapeStepState {
   return passed ? 'passed' : 'failed'
 }
 
+/**
+ * A recorded run: every step really did run, so none of them is "pending". The
+ * playhead marks how far the replay has been scrubbed; the timeline dims what
+ * lies after it rather than pretending it never happened.
+ */
 function recordedStates(model: TapeModel): readonly TapeStepState[] {
   const last = model.nSteps
   return Array.from({ length: model.nSteps }, (_, index) => {
     const step = index + 1
-    if (step > model.playhead) return 'pending'
+    if (step === model.blamedStep) return 'blamed'
     if (step !== last) return 'ran'
     return outcomeState(model.outcome === null ? null : model.outcome === 'pass')
   })

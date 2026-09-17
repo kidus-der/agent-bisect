@@ -8,7 +8,14 @@ import type { HeatCell } from './blame'
 import { StepTimeline } from './StepTimeline'
 
 const STEPS: readonly StepView[] = [
-  { step_idx: 1, actor: 'user', tool_name: null, text: 'asks', from_tape: true, state_changed: false },
+  {
+    step_idx: 1,
+    actor: 'user',
+    tool_name: null,
+    text: 'asks',
+    from_tape: true,
+    state_changed: false,
+  },
   {
     step_idx: 2,
     actor: 'agent',

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { MIN_CELL_WIDTH_PX, timelineGeometry } from './timelineScale'
+import { MAX_CELL_WIDTH_PX, MIN_CELL_WIDTH_PX, timelineGeometry } from './timelineScale'
 
 describe('timelineGeometry', () => {
-  it('spreads a short run across the whole available width', () => {
+  it('spreads a short run across the available width', () => {
     // Arrange / Act
-    const geometry = timelineGeometry({ nSteps: 12, availableWidth: 900 })
+    const geometry = timelineGeometry({ nSteps: 20, availableWidth: 900 })
 
     // Assert
     expect(geometry.contentWidth).toBe(900)
@@ -13,12 +13,22 @@ describe('timelineGeometry', () => {
     expect(geometry.bandWidth).toBeGreaterThan(MIN_CELL_WIDTH_PX)
   })
 
+  it('stops a very short run from becoming a row of empty cards', () => {
+    // Arrange / Act: 6 cells over 1400px would be 230px each.
+    const geometry = timelineGeometry({ nSteps: 6, availableWidth: 1400 })
+
+    // Assert
+    expect(geometry.bandWidth).toBeLessThanOrEqual(MAX_CELL_WIDTH_PX)
+    expect(geometry.contentWidth).toBeLessThan(1400)
+    expect(geometry.scrolls).toBe(false)
+  })
+
   it('keeps a 60-step run legible by scrolling instead of shrinking the cells', () => {
     const geometry = timelineGeometry({ nSteps: 60, availableWidth: 900 })
 
     expect(geometry.scrolls).toBe(true)
     expect(geometry.contentWidth).toBeGreaterThan(900)
-    expect(geometry.bandWidth).toBeGreaterThanOrEqual(MIN_CELL_WIDTH_PX)
+    expect(geometry.bandWidth).toBeCloseTo(MIN_CELL_WIDTH_PX, 6)
   })
 
   it('never produces a zero or negative width for a degenerate container', () => {
@@ -46,9 +56,9 @@ describe('timelineGeometry', () => {
   })
 
   it('places step 1 at the left edge and the last step at the right', () => {
-    const geometry = timelineGeometry({ nSteps: 8, availableWidth: 800 })
+    const geometry = timelineGeometry({ nSteps: 20, availableWidth: 800 })
 
     expect(geometry.x(1)).toBeLessThan(geometry.bandWidth)
-    expect(geometry.x(8) + geometry.bandWidth).toBeCloseTo(geometry.contentWidth, 0)
+    expect(geometry.x(20) + geometry.bandWidth).toBeCloseTo(geometry.contentWidth, 0)
   })
 })

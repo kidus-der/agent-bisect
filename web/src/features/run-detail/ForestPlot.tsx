@@ -72,7 +72,7 @@ function ForestRowView({
         ) : null}
         <span
           className={cn(
-            'relative w-12 shrink-0 num text-small',
+            'relative w-14 shrink-0 num text-small whitespace-nowrap',
             row.blamed ? 'font-semibold text-blame' : 'text-ink-muted',
           )}
         >
@@ -205,7 +205,7 @@ export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: 
           </linearGradient>
         </defs>
       </svg>
-      <div className="relative pt-5">
+      <div className="relative pt-6">
         {/* Zero and delta are drawn once behind every row, so they read as one axis. */}
         <div
           ref={plotRef}
@@ -221,8 +221,8 @@ export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: 
             style={{ left: x(delta) }}
           />
           <span
-            className="absolute top-0 num text-[10px] whitespace-nowrap text-ink-muted"
-            style={{ left: x(delta), transform: 'translateX(-50%)' }}
+            className="absolute top-0 rounded-[3px] bg-surface px-1 num text-[10px] whitespace-nowrap text-ink-muted"
+            style={{ left: x(delta) + 3 }}
           >
             δ {delta.toFixed(2)}
           </span>
@@ -244,7 +244,7 @@ export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: 
             />
           ))}
         </ul>
-        <div className="pl-[3.75rem] md:pr-[11.75rem]">
+        <div className="pl-[4.25rem] md:pr-[11.75rem]">
           <ForestAxis x={x} width={width} domain={domain} />
         </div>
       </div>

@@ -134,7 +134,7 @@ export function JudgeVsReplay({
         </p>
       ) : null}
 
-      <div className="flex items-start gap-0">
+      <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:gap-0">
         <ul className="min-w-0 flex-1">
           <li className="mb-1">
             <InstrumentLabel>judge ranking</InstrumentLabel>

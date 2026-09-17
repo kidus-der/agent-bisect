@@ -2,25 +2,40 @@ import { describe, expect, it } from 'vitest'
 
 import { type TapeModel, nextRewind, tapeStepStates } from './tapeState'
 
-const BASE: TapeModel = { nSteps: 5, playhead: 5, outcome: 'fail', rewind: null }
+const BASE: TapeModel = {
+  nSteps: 5,
+  playhead: 5,
+  outcome: 'fail',
+  blamedStep: null,
+  rewind: null,
+}
 
-describe('tapeStepStates, scrubbing the recording', () => {
-  it('replays up to the playhead and leaves the rest not run yet', () => {
+describe('tapeStepStates, the recording', () => {
+  it('never calls a recorded step pending, wherever the playhead sits', () => {
     // Arrange / Act
     const states = tapeStepStates({ ...BASE, playhead: 3 })
 
     // Assert
-    expect(states).toEqual(['ran', 'ran', 'ran', 'pending', 'pending'])
+    expect(states).toEqual(['ran', 'ran', 'ran', 'ran', 'failed'])
   })
 
-  it('shows the recorded outcome only once the playhead reaches the last step', () => {
+  it('ends on the recorded outcome', () => {
     expect(tapeStepStates({ ...BASE, playhead: 5 }).at(-1)).toBe('failed')
-    expect(tapeStepStates({ ...BASE, playhead: 4 }).at(-1)).toBe('pending')
     expect(tapeStepStates({ ...BASE, playhead: 5, outcome: 'pass' }).at(-1)).toBe('passed')
   })
 
   it('leaves the last step neutral when the run is still recording', () => {
     expect(tapeStepStates({ ...BASE, playhead: 5, outcome: null }).at(-1)).toBe('ran')
+  })
+
+  it('marks the blamed step on the tape before any rewind is played', () => {
+    expect(tapeStepStates({ ...BASE, blamedStep: 3 })).toEqual([
+      'ran',
+      'ran',
+      'blamed',
+      'ran',
+      'failed',
+    ])
   })
 })
 

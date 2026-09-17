@@ -199,7 +199,10 @@ export function StepTimeline({
         <div
           ref={scrollRef}
           onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
-          className="[scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
+          className={cn(
+            '[scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden',
+            geometry.scrolls ? '' : 'flex justify-center',
+          )}
         >
           <div
             ref={sliderRef}

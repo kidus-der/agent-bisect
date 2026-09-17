@@ -27,6 +27,8 @@ interface TapeCellProps {
   readonly x: number
   readonly width: number
   readonly isPlayhead: boolean
+  /** After the playhead: recorded, but not yet scrubbed to. */
+  readonly ahead: boolean
   readonly reduced: boolean
 }
 
@@ -43,6 +45,7 @@ const TapeCell = memo(function TapeCell({
   x,
   width,
   isPlayhead,
+  ahead,
   reduced,
 }: TapeCellProps) {
   const Icon = ACTOR_ICONS[actor]
@@ -59,7 +62,7 @@ const TapeCell = memo(function TapeCell({
         className={cn(
           'flex items-center justify-center',
           state === 'tape' ? 'text-tape' : 'text-ink-muted',
-          state === 'pending' && 'opacity-45',
+          (state === 'pending' || ahead) && 'opacity-45',
         )}
         style={{ height: ACTOR_LANE_HEIGHT }}
       >
@@ -71,7 +74,7 @@ const TapeCell = memo(function TapeCell({
         className={cn('w-full', state === 'blamed' && 'relative z-10')}
         initial={reduced ? false : { opacity: 0.2, scale: 0.88 }}
         animate={{
-          opacity: state === 'pending' ? 0.5 : 1,
+          opacity: state === 'pending' ? 0.45 : ahead ? 0.55 : 1,
           scale: state === 'blamed' ? BLAMED_SCALE : 1,
         }}
         transition={{ ...springTransition(springFor(state), reduced), delay }}
@@ -110,6 +113,7 @@ export function TapeLane({ steps, states, geometry, playhead, height, reduced }:
           x={geometry.x(step.step_idx)}
           width={geometry.bandWidth}
           isPlayhead={step.step_idx === playhead}
+          ahead={step.step_idx > playhead && states[step.step_idx - 1] !== 'pending'}
           reduced={reduced}
         />
       ))}

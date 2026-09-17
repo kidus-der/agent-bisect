@@ -84,17 +84,15 @@ function MatrixRow({ group, runId, selected, onSelectStep }: MatrixRowProps) {
       <button
         type="button"
         onClick={() => onSelectStep(group.step)}
-        className="w-28 shrink-0 cursor-pointer text-left num text-small text-ink-muted hover:text-ink"
+        className="w-20 shrink-0 cursor-pointer truncate text-left num text-small whitespace-nowrap text-ink-muted hover:text-ink sm:w-32"
       >
         {group.arm === 'control' ? (
           <span>control{group.shared ? ' · shared' : ` · k=${group.step}`}</span>
         ) : (
-          <span>
-            <span className="text-ink">step {group.step}</span> · treated
-          </span>
+          <span className="text-ink">step {group.step}</span>
         )}
       </button>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex min-w-0 flex-1 [scrollbar-width:none] items-center gap-x-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
         {batchesOf(group.rows, BATCH_SIZE).map((batch, batchIndex) => (
           <div key={batch[0]?.rerun_id ?? batchIndex} className="flex items-center gap-0.5">
             {batch.map((row, index) => (
