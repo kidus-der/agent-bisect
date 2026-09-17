@@ -38,6 +38,10 @@ Family = Literal["create", "update_fixed", "update_lookup", "impossible"]
 
 DOMAIN = "mock"
 
+#: The suite's own default seed -- also `demo.runner`'s CLI default, kept
+#: here so `run_id_for` has one canonical source for it.
+DEFAULT_SEED = 20260917
+
 
 @dataclass(frozen=True, slots=True)
 class ScenarioSpec:
@@ -121,9 +125,16 @@ def scenario(name: str) -> ScenarioSpec:
         raise KeyError(f"no demo scenario named {name!r}; known: {sorted(_BY_NAME)}") from None
 
 
-def run_id_for(scenario_name: str, run_index: int) -> str:
-    """The stable id this suite records a scenario's `run_index`'th run under."""
-    return f"demo-{scenario_name}-{run_index}"
+def run_id_for(scenario_name: str, run_index: int, seed: int = DEFAULT_SEED) -> str:
+    """The stable id this suite records a scenario's `run_index`'th run under.
+
+    `seed` is part of the id, not only of `RunSpec` -- it is what
+    `demo.agent._slips` seeds its RNG from (via `current_run_id`), so two
+    `bisect gate` invocations with different `--seed` values must draw
+    different runs, not just re-pin tau2's own (here, irrelevant, since
+    every participant is scripted) internal randomness.
+    """
+    return f"demo-{scenario_name}-{run_index}-s{seed}"
 
 
 def scenario_of_run_id(run_id: str) -> ScenarioSpec:

@@ -63,6 +63,7 @@ class GateConfig:
 class RunRecord:
     run_index: int
     passed: bool
+    run_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,7 @@ def _scenario_summaries(document: dict[str, Any]) -> dict[str, ScenarioSummary]:
             name=entry["name"],
             rule_id=entry["rule_id"],
             runs=tuple(
-                RunRecord(run_index=run["run_index"], passed=run["passed"])
+                RunRecord(run_index=run["run_index"], passed=run["passed"], run_id=run["run_id"])
                 for run in entry["runs"]
             ),
         )
@@ -125,17 +126,18 @@ def new_failures(suite: SuiteComparison) -> list[dict[str, Any]]:
         base_scenario = suite.base.get(name)
         if base_scenario is None:
             continue
-        base_by_index = {r.run_index: r.passed for r in base_scenario.runs}
+        base_by_index = {r.run_index: r for r in base_scenario.runs}
         for run in head_scenario.runs:
             if run.passed:
                 continue
-            if base_by_index.get(run.run_index) is True:
+            base_run = base_by_index.get(run.run_index)
+            if base_run is not None and base_run.passed:
                 found.append(
                     {
                         "scenario_name": name,
                         "run_index": run.run_index,
-                        "head_run_id": f"demo-{name}-{run.run_index}",
-                        "base_run_id": f"demo-{name}-{run.run_index}",
+                        "head_run_id": run.run_id,
+                        "base_run_id": base_run.run_id,
                     }
                 )
     return found
