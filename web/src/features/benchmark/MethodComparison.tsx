@@ -129,7 +129,8 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
             {formatNumber(result.mean_cost_usd, { decimals: 2, prefix: '$' })}
           </span>
           <span className="num text-[12px] text-ink-muted">
-            {formatNumber(result.mean_calls, { decimals: 0 })} calls
+            {formatNumber(Math.round(result.mean_calls), { decimals: 0 })}{' '}
+            {Math.round(result.mean_calls) === 1 ? 'call' : 'calls'}
           </span>
         </div>
       </div>

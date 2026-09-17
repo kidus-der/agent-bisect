@@ -2,8 +2,8 @@ import { GridRows } from '@visx/grid'
 import { Group } from '@visx/group'
 import { ParentSize } from '@visx/responsive'
 import { scaleLinear } from '@visx/scale'
-import { motion, useReducedMotion } from 'motion/react'
-import { useMemo, useState } from 'react'
+import { motion, useInView, useReducedMotion } from 'motion/react'
+import { useMemo, useRef, useState } from 'react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
@@ -28,9 +28,17 @@ interface PlotProps {
   readonly bins: readonly CostBucket[]
   readonly methods: readonly MethodResult[]
   readonly selected: MethodName
+  /** Bars grow from zero height, so the in-view trigger lives on the sized wrapper. */
+  readonly entered: boolean
 }
 
-function Plot({ width, height, bins, methods, selected }: PlotProps) {
+/** `1 call`, `780 calls`. */
+function callsLabel(calls: number): string {
+  const rounded = Math.round(calls)
+  return `${formatNumber(rounded, { decimals: 0 })} ${rounded === 1 ? 'call' : 'calls'}`
+}
+
+function Plot({ width, height, bins, methods, selected, entered }: PlotProps) {
   const reduced = useReducedMotion() ?? false
   const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right)
   const innerHeight = Math.max(MIN_PLOT_HEIGHT, height) - MARGIN.top - MARGIN.bottom
@@ -88,12 +96,13 @@ function Plot({ width, height, bins, methods, selected }: PlotProps) {
               fill="var(--bx-measure-tint)"
               stroke="var(--bx-measure)"
               strokeOpacity={bin.count === 0 ? 0.25 : 0.55}
-              initial={reduced ? undefined : { y: innerHeight, height: 0 }}
-              whileInView={reduced ? undefined : { y: top, height: Math.max(0, innerHeight - top) }}
-              viewport={{ once: true, amount: 0.3 }}
+              initial={reduced ? false : { y: innerHeight, height: 0 }}
+              animate={
+                reduced || entered
+                  ? { y: top, height: Math.max(0, innerHeight - top) }
+                  : { y: innerHeight, height: 0 }
+              }
               transition={springTransition('settle', reduced)}
-              y={top}
-              height={Math.max(0, innerHeight - top)}
             />
           )
         })}
@@ -173,7 +182,7 @@ function MeanMarker({ x, innerWidth, innerHeight, method, transition }: MeanMark
         fontSize={12}
         fontWeight={600}
       >
-        {methodLabel(method.method)} · {formatNumber(method.mean_calls, { decimals: 0 })} calls
+        {methodLabel(method.method)} · {callsLabel(method.mean_calls)}
       </text>
     </motion.g>
   )
@@ -186,6 +195,10 @@ interface CostHistogramProps {
 
 /** Distribution of calls per diagnosis, with each method's mean laid over it. */
 export function CostHistogram({ histogram, methods }: CostHistogramProps) {
+  // A zero-height <rect> has no area, so IntersectionObserver never reports it.
+  // The trigger goes on the wrapper, which always has size.
+  const plotRef = useRef<HTMLDivElement>(null)
+  const entered = useInView(plotRef, { once: true, amount: 0.3 })
   const ordered = useMemo(() => byMethodOrder(methods), [methods])
   const [selected, setSelected] = useState<MethodName>(ordered[0]?.method ?? 'bisect')
   const bins = useMemo(() => fillBinGaps(histogram), [histogram])
@@ -201,7 +214,7 @@ export function CostHistogram({ histogram, methods }: CostHistogramProps) {
   } calls. ${ordered
     .map(
       (method) =>
-        `${methodLabel(method.method)} averages ${formatNumber(method.mean_calls, { decimals: 0 })} calls at $${method.mean_cost_usd.toFixed(2)}.`,
+        `${methodLabel(method.method)} averages ${callsLabel(method.mean_calls)} at $${method.mean_cost_usd.toFixed(2)}.`,
     )
     .join(' ')}`
 
@@ -222,11 +235,20 @@ export function CostHistogram({ histogram, methods }: CostHistogramProps) {
         </div>
       }
     >
-      <ParentSize debounceTime={10}>
-        {({ width, height }) => (
-          <Plot width={width} height={height} bins={bins} methods={ordered} selected={selected} />
-        )}
-      </ParentSize>
+      <div ref={plotRef} className="h-full w-full min-w-0">
+        <ParentSize debounceTime={10}>
+          {({ width, height }) => (
+            <Plot
+              width={width}
+              height={height}
+              bins={bins}
+              methods={ordered}
+              selected={selected}
+              entered={entered}
+            />
+          )}
+        </ParentSize>
+      </div>
     </ChartFrame>
   )
 }
