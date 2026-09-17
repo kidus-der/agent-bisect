@@ -11,6 +11,8 @@ import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 import { TapeStep, type TapeStepState } from '@/components/primitives/TapeStep'
 import { cn } from '@/lib/utils'
 
+import { MAX_CELL_WIDTH_PX, MIN_CELL_WIDTH_PX } from './timelineScale'
+
 import {
   type RerunRow,
   type StepView,
@@ -42,14 +44,21 @@ interface RerunTapeProps {
 /** The same tape, showing where this one re-run forked from the recording. */
 function RerunTape({ nSteps, forkStep, passed }: RerunTapeProps) {
   return (
-    <div className="overflow-x-auto pb-1">
-      <div className="flex gap-1">
+    <div className="[scrollbar-width:none] overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
+      {/* Cells fill the panel the way the run tape does, rather than sitting as a
+          small motif with the rest of the width empty. */}
+      <div
+        className="grid gap-1"
+        style={{
+          gridTemplateColumns: `repeat(${nSteps}, minmax(${MIN_CELL_WIDTH_PX}px, ${MAX_CELL_WIDTH_PX}px))`,
+        }}
+      >
         {Array.from({ length: nSteps }, (_, index) => index + 1).map((step) => (
           <TapeStep
             key={step}
             step={step}
             state={tapeState(step, forkStep, nSteps, passed)}
-            size="sm"
+            size="fluid"
           />
         ))}
       </div>
@@ -57,12 +66,63 @@ function RerunTape({ nSteps, forkStep, passed }: RerunTapeProps) {
   )
 }
 
-function StepRow({ step, forkStep }: { readonly step: StepView; readonly forkStep: number }) {
+interface StepColumnProps {
+  readonly label: string
+  readonly steps: readonly StepView[]
+  readonly forkStep: number
+  readonly changed: ReadonlySet<number>
+}
+
+/** One side of the recorded-vs-re-run comparison. */
+function StepColumn({ label, steps, forkStep, changed }: StepColumnProps) {
+  return (
+    <div className="min-w-0">
+      <InstrumentLabel as="h3" className="mb-2 block">
+        {label}
+      </InstrumentLabel>
+      <ul className="flex flex-col gap-1">
+        {steps.map((step) => (
+          <StepRow
+            key={step.step_idx}
+            step={step}
+            forkStep={forkStep}
+            changed={changed.has(step.step_idx)}
+          />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Steps whose tool or text this re-run produced differently from the recording. */
+function changedSteps(
+  recorded: readonly StepView[],
+  rerun: readonly StepView[],
+): ReadonlySet<number> {
+  const byIndex = new Map(recorded.map((step) => [step.step_idx, step]))
+  const changed = new Set<number>()
+  for (const step of rerun) {
+    const original = byIndex.get(step.step_idx)
+    if (!original) continue
+    if (original.text !== step.text || original.tool_name !== step.tool_name) {
+      changed.add(step.step_idx)
+    }
+  }
+  return changed
+}
+
+interface StepRowProps {
+  readonly step: StepView
+  readonly forkStep: number
+  readonly changed: boolean
+}
+
+function StepRow({ step, forkStep, changed }: StepRowProps) {
   const isFork = step.step_idx === forkStep
   return (
     <li
       className={cn(
-        'flex items-start gap-3 border-l-2 py-2 pl-3',
+        'flex min-h-14 items-start gap-3 border-l-2 py-2 pl-3',
         step.from_tape ? 'border-tape bg-tape-tint' : 'border-measure',
         isFork && 'border-blame bg-blame-tint',
       )}
@@ -78,12 +138,17 @@ function StepRow({ step, forkStep }: { readonly step: StepView; readonly forkSte
           ) : null}
           <span className="min-w-0 break-words text-ink">{step.text}</span>
         </p>
-        <p className="mt-0.5 font-mono text-[11px] text-ink-muted">
-          {isFork
-            ? 'fork · intervention applied here'
-            : step.from_tape
-              ? 'read from tape · 0 calls'
-              : 're-run live'}
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[11px] text-ink-muted">
+          <span>
+            {isFork
+              ? 'fork · intervention applied here'
+              : step.from_tape
+                ? 'read from tape · 0 calls'
+                : 're-run live'}
+          </span>
+          {changed && !isFork ? (
+            <span className="text-measure">differs from the recording</span>
+          ) : null}
         </p>
       </div>
     </li>
@@ -179,7 +244,10 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
     )
   }
 
-  const nSteps = run.data?.data.steps.length ?? row.n_steps
+  const recorded = run.data?.data.steps ?? []
+  const nSteps = recorded.length || row.n_steps
+  const recordedTail = recorded.filter((step) => step.step_idx >= row.step)
+  const changed = changedSteps(recorded, stepList)
 
   return (
     <div className="flex flex-col gap-4">
@@ -206,12 +274,18 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
         </div>
       </Panel>
 
-      <Panel variant="card" label="steps from the fork" bodyClassName="flex flex-col gap-1">
-        <ul className="flex flex-col gap-1">
-          {stepList.map((step) => (
-            <StepRow key={step.step_idx} step={step} forkStep={row.step} />
-          ))}
-        </ul>
+      {/* Side by side, because the only question this view answers is what the
+          intervention changed downstream of the fork. */}
+      <Panel variant="card" label="from the fork · recorded vs this re-run">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-4 lg:grid-cols-2">
+          <StepColumn label="recorded" steps={recordedTail} forkStep={row.step} changed={changed} />
+          <StepColumn label="this re-run" steps={stepList} forkStep={row.step} changed={changed} />
+        </div>
+        <p className="mt-4 border-t border-line pt-3 text-small text-ink-muted">
+          {changed.size === 0
+            ? `Only the intervention at step ${row.step} differs; every later step came out the same as the recording.`
+            : `${changed.size} step${changed.size === 1 ? '' : 's'} after the fork came out differently from the recording.`}
+        </p>
       </Panel>
     </div>
   )
