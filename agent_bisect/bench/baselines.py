@@ -35,7 +35,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-from agent_bisect.attribution.estimate import SequentialConfig
+from agent_bisect.attribution.estimate import ControlMode, SequentialConfig
 from agent_bisect.attribution.judge import (
     DEFAULT_CONFIG as DEFAULT_JUDGE_CONFIG,
 )
@@ -78,17 +78,24 @@ class BaselineConfig:
     sequential: SequentialConfig = field(default_factory=SequentialConfig)
     judge: JudgeConfig = DEFAULT_JUDGE_CONFIG
     methods: tuple[EvalMethod, ...] = EVAL_METHODS
+    #: How the control arm is drawn for the two methods that have one.
+    #: `shared` is the pre-registered default; `per_step` is the ablation
+    #: decision 0005 exists to check, and on a planted-fault dataset it is
+    #: not merely cheaper-or-dearer but a different quantity -- see
+    #: `docs/findings/p5-control-fork.md`.
+    control_mode: ControlMode = "shared"
 
     def blame_config(self, method: EvalMethod) -> BlameConfig:
         """The one config difference that defines each replay method."""
         if method == "bisect":
             return BlameConfig(
                 top_m=self.top_m, sequential=self.sequential,
-                control_mode="shared", prefix_tools="snapshot", method="bisect",
+                control_mode=self.control_mode, prefix_tools="snapshot", method="bisect",
             )
         if method == "rerun_live":
             return BlameConfig(
-                top_m=self.top_m, sequential=self.sequential, control_mode="shared",
+                top_m=self.top_m, sequential=self.sequential,
+                control_mode=self.control_mode,
                 prefix_tools="rerun_live", unsafe_positional=True, method="rerun_live",
             )
         if method == "no_control":
