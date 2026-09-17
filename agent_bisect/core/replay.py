@@ -235,14 +235,36 @@ class TapeTools:
     (`check_reexecution`, full-run replay).
     """
 
-    def __init__(self, cursor: TapeCursor, load_json: Callable[[str], Any]) -> None:
+    def __init__(
+        self,
+        cursor: TapeCursor,
+        load_json: Callable[[str], Any],
+        *,
+        volatile_fields: set[str] | frozenset[str] = frozenset(),
+    ) -> None:
         self._cursor = cursor
         self._load_json = load_json
+        self._volatile_fields = frozenset(volatile_fields)
         self._steps_served = 0
 
     @property
     def steps_served(self) -> int:
         return self._steps_served
+
+    def _comparable(self, result: Any) -> Any:
+        """`result` without the fields the domain stamps fresh every run.
+
+        The tape stores a tool result verbatim (rule 1: record
+        everything), but a domain may put bookkeeping in it that is not
+        part of the answer -- tau2 stamps every message with a wall-clock
+        `timestamp` and a `turn_idx` assigned at the end of the run.
+        Comparing those would make every faithful replay look like a
+        divergence, so the caller declares them and they are dropped from
+        both sides of the comparison only.
+        """
+        if not self._volatile_fields or not isinstance(result, dict):
+            return result
+        return {key: value for key, value in result.items() if key not in self._volatile_fields}
 
     def take(self, tool_name: str, tool_args: Mapping[str, Any]) -> Step:
         """Advance to the next tool step, checking it is this call."""
@@ -284,14 +306,15 @@ class TapeTools:
 
     def check_reexecution(self, step: Step, result: Any, state_hash: str) -> None:
         """Assert a live re-execution reproduced the recording exactly."""
-        recorded = self.recorded_result(step)
-        if recorded != result:
+        recorded = self._comparable(self.recorded_result(step))
+        observed = self._comparable(result)
+        if recorded != observed:
             raise DivergenceError(
                 step_idx=step.step_idx,
                 actor="tool",
                 expected=_render(recorded),
-                got=_render(result),
-                diff=f"tool_result: {_render(recorded)} != {_render(result)}",
+                got=_render(observed),
+                diff=f"tool_result: {_render(recorded)} != {_render(observed)}",
             )
         if step.state_hash != state_hash:
             raise DivergenceError(

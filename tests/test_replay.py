@@ -298,6 +298,38 @@ def test_tape_tools_raises_when_a_re_executed_tool_leaves_a_different_state():
     assert "state_hash" in excinfo.value.diff
 
 
+def test_tape_tools_ignores_declared_volatile_fields_when_comparing():
+    """A recorded tool result carries bookkeeping the domain stamps fresh
+    every run (for tau2, the message's wall-clock timestamp). Comparing it
+    would make every faithful replay look like a divergence."""
+    blobs = _Blobs()
+    blobs.put("tool-0", {"content": "same", "timestamp": "2026-09-17T05:00:00"})
+    tools = TapeTools(TapeCursor([_tool_step(0)]), blobs.get_json, volatile_fields={"timestamp"})
+    step = tools.take("get_user_details", {"user_id": "mia_li_3668"})
+
+    tools.check_reexecution(step, {"content": "same", "timestamp": "2026-09-17T09:99:99"}, "after")
+
+
+def test_tape_tools_still_compares_everything_not_declared_volatile():
+    blobs = _Blobs()
+    blobs.put("tool-0", {"content": "same", "timestamp": "t0"})
+    tools = TapeTools(TapeCursor([_tool_step(0)]), blobs.get_json, volatile_fields={"timestamp"})
+    step = tools.take("get_user_details", {"user_id": "mia_li_3668"})
+
+    with pytest.raises(DivergenceError):
+        tools.check_reexecution(step, {"content": "different", "timestamp": "t1"}, "after")
+
+
+def test_tape_tools_compares_everything_by_default():
+    blobs = _Blobs()
+    blobs.put("tool-0", {"content": "same", "timestamp": "t0"})
+    tools = TapeTools(TapeCursor([_tool_step(0)]), blobs.get_json)
+    step = tools.take("get_user_details", {"user_id": "mia_li_3668"})
+
+    with pytest.raises(DivergenceError):
+        tools.check_reexecution(step, {"content": "same", "timestamp": "t1"}, "after")
+
+
 def test_tape_tools_exposes_the_recorded_state_to_restore():
     blobs = _Blobs()
     blobs.put("sa-0", {"db": "after"})
