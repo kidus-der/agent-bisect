@@ -83,7 +83,16 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
     [nSteps, playhead, outcome, blamedStep, rewind],
   )
 
-  if (run.isPending) return <RunDetailSkeleton />
+  // The header renders through the load so the morph targets stay mounted: the
+  // Runs row is already gone by the time the fetch resolves.
+  if (run.isPending) {
+    return (
+      <div className="flex flex-col gap-5">
+        <RunDetailHeader runId={runId} run={null} verdict={null} simulated={false} />
+        <RunDetailSkeleton />
+      </div>
+    )
+  }
   if (run.isError) {
     if (run.error.code === 'not_found') return <RunNotFound runId={runId} />
     return (

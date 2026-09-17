@@ -7,15 +7,16 @@ import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 const TAPE_CELLS = Array.from({ length: 12 }, (_, index) => index)
 const FOREST_ROWS = Array.from({ length: 5 }, (_, index) => index)
 
-/** The page's own layout drawn in blocks, so loading never reflows into something else. */
+/**
+ * The page's own layout drawn in blocks, so loading never reflows into
+ * something else. The header is not drawn here: the real `RunDetailHeader`
+ * renders above this with `run={null}`, holding the three morph targets the
+ * Runs row travels into. A second header of grey blocks would leave the morph
+ * landing on a placeholder that then vanishes.
+ */
 export function RunDetailSkeleton() {
   return (
     <LoadingRegion subject="this run" className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-4 w-16" />
-        <Skeleton className="h-8 w-72" />
-        <Skeleton className="h-4 w-96 max-w-full" />
-      </div>
       <Panel variant="canvas" label="tape">
         <Skeleton className="h-5 w-24" />
         <div className="mt-3 grid grid-cols-12 gap-1">
