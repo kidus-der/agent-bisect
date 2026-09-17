@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page, expect, test } from '@playwright/test'
 
-import { horizontalOverflow, mockP6eApi, applyTheme } from './p6e.fixtures'
+import { horizontalOverflow, mockP6eApi, applyTheme, PR_CHECK_REGRESSION } from './p6e.fixtures'
 
 const MOBILE = { width: 390, height: 844 } as const
 const REGRESSION_CHECK = 'pr-check-00'
@@ -111,6 +111,42 @@ test('an unmeasured gate is reported, never filled in with numbers', async ({ pa
   await expect(page.getByText(/pr checks · not measured/i)).toBeVisible()
   await expect(page.getByText('no gate results yet')).toBeVisible()
   await expect(page.getByText('bisect gate --base main --head HEAD')).toBeVisible()
+})
+
+test('a ref-to-ref run with an uncompared scenario renders without inventing numbers', async ({
+  page,
+}) => {
+  // Arrange — real mode: the gate compared two git refs, so there is no PR
+  // number, and one scenario exists only on head. The fixture is always
+  // numbered, so the shape has to be forced here.
+  await mockP6eApi(page)
+  const detail = PR_CHECK_REGRESSION.data as {
+    readonly scenarios: ReadonlyArray<Record<string, unknown>>
+  }
+  // Three rows, so every one of them is rendered: the table virtualises, and a
+  // row sorted to the end of twenty-four is not in the DOM to assert on.
+  const [first, ...rest] = detail.scenarios.slice(0, 3)
+  await page.route('**/api/pr-checks/pr-check-00*', (route) =>
+    route.fulfill({
+      json: {
+        ...PR_CHECK_REGRESSION,
+        data: {
+          ...detail,
+          pr_number: null,
+          title: 'main → feat/retry-backoff',
+          scenarios: [{ ...first, base_pass_rate: null }, ...rest],
+        },
+      },
+    }),
+  )
+  await applyTheme(page, 'dark')
+  await page.goto('/pr-checks/pr-check-00')
+
+  // Assert — the comment header names no pull request, and the uncompared
+  // scenario reports a dash rather than head - 0.
+  await expect(page.getByText('would comment')).toBeVisible()
+  await expect(page.getByText('#pr-check-00')).toHaveCount(0)
+  await expect(page.getByTitle('new in head: no base run').first()).toBeVisible()
 })
 
 test('neither view scrolls sideways at 390px', async ({ page }) => {
