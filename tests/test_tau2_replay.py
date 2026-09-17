@@ -19,6 +19,9 @@ from agent_bisect.adapters.tau2_replay import (
 from agent_bisect.adapters.tau2_scenarios import (
     AIRLINE_READS,
     AIRLINE_WRITES,
+    JUDGE_MODEL,
+    JUDGED_ASSERTION,
+    RETAIL_JUDGED,
     RETAIL_WRITES,
     SCENARIOS,
 )
@@ -594,3 +597,60 @@ def test_tape_writer_is_unused_by_a_plain_replay(store, monkeypatch):
 
 def _fail(*_args, **_kwargs):
     raise AssertionError("a plain replay must not write steps")
+
+
+# ---- the evaluator is a recorded actor too ----
+
+
+def test_an_evaluator_llm_call_is_recorded_as_its_own_step(store):
+    """Retail task 2 carries NL_ASSERTION in its reward_basis, so tau2's
+    judge is called to compute the reward. It goes through the same seam,
+    so it is a step like any other."""
+    recorded, llm = _recorded(RETAIL_JUDGED, store)
+
+    evaluator_steps = [s for s in store.reader.get_steps("r1") if s.actor == "evaluator"]
+
+    assert len(evaluator_steps) == 1
+    assert recorded.llm_calls_by_actor["evaluator"] == 1
+    assert llm.calls_by_model[JUDGE_MODEL] == 1
+    assert evaluator_steps[0].model == JUDGE_MODEL
+
+
+def test_an_evaluator_step_is_the_last_step_of_the_run(store):
+    """The reward is computed after the orchestrator loop, so the judge's
+    call comes after every agent, user and tool step."""
+    _recorded(RETAIL_JUDGED, store)
+
+    actors = [step.actor for step in store.reader.get_steps("r1")]
+
+    assert actors[-1] == "evaluator"
+    assert "evaluator" not in actors[:-1]
+
+
+def test_a_run_with_an_evaluator_call_replays_step_identically(store):
+    """The judge's response comes off the tape like any other, so the
+    reward is reproduced without asking it again."""
+    recorded, _ = _recorded(RETAIL_JUDGED, store)
+
+    result = replay_run("r1", store=store.blobs, reader=store.reader)
+
+    assert result.steps == recorded.steps
+    assert result.outcome is not None
+    assert result.outcome.reward == reward_of(recorded)
+    assert result.live_llm_calls == 0
+
+
+def test_the_recorded_judges_verdict_is_what_the_reward_reflects(store):
+    """The reward would be computed whether or not the judge was really
+    asked, so pin that the scripted verdict is the one in the breakdown --
+    justification and all."""
+    _recorded(RETAIL_JUDGED, store)
+    outcome = store.reader.get_outcome("r1")
+    assert outcome is not None
+    breakdown = store.blobs.get_json(ref(outcome.breakdown_ref))
+
+    assert "NL_ASSERTION" in breakdown["reward_basis"]
+    [check] = breakdown["nl_assertions"]
+    assert check["met"] is True
+    assert check["justification"] == "The agent said so."
+    assert check["nl_assertion"] == JUDGED_ASSERTION
