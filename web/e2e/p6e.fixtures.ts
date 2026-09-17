@@ -53,10 +53,11 @@ interface CallsPoint {
  * The live line anchors its right edge on the browser's clock, so a captured
  * series would trail off into a flat tail that grows with the age of the
  * capture. Shifting the whole series so its last point is "now" keeps the shape
- * and the spacing exactly as captured.
+ * and the spacing exactly as captured. The events ride the same shift, so the
+ * feed's ages stay believable instead of reading hours old.
  */
 function rebaseToNow(envelope: Envelope): Envelope {
-  const data = envelope.data as { calls_series?: CallsPoint[] } | null
+  const data = envelope.data as { calls_series?: CallsPoint[]; events?: { ts: string }[] } | null
   const series = data?.calls_series
   if (!data || !series || series.length === 0) return envelope
   const latest = Math.max(...series.map((point) => Date.parse(point.ts)))
@@ -69,6 +70,10 @@ function rebaseToNow(envelope: Envelope): Envelope {
       calls_series: series.map((point) => ({
         ...point,
         ts: new Date(Date.parse(point.ts) + shift).toISOString(),
+      })),
+      events: (data.events ?? []).map((event) => ({
+        ...event,
+        ts: new Date(Date.parse(event.ts) + shift).toISOString(),
       })),
     },
   }
@@ -103,14 +108,16 @@ export function snapshotStream(count: number, envelope: Envelope = LIVE_SNAPSHOT
       () => `event: snapshot\ndata: ${JSON.stringify(envelope)}\n\n`,
     ).join('')
   }
+  // Each frame re-delivers the captured window of events, one second later than
+  // the frame before it. That is what a rolling snapshot actually does, and it
+  // is what makes the feed's batch grouping visible — a synthetic "frame N"
+  // line per frame told us the stream worked and nothing else.
+  const captured = (snapshotData.events ?? []) as ReadonlyArray<{ ts: string }>
   return Array.from({ length: count }, (_, index) => {
-    const events = [
-      {
-        ts: new Date(Date.now() + index * 1000).toISOString(),
-        level: 'info',
-        message: `simulated: stream frame ${index}`,
-      },
-    ]
+    const events = captured.map((event) => ({
+      ...event,
+      ts: new Date(Date.parse(event.ts) + index * MS_PER_SECOND).toISOString(),
+    }))
     const frame = { ...envelope, data: { ...snapshotData, events } }
     return `event: snapshot\ndata: ${JSON.stringify(frame)}\n\n`
   }).join('')
@@ -124,6 +131,7 @@ export interface MockOptions {
 }
 
 const DEFAULT_STREAM_FRAMES = 3
+const MS_PER_SECOND = 1000
 
 /** Routes every endpoint these three pages read. Call in `beforeEach`. */
 export async function mockP6eApi(page: Page, options: MockOptions = {}): Promise<void> {

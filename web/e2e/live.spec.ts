@@ -19,7 +19,7 @@ test('the page receives and counts snapshots from the stream', async ({ page }) 
   // Every frame is counted and its events reach the feed. The mocked body ends
   // after its last frame, so the chip then moves on from `live` by design.
   await expect(page.getByText(`${STREAM_FRAMES} updates`).first()).toBeVisible()
-  await expect(page.getByText(/simulated: stream frame 2/)).toBeVisible()
+  await expect(page.getByText(/batch \d+ progressed/).first()).toBeVisible()
   await expect(page.getByText(/^(live|reconnecting)$/).first()).toBeVisible()
 })
 
