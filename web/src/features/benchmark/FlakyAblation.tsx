@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react'
 
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
+import { NotMeasuredState } from '@/components/primitives/NotMeasuredState'
 import { Panel } from '@/components/primitives/Panel'
 import { springTransition } from '@/design/motion'
 import { formatPercent, formatPoints } from '@/lib/stats'
@@ -77,7 +78,8 @@ function ArmRow({ name, accuracy, index }: ArmRowProps) {
 }
 
 interface FlakyAblationProps {
-  readonly ablation: FlakyAblationPayload
+  /** Null when the evaluation has no no-snapshot arm. */
+  readonly ablation: FlakyAblationPayload | null
 }
 
 /**
@@ -86,6 +88,21 @@ interface FlakyAblationProps {
  * interval are the answer, so the difference is the hero — not either arm.
  */
 export function FlakyAblation({ ablation }: FlakyAblationProps) {
+  // No flaky-world run, no comparison. The panel stays and says so rather than
+  // vanishing: a missing ablation is a fact about the evaluation, not an
+  // absence of UI.
+  if (ablation === null) {
+    return (
+      <Panel variant="elevated">
+        <NotMeasuredState
+          label="flaky_world_ablation"
+          title="No flaky-world run to compare against"
+          reason="This evaluation has no no-snapshot arm, so what snapshots are worth was not measured."
+          command="bisect bench --flaky-world"
+        />
+      </Panel>
+    )
+  }
   const { difference } = ablation
   const decisive = difference.ci_low > 0
   return (
