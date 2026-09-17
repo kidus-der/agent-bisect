@@ -4,7 +4,9 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
-const API_ORIGIN = 'http://127.0.0.1:8484'
+// Default port is what `bisect serve` uses; BISECT_API_ORIGIN lets a second dev
+// server (a parallel fixture API on another port) be proxied without editing this.
+const API_ORIGIN = process.env.BISECT_API_ORIGIN ?? 'http://127.0.0.1:8484'
 const DEV_HOST = '127.0.0.1'
 const DEV_PORT = 5173
 
