@@ -71,12 +71,17 @@ def _fingerprint(store: BlobStore, step: Step) -> tuple[Any, ...]:
 
 def first_divergence_steps(
     *,
-    store: BlobStore,
+    head_store: BlobStore,
+    base_store: BlobStore,
     base_steps: Sequence[Step],
     head_steps: Sequence[Step],
     top_m: int = DEMO_TOP_M,
 ) -> tuple[int, ...]:
     """The first `top_m` step indices where head diverges from base.
+
+    `head_store` and `base_store` are separate blob stores -- head and base
+    are recorded in different worktrees' own `runs/` directories -- so each
+    side's steps are decoded against its own store.
 
     Only candidate actors (`agent`, `user`, `tool`) are ever returned --
     tau2's NL-assertion evaluator runs after the loop and cannot be a
@@ -89,7 +94,7 @@ def first_divergence_steps(
             continue
         if base_step.step_idx != head_step.step_idx:
             continue
-        if _fingerprint(store, base_step) != _fingerprint(store, head_step):
+        if _fingerprint(base_store, base_step) != _fingerprint(head_store, head_step):
             divergent.append(head_step.step_idx)
         if len(divergent) >= top_m:
             break
@@ -105,13 +110,17 @@ def first_divergence_steps(
 def first_divergence_verdict(
     *,
     item_id: str,
-    store: BlobStore,
+    head_store: BlobStore,
+    base_store: BlobStore,
     base_steps: Sequence[Step],
     head_steps: Sequence[Step],
     top_m: int = DEMO_TOP_M,
 ) -> JudgeVerdict:
     """A `JudgeVerdict`-shaped answer from `first_divergence_steps`, cost-free."""
-    steps = first_divergence_steps(store=store, base_steps=base_steps, head_steps=head_steps, top_m=top_m)
+    steps = first_divergence_steps(
+        head_store=head_store, base_store=base_store,
+        base_steps=base_steps, head_steps=head_steps, top_m=top_m,
+    )
     if not steps:
         return JudgeVerdict(
             item_id=item_id, protocol=FIRST_DIVERGENCE_PROTOCOL, decisive_step=None,
@@ -134,21 +143,31 @@ def first_divergence_verdict(
 def blame_new_failure(
     failure: NewFailure,
     *,
-    store: BlobStore,
-    reader: TapeReader,
-    tape: TapeWriter,
+    head_store: BlobStore,
+    head_reader: TapeReader,
+    head_tape: TapeWriter,
+    base_store: BlobStore,
+    base_reader: TapeReader,
     live_completion: Callable[..., Any],
     seed: int,
 ) -> BlameResult:
-    """Shortlist by first divergence, then confirm exactly as `run_blame` would."""
+    """Shortlist by first divergence, then confirm exactly as `run_blame` would.
+
+    Forks are written to `head_store`/`head_tape` -- `failure.head_run_id`
+    lives there, and so must every fork of it. `base_store`/`base_reader`
+    are read only, for the divergence comparison.
+    """
     spec = scenario(failure.scenario_name)
-    head_steps = reader.get_steps(failure.head_run_id)
-    base_steps = reader.get_steps(failure.base_run_id)
+    head_steps = head_reader.get_steps(failure.head_run_id)
+    base_steps = base_reader.get_steps(failure.base_run_id)
     verdict = first_divergence_verdict(
-        item_id=failure.scenario_name, store=store, base_steps=base_steps, head_steps=head_steps
+        item_id=failure.scenario_name, head_store=head_store, base_store=base_store,
+        base_steps=base_steps, head_steps=head_steps,
     )
-    executor = Tau2ForkExecutor(store=store, reader=reader, tape=tape, live_completion=live_completion)
-    truth = Tau2TruthResolver(DOMAIN, spec.task_id, store)
+    executor = Tau2ForkExecutor(
+        store=head_store, reader=head_reader, tape=head_tape, live_completion=live_completion
+    )
+    truth = Tau2TruthResolver(DOMAIN, spec.task_id, head_store)
     return run_blame(
         item_id=failure.scenario_name,
         run_id=failure.head_run_id,
