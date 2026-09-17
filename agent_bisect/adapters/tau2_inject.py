@@ -23,9 +23,10 @@ from __future__ import annotations
 
 import contextlib
 import json
+import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -85,12 +86,17 @@ class Tau2InjectRunner:
     #: and recorded in its manifest, so a recording is self-consistent
     #: while re-executing the same calls later is not.
     flaky: FlakyConfig | None = None
+    #: Claiming a free run id is the one thing several collection threads
+    #: would otherwise race on: two of them would pick the same id and the
+    #: second would die on the tape's duplicate guard.
+    _id_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     # -- recording ---------------------------------------------------------
 
     def record_base(self, domain: str, task_id: str, trial: int) -> BaseRun:
         item = BatchItem(domain=domain, task_id=task_id, trial=trial)
-        run_id = free_run_id(self.reader, item)
+        with self._id_lock:
+            run_id = free_run_id(self.reader, item)
         recorded = (
             self._record_flaky(domain, task_id, run_id)
             if self.flaky is not None

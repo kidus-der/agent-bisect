@@ -105,6 +105,9 @@ def collect(
     ledger_path: Annotated[
         Path, typer.Option("--ledger", help="Call ledger to reserve against.")
     ] = DEFAULT_LEDGER_PATH,
+    concurrency: int = typer.Option(
+        1, help="Tasks in flight at once. Roughly the number of model calls in flight."
+    ),
     flaky: bool = typer.Option(
         False, "--flaky", help="Collect in the flaky world (decisions 0011, 0017 section 4)."
     ),
@@ -135,8 +138,8 @@ def collect(
     )
     if not json_output:
         typer.echo(
-            f"shard {shard}/{shards}: {len(task_list)} tasks, target {target} items "
-            f"(floor {floor}), cap {max_calls} calls"
+            f"shard {shard}/{shards}: {len(task_list)} tasks, {concurrency} in flight, "
+            f"target {target} items (floor {floor}), cap {max_calls} calls"
         )
 
     world = (
@@ -165,6 +168,7 @@ def collect(
             on_progress=None if json_output else (lambda line: say(stdout, f"  {line}")),
             runs_dir=runs_dir,
             calls_spent=ledger.total_calls,
+            concurrency=concurrency,
         )
 
     summary = {

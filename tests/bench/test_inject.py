@@ -232,6 +232,57 @@ def test_a_call_that_already_happened_earlier_is_never_faulted(tmp_path):
     assert {item["planted_step"] for item in result.items} <= {1}
 
 
+# ---- concurrency ----
+
+
+def test_tasks_run_concurrently_without_losing_any(tmp_path):
+    """Several task threads share the tallies, the fault-type balance and
+    the decision log; only the bookkeeping needs guarding, because each
+    task owns its own runs."""
+    journal = Journal(tmp_path)
+    tasks = [("airline", str(index)) for index in range(12)]
+
+    result = collect(FakeRunner(), tasks=tasks, journal=journal,
+                     config=InjectConfig(attempts_per_bucket=1), concurrency=6)
+
+    assert result.counts["base_recorded"] == len(tasks)
+    assert result.counts["candidates"] == sum(
+        result.counts[name] for name in
+        ("kept", "rejected_not_flipped", "rejected_unplantable", "rejected_repeated_call")
+    )
+    verdicts = [event for event in journal.events() if event["kind"] == "candidate"]
+    assert len(verdicts) == result.counts["candidates"]
+
+
+def test_concurrent_collection_breaks_the_same_steps_as_a_serial_one(tmp_path):
+    """Which steps are faulted is fixed by the seed; which fault TYPE each
+    one gets is not, because the balancer is global and draws in whatever
+    order the threads finish. The balance still holds — only the
+    assignment moves — so a concurrent collection is reproducible in what
+    it tries, not in which type each kept item ended up with."""
+    tasks = [("airline", str(index)) for index in range(6)]
+    serial = collect(FakeRunner(), tasks=tasks, journal=Journal(tmp_path / "one"),
+                     config=InjectConfig(attempts_per_bucket=1))
+
+    parallel = collect(FakeRunner(), tasks=tasks, journal=Journal(tmp_path / "two"),
+                       config=InjectConfig(attempts_per_bucket=1), concurrency=4)
+
+    def steps(result):
+        return sorted((item["task_id"], item["planted_step"]) for item in result.items)
+
+    assert steps(parallel) == steps(serial)
+    assert len({item["fault_type"] for item in parallel.items}) >= 3
+
+
+def test_a_concurrent_collection_stops_on_the_target_too(tmp_path):
+    tasks = [("airline", str(index)) for index in range(12)]
+
+    result = collect(FakeRunner(), tasks=tasks, journal=Journal(tmp_path),
+                     config=InjectConfig(target_items=2), concurrency=4)
+
+    assert result.stopped_reason == "target reached"
+
+
 # ---- the stop rule ----
 
 

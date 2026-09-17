@@ -22,6 +22,7 @@ not, and the two are indistinguishable from here.
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,9 @@ class Journal:
     def __init__(self, root: Path) -> None:
         self._root = root
         self._root.mkdir(parents=True, exist_ok=True)
+        # Records are one file per key, so they need no guarding; the
+        # decision log is one file every thread appends to.
+        self._log_lock = threading.Lock()
 
     @property
     def root(self) -> Path:
@@ -90,7 +94,7 @@ class Journal:
     def log(self, event: Mapping[str, Any]) -> None:
         """Append one decision to the funnel ledger."""
         line = redact(json.dumps(dict(event), sort_keys=True))
-        with (self._root / LOG_NAME).open("a", encoding="utf-8") as stream:
+        with self._log_lock, (self._root / LOG_NAME).open("a", encoding="utf-8") as stream:
             stream.write(line + "\n")
 
     def events(self) -> list[dict[str, Any]]:

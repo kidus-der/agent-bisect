@@ -35,8 +35,10 @@ without a model.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -214,17 +216,24 @@ def collect(
     on_progress: Callable[[str], None] | None = None,
     runs_dir: Path | None = None,
     calls_spent: Callable[[], int] | None = None,
+    concurrency: int = 1,
 ) -> CollectionResult:
     """Run the funnel over `tasks`, resuming from whatever is on disk.
 
     With `runs_dir`, progress is published to `runs/p3/status.json` at
     every checkpoint, which is what the dashboard's Live page reads
     (`core.job_status`).
+
+    `concurrency` runs that many tasks at once. A task is one simulation
+    at a time, so it is also roughly how many model calls are in flight —
+    the collection is latency-bound long before the limiter binds, and
+    the limiter, the ledger and the retry policy are unchanged and still
+    process-wide.
     """
     collector = _Collector(
         runner, journal, config or InjectConfig(), on_progress, runs_dir, calls_spent
     )
-    return collector.run(tasks)
+    return collector.run(tasks, concurrency=concurrency)
 
 
 class _Collector:
@@ -247,6 +256,10 @@ class _Collector:
         self._calls_spent = calls_spent
         self._started_at: str | None = None
         self._began = time.monotonic()
+        #: Everything below is touched by several task threads at once.
+        #: The work itself needs no lock — each task owns its own runs —
+        #: but the tallies, the balance and the append-only log do.
+        self._lock = threading.Lock()
         #: Kept items across *every* shard, read from the shared journal.
         #: A sharded collection stops when the dataset is big enough, not
         #: when one worker's own share is.
@@ -258,20 +271,16 @@ class _Collector:
 
     # -- the loop ----------------------------------------------------------
 
-    def run(self, tasks: Sequence[tuple[str, str]]) -> CollectionResult:
+    def run(
+        self, tasks: Sequence[tuple[str, str]], *, concurrency: int = 1
+    ) -> CollectionResult:
         reason = "tasks exhausted"
         self._publish()
         try:
-            for domain, task_id in tasks:
-                stop = self._should_stop()
-                if stop is not None:
-                    reason = stop
-                    break
-                self._one_task(domain, task_id)
-                self._kept_total = _kept_count(self._journal)
-                self._publish()
+            if concurrency <= 1:
+                reason = self._run_serial(tasks) or reason
             else:
-                reason = self._should_stop() or reason
+                reason = self._run_parallel(tasks, concurrency) or reason
         except _Stop as stop_signal:
             reason = stop_signal.reason
         self._publish(final=reason)
@@ -326,6 +335,39 @@ class _Collector:
             write_status(self._runs_dir, status)
         except OSError as exc:  # pragma: no cover - a full disk is not a collection failure
             self._say(f"could not write the status file: {exc}")
+
+    def _run_serial(self, tasks: Sequence[tuple[str, str]]) -> str | None:
+        for domain, task_id in tasks:
+            stop = self._should_stop()
+            if stop is not None:
+                return stop
+            self._finish_task(domain, task_id)
+        return self._should_stop()
+
+    def _run_parallel(self, tasks: Sequence[tuple[str, str]], workers: int) -> str | None:
+        """`workers` tasks at once. The stop rule is checked per task, so a
+        collection that reaches its target finishes what is in flight and
+        starts nothing new rather than abandoning half-measured candidates."""
+        stopped: list[str] = []
+
+        def one(task: tuple[str, str]) -> None:
+            if stopped:
+                return
+            stop = self._should_stop()
+            if stop is not None:
+                stopped.append(stop)
+                return
+            self._finish_task(*task)
+
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="inject") as pool:
+            list(pool.map(one, tasks))
+        return stopped[0] if stopped else self._should_stop()
+
+    def _finish_task(self, domain: str, task_id: str) -> None:
+        self._one_task(domain, task_id)
+        with self._lock:
+            self._kept_total = _kept_count(self._journal)
+        self._publish()
 
     def _one_task(self, domain: str, task_id: str) -> None:
         """One task through the funnel. Infra failures cost the task, not the run."""
@@ -442,7 +484,8 @@ class _Collector:
             self._bump(f"rejected_{record['reason_code']}")
             return False
         self._bump("kept")
-        self._items.append(record["item"])
+        with self._lock:
+            self._items.append(record["item"])
         return True
 
     def _measure_candidate(
@@ -489,7 +532,8 @@ class _Collector:
                 continue
         if not possible:
             return None
-        chosen = self._balancer.take(tuple(possible))
+        with self._lock:
+            chosen = self._balancer.take(tuple(possible))
         result = possible[chosen]
         return chosen, dict(result.payload), result.mutation.to_dict()
 
@@ -620,7 +664,8 @@ class _Collector:
     # -- shared -------------------------------------------------------------
 
     def _bump(self, name: str, by: int = 1) -> None:
-        self._counts[name] = self._counts.get(name, 0) + by
+        with self._lock:
+            self._counts[name] = self._counts.get(name, 0) + by
 
     def _guarded(self, call: Callable[[], Any]) -> Any:
         """Run `call`, sorting its failures into stop / retry / raise."""
