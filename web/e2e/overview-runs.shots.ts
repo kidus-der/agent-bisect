@@ -11,7 +11,7 @@ import { type Page, test } from '@playwright/test'
 
 import { mockApi } from './apiFixture'
 
-const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round3/', import.meta.url))
+const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round4/', import.meta.url))
 const THEME_KEY = 'bisect.theme'
 
 const THEMES = ['dark', 'light'] as const
@@ -38,6 +38,25 @@ const PAGES = [
 ] as const
 
 const SETTLE_MS = 2200
+/** Room for the page to grow into once the viewport is opened to its full height. */
+const TALL_MARGIN_PX = 40
+
+/**
+ * Grows the viewport until the whole page fits, then captures it as an ordinary
+ * viewport shot.
+ *
+ * Playwright's `fullPage` resizes the viewport underneath the running page to
+ * stitch the capture, and visx's `ParentSize` re-measures while that is
+ * happening — every chart came out drawn at roughly a third of its real width,
+ * which had us reviewing a plot the browser never actually showed. Resizing
+ * first lets the charts settle at the size they are captured at.
+ */
+async function captureWholePage(page: Page, path: string, width: number): Promise<void> {
+  const height = await page.evaluate(() => document.documentElement.scrollHeight)
+  await page.setViewportSize({ width, height: height + TALL_MARGIN_PX })
+  await page.waitForTimeout(SETTLE_MS)
+  await page.screenshot({ path })
+}
 
 async function prepare(page: Page, theme: string, path: string): Promise<void> {
   await mockApi(page)
@@ -58,10 +77,9 @@ for (const theme of THEMES) {
         // Reduced motion pins the rewind on its final frame, so shots are stable.
         await page.emulateMedia({ reducedMotion: 'reduce' })
         await prepare(page, theme, target.path)
-        await page.screenshot({
-          path: `${OUT_DIR}${target.name}-${theme}-${viewport.name}.png`,
-          fullPage: target.fullPage,
-        })
+        const path = `${OUT_DIR}${target.name}-${theme}-${viewport.name}.png`
+        if (target.fullPage) await captureWholePage(page, path, viewport.width)
+        else await page.screenshot({ path })
       })
     }
   }
