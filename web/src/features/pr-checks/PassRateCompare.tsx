@@ -24,13 +24,18 @@ interface RefRowProps {
   readonly rate: CiValue
   readonly index: number
   readonly regressed: boolean
+  /** False when the difference's interval crosses zero: nothing was shown. */
+  readonly decisive: boolean
 }
 
-function RefRow({ ref: refName, rate, index, regressed }: RefRowProps) {
+function RefRow({ ref: refName, rate, index, regressed, decisive }: RefRowProps) {
   const reduced = useReducedMotion() ?? false
   const head = refName === 'head'
-  // Base is always the quiet reference; head takes the fail role only when it regressed.
-  const fill = !head ? 'var(--bx-tape)' : regressed ? 'var(--bx-fail)' : 'var(--bx-pass)'
+  // Base is the quiet reference. Head only takes a semantic colour when the
+  // difference is decisive — otherwise the panel would say "better" and "not
+  // significant" at the same time.
+  const fill =
+    !head || !decisive ? 'var(--bx-tape)' : regressed ? 'var(--bx-fail)' : 'var(--bx-pass)'
   const { value, ci_low: low, ci_high: high } = rate
   return (
     <li className="flex flex-col gap-2">
@@ -92,6 +97,7 @@ export function PassRateCompare({ check }: PassRateCompareProps) {
     check.base_pass_rate.value,
     runs,
   )
+  const decisive = difference !== null && (difference.low > 0 || difference.high < 0)
 
   return (
     <Panel variant="canvas" bodyClassName="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
@@ -110,7 +116,10 @@ export function PassRateCompare({ check }: PassRateCompareProps) {
         </span>
         <div className="flex flex-col gap-1">
           <span
-            className={cn('num text-display font-semibold', regressed ? 'text-fail' : 'text-ink')}
+            className={cn(
+              'num text-display font-semibold',
+              regressed && decisive ? 'text-fail' : 'text-ink',
+            )}
           >
             {formatPoints(check.head_pass_rate.value - check.base_pass_rate.value)}
           </span>
@@ -135,8 +144,20 @@ export function PassRateCompare({ check }: PassRateCompareProps) {
       </div>
 
       <ul className="m-0 flex list-none flex-col justify-center gap-6 p-0">
-        <RefRow ref="base" rate={check.base_pass_rate} index={0} regressed={regressed} />
-        <RefRow ref="head" rate={check.head_pass_rate} index={1} regressed={regressed} />
+        <RefRow
+          ref="base"
+          rate={check.base_pass_rate}
+          index={0}
+          regressed={regressed}
+          decisive={decisive}
+        />
+        <RefRow
+          ref="head"
+          rate={check.head_pass_rate}
+          index={1}
+          regressed={regressed}
+          decisive={decisive}
+        />
       </ul>
     </Panel>
   )
