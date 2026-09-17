@@ -215,3 +215,73 @@ def test_tool_steps_of_names_only_the_tool_steps(tmp_path):
 
     # Assert
     assert steps == (1,)
+
+
+# ---- gaps in the recording are facts, not crashes ----
+
+
+def test_an_unreadable_payload_blob_renders_as_missing(tmp_path):
+    # Arrange: a step pointing at a blob that is not there
+    tape, _ = _built(tmp_path, [("agent", _llm_payload("hello"), None)])
+
+    class Broken:
+        def get_json(self, ref):
+            raise OSError("blob gone")
+
+    # Act
+    judge_input = build_judge_input(
+        "run-1", reader=tape.reader, store=Broken(),  # type: ignore[arg-type]
+        item_id="i", task_description="t", policy="p",
+    )
+
+    # Assert
+    assert judge_input.steps[0].content == MISSING_PAYLOAD
+
+
+def test_a_response_with_no_choices_renders_as_missing(tmp_path):
+    # Arrange
+    tape, _ = _built(tmp_path, [("agent", {"choices": []}, None)])
+
+    # Act
+    judge_input = build_judge_input(
+        "run-1", reader=tape.reader, store=tape.blobs,
+        item_id="i", task_description="t", policy="p",
+    )
+
+    # Assert
+    assert judge_input.steps[0].content == MISSING_PAYLOAD
+
+
+def test_a_tool_result_with_no_content_field_is_rendered_whole(tmp_path):
+    # Arrange
+    tape, _ = _built(tmp_path, [("tool", {"role": "tool", "data": [1, 2]}, "get_x")])
+
+    # Act
+    judge_input = build_judge_input(
+        "run-1", reader=tape.reader, store=tape.blobs,
+        item_id="i", task_description="t", policy="p",
+    )
+
+    # Assert
+    assert "data" in judge_input.steps[0].content
+
+
+def test_an_unreadable_manifest_leaves_the_domain_blank_rather_than_failing(tmp_path):
+    # Arrange
+    tape, _ = _built(tmp_path, [("agent", _llm_payload("hi"), None)])
+
+    class NoManifest:
+        def get_steps(self, run_id):
+            return tape.reader.get_steps(run_id)
+
+        def get_manifest(self, run_id):
+            raise RuntimeError("index unreadable")
+
+    # Act
+    judge_input = build_judge_input(
+        "run-1", reader=NoManifest(), store=tape.blobs,  # type: ignore[arg-type]
+        item_id="i", task_description="t", policy="p",
+    )
+
+    # Assert
+    assert judge_input.domain == ""

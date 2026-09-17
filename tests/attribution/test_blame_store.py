@@ -216,3 +216,34 @@ def test_loading_a_run_that_was_never_blamed_raises(tmp_path):
     # Arrange / Act / Assert
     with pytest.raises(FileNotFoundError):
         load_blame(tmp_path, "nope")
+
+
+# ---- reading a store that is empty or partial ----
+
+
+def test_listing_a_directory_that_has_no_results_is_empty(tmp_path):
+    # Arrange / Act / Assert
+    assert list_blamed_runs(tmp_path / "nothing") == ()
+
+
+def test_load_all_returns_only_the_methods_that_were_run(tmp_path):
+    # Arrange
+    from agent_bisect.attribution.blame_store import load_all
+
+    save_blame(tmp_path, _result())
+    save_blame(tmp_path, _result(method="no_control", config=BlameConfig(
+        control_mode="none", method="no_control")))
+
+    # Act
+    loaded = load_all(tmp_path, ["bisect", "no_control", "rerun_live"])
+
+    # Assert
+    assert set(loaded) == {("run-1", "bisect"), ("run-1", "no_control")}
+
+
+def test_load_all_over_an_empty_store_is_empty(tmp_path):
+    # Arrange
+    from agent_bisect.attribution.blame_store import load_all
+
+    # Act / Assert
+    assert load_all(tmp_path, ["bisect"]) == {}

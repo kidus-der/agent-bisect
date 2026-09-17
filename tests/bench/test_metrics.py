@@ -250,3 +250,35 @@ def test_an_empty_sample_is_refused_by_the_bootstrap():
     # Arrange / Act / Assert
     with pytest.raises(ValueError, match="empty"):
         paired_bootstrap_gap([], [], groups=[], seed=1)
+
+
+def test_a_non_positive_m_is_refused():
+    with pytest.raises(ValueError, match="m must be positive"):
+        recall_at([(1,)], [1], 0)
+
+
+def test_recall_over_an_empty_sample_is_refused():
+    with pytest.raises(ValueError, match="empty"):
+        recall_at([], [], 1)
+
+
+def test_a_narrower_confidence_level_gives_a_narrower_interval():
+    # Arrange
+    a = [True] * 12 + [False] * 8
+    b = [True] * 4 + [False] * 16
+    groups = [f"t{i // 2}" for i in range(20)]
+
+    # Act
+    wide = paired_bootstrap_gap(a, b, groups=groups, seed=1, resamples=500)
+    narrow = paired_bootstrap_gap(a, b, groups=groups, seed=1, resamples=500, conf=0.80)
+
+    # Assert
+    assert (narrow.ci_high - narrow.ci_low) <= (wide.ci_high - wide.ci_low)
+
+
+def test_an_interval_entirely_above_zero_is_reported_as_such():
+    # Arrange / Act
+    gap = paired_bootstrap_gap([True] * 4, [False] * 4, groups=list("abcd"), seed=1)
+
+    # Assert
+    assert gap.excludes_zero_above is True
