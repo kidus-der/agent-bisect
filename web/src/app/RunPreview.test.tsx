@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { RunPreview, stripeCellWidth } from './RunPreview'
+import { RunPreview } from './RunPreview'
+import { stripeCellWidth } from './stripeCellWidth'
 
 const META = { simulated: true, data_source: 'fixture' }
 
