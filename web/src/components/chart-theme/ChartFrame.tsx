@@ -14,8 +14,8 @@ interface ChartFrameProps {
   /** Tailwind height class for the plot area. */
   readonly heightClassName?: string
   readonly legend?: ReactNode
-  /** `secondary` for a quieter chart beside a primary one (direction.md §4). */
-  readonly variant?: 'chart' | 'secondary'
+  /** `elevated` for a quieter chart beside a primary one (direction.md §4). */
+  readonly variant?: 'chart' | 'elevated'
   readonly className?: string
 }
 
