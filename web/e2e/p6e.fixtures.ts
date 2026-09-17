@@ -41,7 +41,38 @@ const byPath = responses as unknown as Record<string, Envelope>
 export const META = byPath['/api/meta'] as Envelope
 export const BENCHMARK = byPath['/api/benchmark'] as Envelope
 export const DATASET = byPath['/api/dataset?page=1&limit=50'] as Envelope
-export const LIVE_SNAPSHOT = byPath['/api/live/snapshot'] as Envelope
+const RAW_LIVE_SNAPSHOT = byPath['/api/live/snapshot'] as Envelope
+
+interface CallsPoint {
+  readonly ts: string
+  readonly model: string
+  readonly calls_per_minute: number
+}
+
+/**
+ * The live line anchors its right edge on the browser's clock, so a captured
+ * series would trail off into a flat tail that grows with the age of the
+ * capture. Shifting the whole series so its last point is "now" keeps the shape
+ * and the spacing exactly as captured.
+ */
+function rebaseToNow(envelope: Envelope): Envelope {
+  const data = envelope.data as { calls_series?: CallsPoint[] } | null
+  const series = data?.calls_series
+  if (!data || !series || series.length === 0) return envelope
+  const latest = Math.max(...series.map((point) => Date.parse(point.ts)))
+  if (!Number.isFinite(latest)) return envelope
+  const shift = Date.now() - latest
+  return {
+    ...envelope,
+    data: {
+      ...data,
+      calls_series: series.map((point) => ({
+        ...point,
+        ts: new Date(Date.parse(point.ts) + shift).toISOString(),
+      })),
+    },
+  }
+}
 export const PR_CHECKS = byPath['/api/pr-checks'] as Envelope
 export const PR_CHECK_REGRESSION = byPath['/api/pr-checks/pr-check-00'] as Envelope
 export const PR_CHECK_CLEAN = byPath['/api/pr-checks/pr-check-03'] as Envelope
@@ -57,19 +88,21 @@ export function notAvailable(reason = NOT_AVAILABLE_REASON): Envelope {
   }
 }
 
+export const LIVE_SNAPSHOT = RAW_LIVE_SNAPSHOT
+
 function json(route: Route, body: unknown): Promise<void> {
   return route.fulfill({ json: body })
 }
 
 /** One SSE body carrying `count` snapshot frames; the stream then ends. */
 export function snapshotStream(count: number, envelope: Envelope = LIVE_SNAPSHOT): string {
-  if (envelope !== LIVE_SNAPSHOT) {
+  const snapshotData = envelope.data as { calls_series?: unknown[]; events?: unknown[] } | null
+  if (!snapshotData?.calls_series) {
     return Array.from(
       { length: count },
       () => `event: snapshot\ndata: ${JSON.stringify(envelope)}\n\n`,
     ).join('')
   }
-  const snapshot = LIVE_SNAPSHOT.data as { calls_series: unknown[]; events: unknown[] }
   return Array.from({ length: count }, (_, index) => {
     const events = [
       {
@@ -78,7 +111,7 @@ export function snapshotStream(count: number, envelope: Envelope = LIVE_SNAPSHOT
         message: `simulated: stream frame ${index}`,
       },
     ]
-    const frame = { ...LIVE_SNAPSHOT, data: { ...snapshot, events } }
+    const frame = { ...envelope, data: { ...snapshotData, events } }
     return `event: snapshot\ndata: ${JSON.stringify(frame)}\n\n`
   }).join('')
 }
@@ -104,13 +137,13 @@ export async function mockP6eApi(page: Page, options: MockOptions = {}): Promise
       headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
       body: snapshotStream(
         streamFrames,
-        unmeasured ? notAvailable('no call ledger yet') : LIVE_SNAPSHOT,
+        unmeasured ? notAvailable('no call ledger yet') : rebaseToNow(LIVE_SNAPSHOT),
       ),
     }),
   )
 
   await page.route('**/api/live/snapshot*', (route) =>
-    json(route, unmeasured ? notAvailable('no call ledger yet') : LIVE_SNAPSHOT),
+    json(route, unmeasured ? notAvailable('no call ledger yet') : rebaseToNow(LIVE_SNAPSHOT)),
   )
   await page.route('**/api/benchmark*', (route) =>
     json(route, unmeasured ? notAvailable() : BENCHMARK),
