@@ -50,6 +50,18 @@ JUDGE_METHODS: tuple[EvalMethod, ...] = ("judge_all_at_once", "judge_step_by_ste
 #: The pre-registered bar: Bisect must beat the best judge by this much.
 GATE_POINTS = 15.0
 
+#: The pre-registered shortlist size, and so the largest m that any
+#: re-run actually confirmed.
+DEFAULT_TOP_M = 3
+
+#: Printed beside every recall curve.
+RECALL_PROVENANCE = (
+    "recall@m is MEASURED for m <= measured_to_m -- those suspects were re-run. "
+    "Beyond it, recall@m is the judge's ranking alone (does its top-m contain the "
+    "planted step); no re-run confirmed those, and no method was given the chance "
+    "to act on them."
+)
+
 #: Printed with every report that used a shared control. It is the
 #: condition under which the number means what it says, and
 #: `docs/findings/p5-control-fork.md` is what happens when it does not hold.
@@ -346,6 +358,7 @@ def build_report(
     unevaluated: Sequence[Mapping[str, Any]] | None = None,
     sensitivity: Mapping[str, Any] | None = None,
     unguarded_calls: int = 0,
+    measured_to_m: int = DEFAULT_TOP_M,
 ) -> dict[str, Any]:
     """Every number P5 reports, from labels and answers alone."""
     if not scores:
@@ -365,6 +378,15 @@ def build_report(
         "methods": _method_rows(grouped),
         "gap": _gap_document(grouped, seed=seed, resamples=bootstrap_resamples),
         "recall": _recall_document(grouped),
+        # `recall@m` for m above the shortlist size was never confirmed by a
+        # re-run; it is a property of the judge's ranking alone. Labelled
+        # here rather than left for a reader to infer
+        # (`docs/decisions/0018-p5-budget.md` §6).
+        "recall_provenance": {
+            "measured_to_m": measured_to_m,
+            "beyond_is_judge_ranking_only": True,
+            "note": RECALL_PROVENANCE,
+        },
         "heatmap": _breakdown(scores, "fault_type", "fault_type"),
         "by_position": _breakdown(scores, "position_bucket", "position"),
         "sankey": _sankey(scores, "bisect"),

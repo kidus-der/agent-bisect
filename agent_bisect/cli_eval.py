@@ -34,7 +34,7 @@ import typer
 from agent_bisect.attribution.estimate import DEFAULT_MAX_N, SequentialConfig
 from agent_bisect.bench.baselines import BaselineConfig
 from agent_bisect.bench.eval_run import evaluate_dataset, outcome_rows, outcomes_from_rows
-from agent_bisect.bench.evaluate import build_report, score_outcomes
+from agent_bisect.bench.evaluate import DEFAULT_TOP_M, build_report, score_outcomes
 from agent_bisect.bench.manifest import (
     DEFAULT_MANIFEST_PATH,
     ManifestNotFrozenError,
@@ -59,7 +59,6 @@ SENSITIVITY_SPLIT_EXIT_CODE = 8
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
 DEFAULT_PHASE = "P5"
-DEFAULT_TOP_M = 3
 DEFAULT_SEED = 20260917
 
 
@@ -82,6 +81,7 @@ def _report_only(
         seed=seed,
         manifest_digest=manifest.digest,
         estimator_config=manifest.config,
+        measured_to_m=int(manifest.config.get("top_m", DEFAULT_TOP_M)),
     )
     write_results(
         scores=scores,
@@ -288,6 +288,7 @@ def eval_(
         unevaluated=run.failure_rows(),
         unguarded_calls=run.bisect_unguarded_calls,
         sensitivity=sensitivity,
+        measured_to_m=top,
     )
     written = write_results(
         scores=scores,

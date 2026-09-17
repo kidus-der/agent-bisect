@@ -47,6 +47,7 @@ SUMMARY_KEYS = (
     "methods",
     "gap",
     "recall",
+    "recall_provenance",
     "heatmap",
     "by_position",
     "sankey",
