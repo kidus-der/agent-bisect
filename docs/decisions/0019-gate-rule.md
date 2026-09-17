@@ -11,11 +11,12 @@
 
 ## The demo suite
 
-`demo/` ships 8 scenarios on tau2's vendored **mock** domain (`create_task_1`,
-`create_task_1_with_env_assertions`, `update_task_1`,
-`update_task_with_message_history`, `update_task_with_initialization_data`,
-`update_task_with_initialization_actions`,
-`update_task_with_history_and_env_assertions`, `impossible_task_1`), each run
+`demo/` ships 8 scenarios on tau2's vendored **mock** domain
+(`demo/tasks.py`'s `SCENARIOS`: `create_task`, `create_task_env_assertion`,
+`update_task_fixed_id`, `update_task_from_history`,
+`update_task_from_initialization_data`,
+`update_task_from_initialization_actions`,
+`update_task_history_env_assertion`, `impossible_delete`), each run
 `runs_per_scenario` times (default 4) with a scripted, seeded, **stochastic**
 agent (`demo/agent.py`) whose decisions are governed by an ordered rule list
 in `demo/agent_policy.yaml`. Every task's `reward_basis` resolves without an
@@ -89,13 +90,19 @@ is used **only** in `mode: demo`. `mode: live` (not exercised in this phase;
 Unchanged from `docs/decisions/0013-suspect-interventions.md`:
 `TruthfulToolResult` on tool steps, `Resample` on agent/user steps, shared
 control forked at the earliest tested step
-(`docs/decisions/0005-shared-control.md`), `SequentialConfig(batch=4,
-max_n=4, delta=0.10, efficacy_boundary="none")` — a single-look fixed-N
-design sized to the demo's own small `n`, not P5's `obf` primary, because
-the demo suite has no interim-monitoring requirement and a single look at
-N=4 is what the 10 real gate PRs can afford. This is a deviation from P5's
-primary `efficacy_boundary`, is listed as such here, and applies to `gate/`
-alone.
+(`docs/decisions/0005-shared-control.md`). `SequentialConfig(batch=16,
+max_n=16, delta=0.10, efficacy_boundary="none")` — a single-look fixed-N
+design, not P5's `obf` primary, because the demo suite has no
+interim-monitoring requirement and every re-run here is scripted (no API
+call, no cost, no rate limit), so there is no reason to economize on `N`
+the way a live-model confirmation must. N=16 gives the demo's own
+agent-decision steps (`use_stated_title`, `set_completed_status`,
+`escalate_impossible_requests`, confirmed through `Resample`) a real chance
+to clear delta at their modest default slip probabilities, where N=4 would
+not (`demo/agent.py`'s module docstring explains why `Resample` has any
+power here at all: the slip draw is seeded from the *forked* run's own id,
+not the scenario's). This is a deviation from P5's primary
+`efficacy_boundary`, is listed as such here, and applies to `gate/` alone.
 
 ## Naming the decisive step
 
