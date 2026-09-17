@@ -92,9 +92,21 @@ however many tool calls it carried) because a step must be an interventionable u
   `reward_basis` — those do make an evaluator LLM call.
 
 Because it goes through the same `llm_utils.completion` seam, an evaluator call is
-recorded and replayed like any other, under actor `evaluator`. τ²'s opt-in reviewers
+recorded and replayed like any other, under actor `evaluator` — verified end to end on
+retail task 2, whose `reward_basis` is `["DB", "NL_ASSERTION"]`: the judge's call is
+recorded as the run's last step, and on replay the reward is reproduced from the
+recorded verdict without asking it again. τ²'s opt-in reviewers
 (`review_llm_judge*.py`, `hallucination_reviewer.py`, `auth_classifier.py`) are not on
 the reward path (`auto_review=False` by default) and are never enabled.
+
+**The evaluator also executes tools, on an environment of its own.** `EnvEvaluator`
+builds a fresh DB and replays the trajectory's write actions against it to compare
+hashes (`evaluator/evaluator_env.py`). Those executions are not steps of the run: the
+recorder wraps the orchestrator's environment *instance*, not the class, so they are
+neither recorded nor replayed, and they do not need to be — they are a deterministic
+function of the trajectory, which is itself on the tape. It is worth knowing for the
+flaky world (P5): a non-deterministic tool would make the evaluator's own replay drift
+too, independently of anything the replay engine does.
 
 ## Determinism hazards in τ², and how each is neutralised
 
