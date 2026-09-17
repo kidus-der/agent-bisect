@@ -215,6 +215,21 @@ for (const theme of THEMES) {
     await shoot(page, `error-overview-${theme}-1440`)
   })
 
+  /**
+   * Between the first failure and giving up: a dead server must not look like a
+   * slow one, so the skeleton has to say it is retrying and how many tries are left.
+   */
+  test(`retrying ${theme} 1440`, async ({ page }) => {
+    await page.route('**/api/overview**', (route) => route.abort('connectionrefused'))
+    await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await setTheme(page, theme)
+    await page.goto('/')
+    await page.locator('[data-slot="retry-notice"]').first().waitFor({ timeout: 20_000 })
+    await page.waitForTimeout(300)
+    await shoot(page, `retrying-overview-${theme}-1440`)
+  })
+
   test(`not-found ${theme} 1440`, async ({ page }) => {
     await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -271,10 +286,18 @@ test('rewind reduced motion dark 1440', async ({ page }) => {
   await shoot(page, 'rewind-reduced-dark-1440-settled')
 })
 
-test('rerun view both themes 1440', async ({ page }) => {
+/** A treated re-run, and the control it is measured against, at both widths. */
+test('rerun view', async ({ page }) => {
   for (const theme of THEMES) {
-    await open(page, theme, DESKTOP, `/runs/${RUNS.brief}/reruns/${RUNS.brief}-t7-0`)
-    await shootBoth(page, `rerun-${theme}-1440`)
+    for (const viewport of VIEWPORTS) {
+      for (const [arm, rerunId] of [
+        ['treated', `${RUNS.brief}-t7-0`],
+        ['control', `${RUNS.brief}-c-0`],
+      ] as const) {
+        await open(page, theme, viewport, `/runs/${RUNS.brief}/reruns/${rerunId}`)
+        await shootBoth(page, `rerun-${arm}-${theme}-${viewport.name}`)
+      }
+    }
   }
 })
 
