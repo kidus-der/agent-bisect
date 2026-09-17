@@ -13,7 +13,14 @@ export interface DeltaBarGeometry {
 }
 
 const PERCENT = 100
-const MIDPOINT = 50
+
+/**
+ * Where zero sits on the track, as a percentage of its width. The bars, the rule
+ * drawn down the column and the key above it all read this one number, so the
+ * three cannot drift apart.
+ */
+export const ZERO_MIDPOINT_PERCENT = 50
+const MIDPOINT = ZERO_MIDPOINT_PERCENT
 
 export function deltaBarGeometry(value: number, scale: number): DeltaBarGeometry {
   if (!Number.isFinite(value) || scale <= 0) return { left: MIDPOINT, width: 0 }

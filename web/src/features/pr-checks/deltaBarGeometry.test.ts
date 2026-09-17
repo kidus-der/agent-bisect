@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { deltaBarGeometry } from './deltaBarGeometry'
+import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry } from './deltaBarGeometry'
 
 /** The worst change in the suite; every bar is drawn against it. */
 const SCALE = 0.67
@@ -45,6 +45,18 @@ describe('deltaBarGeometry', () => {
     const over = deltaBarGeometry(-1, 0.5)
     expect(over.left).toBeCloseTo(0, 6)
     expect(over.width).toBeCloseTo(50, 6)
+  })
+
+  test('the zero rule sits at the same x as every bar anchor', () => {
+    // Arrange — the rule down the column and the tick in the key are both drawn
+    // at ZERO_MIDPOINT_PERCENT; the bars must anchor at that exact x or the rule
+    // is decoration rather than the axis it claims to be.
+    const negative = deltaBarGeometry(-0.44, SCALE)
+    const positive = deltaBarGeometry(0.2, SCALE)
+
+    // Assert
+    expect(negative.left + negative.width).toBeCloseTo(ZERO_MIDPOINT_PERCENT, 9)
+    expect(positive.left).toBeCloseTo(ZERO_MIDPOINT_PERCENT, 9)
   })
 
   test('draws nothing for a zero change or an unusable scale', () => {
