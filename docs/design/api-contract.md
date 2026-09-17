@@ -29,7 +29,7 @@ HTTP 422. Both still carry the envelope shape.
 | GET | `/api/meta` | global | build/data-source info |
 | GET | `/api/search?q=` | global | runs + static pages, ⌘K palette |
 | GET | `/api/overview` | 1 Overview | headline, KPIs, recall@m, cost-vs-accuracy, hero run |
-| GET | `/api/runs` | 2 Runs | `domain`, `outcome`, `model`, `sort` (`-`-prefixed = desc), `page`, `limit` (≤200) |
+| GET | `/api/runs` | 2 Runs | `domain`, `outcome`, `status` (`recording`\|`complete`), `model`, `sort` (`-`-prefixed = desc), `page`, `limit` (≤200) |
 | GET | `/api/runs/{run_id}` | 3 Run detail | manifest, outcome, steps, estimate, judge panel |
 | GET | `/api/runs/{run_id}/steps/{step_idx}` | 3 | step inspector payload |
 | GET | `/api/runs/{run_id}/steps/{step_idx}/intervention-diff` | 3 | `null` data if the step was never intervened on |
@@ -58,6 +58,13 @@ underlying data genuinely isn't known yet — per-run cost/calls (the ledger
 has no `run_id` column until P1b), a step that never recorded telemetry, or
 a run with no outcome row yet.
 
+**Run status:** `RunSummary`/`RunDetail` carry `status: "recording" |
+"complete"`. No outcome row yet → `"recording"`, `outcome`/`reward` null
+(never a fabricated `"fail"`/`0.0`); still listed (never hidden) and in
+search results (`SearchHit.status`); `outcome=pass|fail` excludes it for
+free (`null` never matches), `status=recording` selects only it; excluded
+from the Overview's failure accounting (unfinished isn't failed).
+
 ## Example responses
 
 **`GET /api/health`**
@@ -77,24 +84,24 @@ a run with no outcome row yet.
 ```json
 {"data": {"headline": {"bisect": {"value": 0.9651, "ci_low": 0.9024, "ci_high": 0.9881},
  "best_judge": {"value": 0.8721, "ci_low": 0.7853, "ci_high": 0.9271}, "best_judge_method": "judge_step_by_step"},
- "kpis": {"runs_recorded": 264, "failures_diagnosed": 86, "calls_spent": 86490, "cost_per_diagnosis_usd": 1.5209},
+ "kpis": {"runs_recorded": 266, "failures_diagnosed": 86, "calls_spent": 86490, "cost_per_diagnosis_usd": 1.5209},
  "recall_at_m": [{"m": 1, "recall": 0.7674}, "..."], "cost_vs_accuracy": ["..."], "hero_run": {"...": "the brief-12-step run"}}}
 ```
 
 **`GET /api/runs?limit=1`**
 ```json
 {"data": {"runs": [{"run_id": "brief-12-step", "domain": "airline", "task_id": "refund_after_cancellation",
- "model": "nvidia/llama-3.1-nemotron-70b-instruct", "outcome": "fail", "n_steps": 12, "decisive_step": 7,
- "fault_type": "wrong_value", "planted_step": 7, "cost_usd": 0.97, "calls": 470,
+ "model": "nvidia/llama-3.1-nemotron-70b-instruct", "status": "complete", "outcome": "fail", "n_steps": 12,
+ "decisive_step": 7, "fault_type": "wrong_value", "planted_step": 7, "cost_usd": 0.97, "calls": 470,
  "sparkline": [{"step_idx": 1, "actor": "user", "latency_ms": 3013, "tokens": 102}, "..."],
  "blame_stripe": [{"step_idx": 1, "effect": null, "tested": false}, "..."]}]},
- "meta": {"total": 264, "page": 1, "limit": 1}}
+ "meta": {"total": 266, "page": 1, "limit": 1}}
 ```
 
 **`GET /api/runs/{run_id}`**
 ```json
 {"data": {"run_id": "brief-12-step", "domain": "airline", "agent_model": "...", "seed": 7,
- "outcome": "fail", "reward": 0.0,
+ "status": "complete", "outcome": "fail", "reward": 0.0,
  "steps": [{"step_idx": 1, "actor": "user", "tool_name": null, "text": "confirms the requested change",
             "from_tape": true, "state_changed": false}, "..."],
  "estimate": {"blamed_step": 7, "step_effects": ["..."], "control_mode": "shared"}, "judge": {"...": "..."}}}
@@ -164,13 +171,16 @@ a run with no outcome row yet.
 ## Real-mode `null` example (a run recorded but not yet cost-attributed)
 
 ```json
-{"data": {"runs": [{"run_id": "real-run-1", "domain": "airline", "outcome": "pass", "n_steps": 1,
- "decisive_step": null, "fault_type": null, "planted_step": null,
+{"data": {"runs": [{"run_id": "real-run-1", "domain": "airline", "status": "complete", "outcome": "pass",
+ "n_steps": 1, "decisive_step": null, "fault_type": null, "planted_step": null,
  "cost_usd": null, "calls": null,
  "sparkline": [{"step_idx": 0, "actor": "tool", "latency_ms": null, "tokens": null}],
  "blame_stripe": [{"step_idx": 0, "effect": null, "tested": false}]}]},
  "meta": {"simulated": false, "data_source": "real"}}
 ```
+
+(`GET /api/runs?status=recording`: two fixture-mode edge-case runs the same
+shape, but `"status": "recording", "outcome": null` — never `"fail"`.)
 
 ## Security
 
