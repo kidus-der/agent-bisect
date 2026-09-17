@@ -4,6 +4,8 @@ import { ApiError, type ApiResult, type Schemas, apiFetch } from './client'
 
 const STALE_TIME_MS = 30_000
 const MAX_RETRIES = 2
+/** First try plus retries: what `retrying… (2 of 3)` counts against. */
+export const MAX_ATTEMPTS = MAX_RETRIES + 1
 
 function shouldRetry(failureCount: number, error: unknown): boolean {
   if (failureCount >= MAX_RETRIES) return false
