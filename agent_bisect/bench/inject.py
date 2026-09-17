@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 from agent_bisect.attribution.interventions import ReplaceToolResult
@@ -55,12 +56,16 @@ from agent_bisect.bench.strata import (
     bucketed,
 )
 from agent_bisect.core.budget import BudgetExceededError
+from agent_bisect.core.job_status import done, failed, running, write_status
 from agent_bisect.core.llm import AuthenticationError
 from agent_bisect.core.store import sha256_hex
 
 #: How many times one faulted re-run may be retried through infrastructure
 #: failures before the candidate is abandoned as unmeasurable.
 MAX_INFRA_RETRIES = 3
+#: The phase this pipeline reports itself under, in the ledger and the
+#: dashboard's `runs/<phase>/status.json`.
+PHASE = "P3"
 _SEED_MODULUS = 2**31
 
 #: Every counter the funnel reports, always present so the dataset card
@@ -199,9 +204,18 @@ def collect(
     journal: Journal,
     config: InjectConfig | None = None,
     on_progress: Callable[[str], None] | None = None,
+    runs_dir: Path | None = None,
+    calls_spent: Callable[[], int] | None = None,
 ) -> CollectionResult:
-    """Run the funnel over `tasks`, resuming from whatever is on disk."""
-    collector = _Collector(runner, journal, config or InjectConfig(), on_progress)
+    """Run the funnel over `tasks`, resuming from whatever is on disk.
+
+    With `runs_dir`, progress is published to `runs/p3/status.json` at
+    every checkpoint, which is what the dashboard's Live page reads
+    (`core.job_status`).
+    """
+    collector = _Collector(
+        runner, journal, config or InjectConfig(), on_progress, runs_dir, calls_spent
+    )
     return collector.run(tasks)
 
 
@@ -214,11 +228,16 @@ class _Collector:
         journal: Journal,
         config: InjectConfig,
         on_progress: Callable[[str], None] | None,
+        runs_dir: Path | None = None,
+        calls_spent: Callable[[], int] | None = None,
     ) -> None:
         self._runner = runner
         self._journal = journal
         self._config = config
         self._say = on_progress or (lambda _message: None)
+        self._runs_dir = runs_dir
+        self._calls_spent = calls_spent
+        self._started_at: str | None = None
         self._counts: dict[str, int] = dict.fromkeys(FUNNEL_COUNTS, 0)
         self._items: list[dict[str, Any]] = []
         self._balancer = FaultBalancer(_kept_by_fault_type(journal))
@@ -228,22 +247,53 @@ class _Collector:
 
     def run(self, tasks: Sequence[tuple[str, str]]) -> CollectionResult:
         reason = "tasks exhausted"
+        self._publish()
         try:
             for domain, task_id in tasks:
                 if len(self._items) >= self._config.target_items:
                     reason = "target reached"
                     break
                 self._one_task(domain, task_id)
+                self._publish()
             else:
                 if len(self._items) >= self._config.target_items:
                     reason = "target reached"
         except _Stop as stop:
             reason = stop.reason
+        self._publish(final=reason)
         return CollectionResult(
             items=self._items[: self._config.target_items],
             counts=dict(self._counts),
             stopped_reason=reason,
         )
+
+    # -- telling the dashboard where we are ---------------------------------
+
+    STOPPED_CLEANLY = frozenset({"tasks exhausted", "target reached"})
+
+    def _publish(self, final: str | None = None) -> None:
+        """Write `runs/p3/status.json`, atomically. Never fails the run."""
+        if self._runs_dir is None:
+            return
+        shared: dict[str, Any] = {
+            "kind": "inject",
+            "phase": PHASE,
+            "label": "planted-fault collection",
+            "items_done": len(self._items),
+            "items_total": self._config.target_items,
+            "calls_spent": self._calls_spent() if self._calls_spent else None,
+        }
+        if final is None:
+            status = running(**shared, started_at=self._started_at)
+            self._started_at = status["started_at"]
+        elif final in self.STOPPED_CLEANLY:
+            status = done(**shared, started_at=self._started_at)
+        else:
+            status = failed(**shared, error=final, started_at=self._started_at)
+        try:
+            write_status(self._runs_dir, status)
+        except OSError as exc:  # pragma: no cover - a full disk is not a collection failure
+            self._say(f"could not write the status file: {exc}")
 
     def _one_task(self, domain: str, task_id: str) -> None:
         """One task through the funnel. Infra failures cost the task, not the run."""

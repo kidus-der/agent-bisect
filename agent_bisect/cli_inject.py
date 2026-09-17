@@ -125,6 +125,8 @@ def collect(
             journal=journal,
             config=config,
             on_progress=None if json_output else (lambda line: say(stdout, f"  {line}")),
+            runs_dir=runs_dir,
+            calls_spent=ledger.total_calls,
         )
 
     summary = {

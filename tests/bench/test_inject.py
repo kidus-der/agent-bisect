@@ -232,6 +232,43 @@ def test_a_call_that_already_happened_earlier_is_never_faulted(tmp_path):
     assert {item["planted_step"] for item in result.items} <= {1}
 
 
+# ---- telling the dashboard where we are ----
+
+
+def test_progress_is_published_where_the_live_page_reads_it(tmp_path):
+    from agent_bisect.server.schemas_live import JobStatus
+
+    collect(FakeRunner(), tasks=AIRLINE, journal=Journal(tmp_path / "p3"),
+            config=InjectConfig(target_items=100), runs_dir=tmp_path,
+            calls_spent=lambda: 412)
+
+    status = json.loads((tmp_path / "p3" / "status.json").read_text())
+    assert status["state"] == "done"
+    assert status["kind"] == "inject"
+    assert status["calls_spent"] == 412
+    assert status["items_done"] > 0
+    JobStatus(job_id="p3", **status)
+
+
+def test_a_clean_stop_is_published_as_a_failure(tmp_path):
+    class Broke(FakeRunner):
+        def fault_fork(self, *args, **kwargs):
+            raise BudgetExceededError("budget exceeded")
+
+    collect(Broke(), tasks=AIRLINE, journal=Journal(tmp_path / "p3"),
+            config=InjectConfig(), runs_dir=tmp_path)
+
+    status = json.loads((tmp_path / "p3" / "status.json").read_text())
+    assert status["state"] == "failed"
+    assert "budget" in status["error"]
+
+
+def test_nothing_is_published_without_a_runs_directory(tmp_path):
+    run(tmp_path, FakeRunner())
+
+    assert not (tmp_path / "p3" / "status.json").exists()
+
+
 # ---- resume ----
 
 
