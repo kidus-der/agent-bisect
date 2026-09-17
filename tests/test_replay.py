@@ -158,10 +158,17 @@ def test_tape_llm_serves_agent_and_user_and_evaluator_steps():
     assert [llm.serve(_request())["i"] for _ in range(3)] == [0, 1, 2]
 
 
-def test_tape_llm_raises_divergence_on_a_one_character_message_change():
+def _llm_with_recorded_request(request: dict[str, Any]) -> TapeLLM:
+    """A one-step TapeLLM whose recorded request blob is readable, so the
+    divergence report can be built from it."""
     blobs = _Blobs()
+    blobs.put("req-0", request)
     blobs.put("resp-0", {"ok": True})
-    llm = TapeLLM(TapeCursor([_llm_step(0)]), blobs.get_json)
+    return TapeLLM(TapeCursor([_llm_step(0, request=request)]), blobs.get_json)
+
+
+def test_tape_llm_raises_divergence_on_a_one_character_message_change():
+    llm = _llm_with_recorded_request(_request())
 
     with pytest.raises(DivergenceError) as excinfo:
         llm.serve(_request(content="hellp"))
@@ -174,9 +181,7 @@ def test_tape_llm_raises_divergence_on_a_one_character_message_change():
 
 
 def test_tape_llm_raises_divergence_on_a_changed_tool_schema():
-    blobs = _Blobs()
-    blobs.put("resp-0", {"ok": True})
-    llm = TapeLLM(TapeCursor([_llm_step(0)]), blobs.get_json)
+    llm = _llm_with_recorded_request(_request())
 
     with pytest.raises(DivergenceError) as excinfo:
         llm.serve(_request(tools=[{"name": "get_user_details", "extra": 1}]))
@@ -185,14 +190,24 @@ def test_tape_llm_raises_divergence_on_a_changed_tool_schema():
 
 
 def test_tape_llm_raises_divergence_on_a_changed_sampling_param():
-    blobs = _Blobs()
-    blobs.put("resp-0", {"ok": True})
-    llm = TapeLLM(TapeCursor([_llm_step(0)]), blobs.get_json)
+    llm = _llm_with_recorded_request(_request())
 
     with pytest.raises(DivergenceError) as excinfo:
         llm.serve(_request(temperature=1.0))
 
     assert "temperature" in excinfo.value.diff
+
+
+def test_tape_llm_still_reports_divergence_when_the_request_blob_is_unreadable():
+    blobs = _Blobs()
+    blobs.put("resp-0", {"ok": True})
+    llm = TapeLLM(TapeCursor([_llm_step(0)]), blobs.get_json)
+
+    with pytest.raises(DivergenceError) as excinfo:
+        llm.serve(_request(content="changed"))
+
+    assert excinfo.value.step_idx == 0
+    assert "unavailable" in excinfo.value.diff
 
 
 def test_tape_llm_ignores_volatile_fields():
