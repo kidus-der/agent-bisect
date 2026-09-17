@@ -14,8 +14,8 @@ import { cn } from '@/lib/utils'
 import {
   type Arm,
   forkCellState,
-  forkLabel,
   rerunSummary,
+  stepPhaseLabel,
   tapePrefixClause,
 } from './rerunNarrative'
 import { MAX_CELL_WIDTH_PX, MIN_CELL_WIDTH_PX } from './timelineScale'
@@ -137,11 +137,13 @@ interface StepRowProps {
 function StepRow({ step, forkStep, changed, arm }: StepRowProps) {
   const isFork = step.step_idx === forkStep
   const forkIntervened = isFork && arm === 'treated'
+  // Before/at/after the fork, not the recording's own from_tape flag.
+  const fromTape = step.step_idx < forkStep
   return (
     <li
       className={cn(
         'flex min-h-14 items-start gap-3 border-l-2 py-2 pl-3',
-        step.from_tape ? 'border-tape bg-tape-tint' : 'border-measure',
+        fromTape ? 'border-tape bg-tape-tint' : 'border-measure',
         // Amber marks the arm that actually replaced something, never the control.
         forkIntervened
           ? 'border-blame bg-blame-tint'
@@ -162,9 +164,7 @@ function StepRow({ step, forkStep, changed, arm }: StepRowProps) {
           <span className="min-w-0 break-words text-ink">{step.text}</span>
         </p>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[11px] text-ink-muted">
-          <span>
-            {isFork ? forkLabel(arm) : step.from_tape ? 'read from tape · 0 calls' : 're-run live'}
-          </span>
+          <span>{stepPhaseLabel(step.step_idx, forkStep, arm)}</span>
           {changed && !isFork ? (
             <span className="text-measure">differs from the recording</span>
           ) : null}

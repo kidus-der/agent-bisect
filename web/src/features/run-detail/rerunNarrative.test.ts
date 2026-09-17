@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { forkCellState, forkLabel, rerunSummary, tapePrefixClause } from './rerunNarrative'
+import {
+  forkCellState,
+  forkLabel,
+  rerunSummary,
+  stepPhaseLabel,
+  tapePrefixClause,
+} from './rerunNarrative'
 
 describe('forkLabel', () => {
   it('says an intervention was applied on the treated arm', () => {
@@ -59,5 +65,25 @@ describe('tapePrefixClause', () => {
   it('never writes an empty range when the fork is the first step', () => {
     // A control forking at k=1 replays nothing: "steps 1–0" is not a range.
     expect(tapePrefixClause(1)).toBe('nothing read from tape · live from step 1')
+  })
+})
+
+describe('stepPhaseLabel', () => {
+  it('calls the steps before the fork replayed from tape', () => {
+    expect(stepPhaseLabel(3, 7, 'treated')).toBe('read from tape · 0 calls')
+  })
+
+  it('names the fork by arm', () => {
+    expect(stepPhaseLabel(7, 7, 'treated')).toBe('fork · intervention applied here')
+    expect(stepPhaseLabel(1, 1, 'control')).toBe('fork · control · nothing replaced')
+  })
+
+  it('calls everything after the fork live', () => {
+    expect(stepPhaseLabel(9, 7, 'treated')).toBe('re-run live')
+  })
+
+  it('reads a control forking at k=1 as live throughout, never from tape', () => {
+    // The caption says nothing was read from tape, so no row may claim it was.
+    expect(stepPhaseLabel(4, 1, 'control')).toBe('re-run live')
   })
 })

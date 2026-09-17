@@ -23,6 +23,18 @@ export function forkCellState(arm: Arm): TapeStepState {
   return arm === 'treated' ? 'blamed' : 'ran'
 }
 
+/**
+ * What a step was for THIS re-run. Derived from the fork, not from the step's
+ * own `from_tape` flag: that flag describes the recording, so a control forking
+ * at k=1 would otherwise show rows reading "from tape" under a caption saying
+ * nothing was.
+ */
+export function stepPhaseLabel(stepIdx: number, forkStep: number, arm: Arm): string {
+  if (stepIdx < forkStep) return 'read from tape · 0 calls'
+  if (stepIdx === forkStep) return forkLabel(arm)
+  return 're-run live'
+}
+
 /** How much of the recording this re-run replayed before going live. */
 export function tapePrefixClause(forkStep: number): string {
   if (forkStep <= 1) return 'nothing read from tape · live from step 1'
