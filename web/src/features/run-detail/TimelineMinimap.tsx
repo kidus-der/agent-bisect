@@ -95,6 +95,7 @@ function TimelineMinimapImpl({
         style={{ width: `${Math.max(1 - scrollFraction - viewportFraction, 0) * 100}%` }}
       />
       <span
+        data-testid="minimap-window"
         className="absolute inset-y-0 border-x border-measure"
         style={{
           left: `${scrollFraction * 100}%`,

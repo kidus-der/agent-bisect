@@ -224,6 +224,16 @@ for (const [label, width, height] of [
       'aria-valuemax',
       '60',
     )
+
+    // The visible range has to read as a window over the tape, not as a stray
+    // line: a hairline says nothing about how much of 60 steps is on screen.
+    const track = await page.getByTestId('timeline-minimap').boundingBox()
+    const window = await page.getByTestId('minimap-window').boundingBox()
+    expect(track).not.toBeNull()
+    expect(window).not.toBeNull()
+    const fraction = (window?.width ?? 0) / (track?.width ?? 1)
+    expect(fraction).toBeGreaterThan(0.1)
+    expect(fraction).toBeLessThan(0.95)
   })
 }
 
