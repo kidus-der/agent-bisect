@@ -14,9 +14,9 @@ import { useId, useRef } from 'react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { chartColours } from '@/components/chart-theme/chartTheme'
+import { formatPercent } from '@/lib/stats'
 
 import type { RecallPoint } from './api'
-import { formatPercent } from './headline'
 
 /** δ = 0.10 and m = 3 are pre-registered (docs/decisions/0001-preregistration.md). */
 const PREREGISTERED_M = 3

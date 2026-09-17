@@ -16,11 +16,11 @@ import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { chartColours } from '@/components/chart-theme/chartTheme'
 import { springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
+import { formatPercent } from '@/lib/stats'
 
 import type { CiValue, CostAccuracyPoint, MethodName } from './api'
 import { placeLabels } from './labelPlacement'
 import { methodLabel } from './api'
-import { formatPercent } from './headline'
 
 const MARGIN = { top: 18, right: 28, bottom: 46, left: 44 } as const
 const MIN_HEIGHT = 240

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { formatPercent, formatPoints, headlineBars, headlineGap } from './headline'
+import { headlineBars, headlineGap } from './headline'
 import type { HeadlineResult } from './api'
 
 const HEADLINE: HeadlineResult = {
@@ -9,24 +9,6 @@ const HEADLINE: HeadlineResult = {
   best_judge_method: 'judge_step_by_step',
   gap: { value: 0.1512, ci_low: 0.0581, ci_high: 0.2442 },
 }
-
-describe('formatPercent', () => {
-  test('renders a proportion as a one-decimal percentage', () => {
-    expect(formatPercent(0.9651)).toBe('96.5%')
-    expect(formatPercent(0.8)).toBe('80.0%')
-  })
-
-  test('renders a non-finite value as n/a rather than NaN%', () => {
-    expect(formatPercent(Number.NaN)).toBe('n/a')
-  })
-})
-
-describe('formatPoints', () => {
-  test('renders a signed gap in percentage points', () => {
-    expect(formatPoints(0.093)).toBe('+9.3 pts')
-    expect(formatPoints(-0.093)).toBe('−9.3 pts')
-  })
-})
 
 describe('headlineBars', () => {
   test('puts Bisect first and gives each method its fixed colour role', () => {

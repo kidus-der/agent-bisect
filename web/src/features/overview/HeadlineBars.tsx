@@ -9,16 +9,10 @@ import { useCallback } from 'react'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { springTransition, useNumberTicker } from '@/design/motion'
 import { cn } from '@/lib/utils'
+import { formatPercent, formatPoints } from '@/lib/stats'
 
 import type { HeadlineResult } from './api'
-import {
-  type HeadlineBar,
-  type HeadlineRole,
-  formatPercent,
-  formatPoints,
-  headlineBars,
-  headlineGap,
-} from './headline'
+import { type HeadlineBar, type HeadlineRole, headlineBars, headlineGap } from './headline'
 
 const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
 const BAR_DELAY_SECONDS = 0.09

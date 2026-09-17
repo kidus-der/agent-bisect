@@ -2,12 +2,7 @@
  * The headline claim as plain data: two bars with their intervals, and the gap
  * between them. Kept pure so the numbers are testable without rendering.
  */
-import { formatNumber } from '@/lib/format'
-
 import { type HeadlineResult, methodLabel } from './api'
-
-const PERCENT_DECIMALS = 1
-const POINTS_PER_UNIT = 100
 
 /** Colour roles are fixed: cyan is measurement/replay, violet is the judge. */
 export type HeadlineRole = 'measure' | 'judge'
@@ -34,18 +29,6 @@ export interface HeadlineGap {
   readonly high: number
   /** True when the interval clears zero, which is the claim being made. */
   readonly beatsZero: boolean
-}
-
-export function formatPercent(value: number): string {
-  return formatNumber(value * POINTS_PER_UNIT, { decimals: PERCENT_DECIMALS, suffix: '%' })
-}
-
-export function formatPoints(value: number): string {
-  return formatNumber(value * POINTS_PER_UNIT, {
-    decimals: PERCENT_DECIMALS,
-    signed: true,
-    suffix: ' pts',
-  })
 }
 
 /** Bisect first: it is the claim. The judge is the reference it is measured against. */
