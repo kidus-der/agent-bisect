@@ -552,13 +552,22 @@ def test_a_rehydrated_response_round_trips_to_the_recorded_payload(store):
 
 
 def test_a_replayer_without_a_live_source_refuses_to_invent_one(store):
+    """Past the fork step with nowhere to sample from, the only honest
+    answer is an error -- never a guess, never the recording again."""
     _recorded(AIRLINE_READS, store)
+    steps = store.reader.get_steps("r1")[:1]
+    request = store.blobs.get_json(ref(steps[0].request_ref))
     replayer = Tau2Replayer(
         environment=object(),
-        steps=[],
+        steps=steps,
         store=store.blobs,
-        sink=_Sink(fork_step_reached=True),
+        sink=_Sink(fork_step_reached=False),
         fork_step=0,
+    )
+    # The one recorded step is served from the tape, which is what takes
+    # the run past the fork step.
+    replayer.completion(
+        **{key: value for key, value in request.items() if key != "purpose"}
     )
 
     with pytest.raises(NoLiveCallError):
