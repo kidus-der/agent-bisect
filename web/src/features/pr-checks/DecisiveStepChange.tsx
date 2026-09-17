@@ -78,9 +78,8 @@ export function DecisiveStepChange({ check }: DecisiveStepChangeProps) {
         <span
           className={cn(
             'mt-5 rounded-pill border px-2 py-0.5 text-[12px] whitespace-nowrap',
-            moved
-              ? 'border-blame/40 bg-blame-tint text-blame'
-              : 'border-line-strong text-ink-muted',
+            // "moved" describes a change, not a blamed step, so it stays neutral.
+            moved ? 'border-line-strong bg-elevated text-ink' : 'border-line-strong text-ink-muted',
           )}
         >
           {moved ? 'moved' : 'unchanged'}
