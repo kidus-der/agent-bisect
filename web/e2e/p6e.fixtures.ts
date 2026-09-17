@@ -158,7 +158,7 @@ export async function mockP6eApi(page: Page, options: MockOptions = {}): Promise
 
 export const THEME_KEY = 'bisect.theme'
 
-export async function useTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
+export async function applyTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
   await page.addInitScript(([key, value]) => window.localStorage.setItem(key, value), [
     THEME_KEY,
     theme,

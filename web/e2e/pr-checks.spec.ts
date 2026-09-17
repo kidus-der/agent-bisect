@@ -1,14 +1,14 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page, expect, test } from '@playwright/test'
 
-import { horizontalOverflow, mockP6eApi, useTheme } from './p6e.fixtures'
+import { horizontalOverflow, mockP6eApi, applyTheme } from './p6e.fixtures'
 
 const MOBILE = { width: 390, height: 844 } as const
 const REGRESSION_CHECK = 'pr-check-00'
 const CLEAN_CHECK = 'pr-check-03'
 
 async function openList(page: Page, theme: 'dark' | 'light' = 'dark'): Promise<void> {
-  await useTheme(page, theme)
+  await applyTheme(page, theme)
   await page.goto('/pr-checks')
   await page.getByRole('heading', { level: 1, name: 'PR checks' }).waitFor()
 }
@@ -18,7 +18,7 @@ async function openDetail(
   checkId: string,
   theme: 'dark' | 'light' = 'dark',
 ): Promise<void> {
-  await useTheme(page, theme)
+  await applyTheme(page, theme)
   await page.goto(`/pr-checks/${checkId}`)
   await page.getByText('gate_verdict').waitFor()
 }
@@ -96,7 +96,7 @@ test('a clean check reports no regression and no decisive step', async ({ page }
 
 test('an unmeasured gate is reported, never filled in with numbers', async ({ page }) => {
   await mockP6eApi(page, { unmeasured: true })
-  await useTheme(page, 'dark')
+  await applyTheme(page, 'dark')
   await page.goto('/pr-checks')
 
   await expect(page.getByText(/pr checks · not measured/i)).toBeVisible()

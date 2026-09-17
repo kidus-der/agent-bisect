@@ -1,12 +1,12 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page, expect, test } from '@playwright/test'
 
-import { horizontalOverflow, mockP6eApi, useTheme } from './p6e.fixtures'
+import { horizontalOverflow, mockP6eApi, applyTheme } from './p6e.fixtures'
 
 const MOBILE = { width: 390, height: 844 } as const
 
 async function openBenchmark(page: Page, theme: 'dark' | 'light' = 'dark'): Promise<void> {
-  await useTheme(page, theme)
+  await applyTheme(page, theme)
   await page.goto('/benchmark')
   await page
     .getByRole('heading', { level: 2, name: 'Which method blames the right step' })
@@ -105,7 +105,7 @@ test('the search filter can empty the table without breaking it', async ({ page 
 
 test('an unmeasured benchmark is reported, never filled in with numbers', async ({ page }) => {
   await mockP6eApi(page, { unmeasured: true })
-  await useTheme(page, 'dark')
+  await applyTheme(page, 'dark')
   await page.goto('/benchmark')
 
   await expect(page.getByText(/benchmark · not measured/i)).toBeVisible()
