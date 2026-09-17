@@ -2,8 +2,7 @@
 
 `agent_bisect/server/` — a read-only FastAPI JSON API backing `bisect serve`.
 Full machine-readable schema: `agent_bisect/server/openapi.json` (regenerate
-with `uv run python scripts/export_openapi.py` after any route/schema
-change; the web app generates its TypeScript types from that file).
+with `uv run python scripts/export_openapi.py` after any route/schema change).
 
 ## Envelope
 
@@ -52,18 +51,17 @@ requested field; an unrecognized value falls back to `run_id` rather than
 erroring, since it only affects ordering, not correctness.
 
 **Nullable, honestly:** `RunSummary.cost_usd`/`calls`, `SparkPoint.latency_ms`/
-`tokens`, and `RunDetail.reward` are `T | null`. Fixture mode always has a
-real number; real mode returns `null` (never a fake `0`) wherever the
-underlying data genuinely isn't known yet — per-run cost/calls (the ledger
-has no `run_id` column until P1b), a step that never recorded telemetry, or
-a run with no outcome row yet.
+`tokens`, and `RunDetail.reward` are `T | null` — fixture mode always has a
+real number, real mode returns `null` (never a fake `0`) when genuinely
+unknown: per-run cost/calls (ledger has no `run_id` column until P1b), a
+step that never recorded telemetry, or a run with no outcome row yet.
 
 **Run status:** `RunSummary`/`RunDetail` carry `status: "recording" |
-"complete"`. No outcome row yet → `"recording"`, `outcome`/`reward` null
-(never a fabricated `"fail"`/`0.0`); still listed (never hidden) and in
-search results (`SearchHit.status`); `outcome=pass|fail` excludes it for
-free (`null` never matches), `status=recording` selects only it; excluded
-from the Overview's failure accounting (unfinished isn't failed).
+"complete"`. No outcome row → `"recording"`, `outcome`/`reward` null (never
+a fabricated `"fail"`/`0.0`); still listed and searchable
+(`SearchHit.status`); `outcome=pass|fail` excludes it for free (`null`
+never matches), `status=recording` selects only it; excluded from the
+Overview's failure accounting.
 
 ## Example responses
 
@@ -83,10 +81,15 @@ from the Overview's failure accounting (unfinished isn't failed).
 **`GET /api/overview`**
 ```json
 {"data": {"headline": {"bisect": {"value": 0.9651, "ci_low": 0.9024, "ci_high": 0.9881},
- "best_judge": {"value": 0.8721, "ci_low": 0.7853, "ci_high": 0.9271}, "best_judge_method": "judge_step_by_step"},
+ "best_judge": {"value": 0.8721, "ci_low": 0.7853, "ci_high": 0.9271}, "best_judge_method": "judge_step_by_step",
+ "gap": {"value": 0.093, "ci_low": 0.0116, "ci_high": 0.1744}},
  "kpis": {"runs_recorded": 266, "failures_diagnosed": 86, "calls_spent": 86490, "cost_per_diagnosis_usd": 1.5209},
  "recall_at_m": [{"m": 1, "recall": 0.7674}, "..."], "cost_vs_accuracy": ["..."], "hero_run": {"...": "the brief-12-step run"}}}
 ```
+`headline.gap` is `bisect.value - best_judge.value`, 95% **paired**
+percentile-bootstrap CI (`build_paired_gap_ci`, 2000 seeded resamples) —
+not a Newcombe interval, which would ignore that both methods score the
+same dataset.
 
 **`GET /api/runs?limit=1`**
 ```json
@@ -191,9 +194,7 @@ warning when it is. CORS allows only `http://127.0.0.1:5173` /
 Every response carries `X-Content-Type-Options: nosniff` and a CSP
 (`default-src 'self'; frame-ancestors 'none'`). All SQLite access in
 `real_repository.py` opens `mode=ro`; nothing in `server/` ever writes.
-Every route handler except `/api/live/stream` is a plain `def`, so FastAPI
-already runs it in its threadpool; `/api/live/stream`'s async generator
-(`sse.py`) offloads its one blocking call (`repository.live_snapshot()`)
-via `asyncio.to_thread` so it can't stall the event loop for other
-concurrent requests, and closes promptly (no lingering task) on client
-disconnect.
+Every route except `/api/live/stream` is a plain `def` (FastAPI's
+threadpool); that one's async generator offloads its blocking call
+(`repository.live_snapshot()`) via `asyncio.to_thread` and closes promptly
+(no lingering task) on client disconnect.
