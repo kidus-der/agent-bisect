@@ -228,3 +228,56 @@ def test_migrating_twice_is_a_no_op(tmp_path):
     reopened = BudgetLedger(path)
 
     assert reopened.totals_per_run() == {"r1": 1}
+
+
+# ---- a cap that means what the phase asked for ----
+
+
+def test_a_phase_scoped_cap_counts_only_that_phases_calls(tmp_path):
+    """P1's "hard cap 1,500 calls" means 1,500 P1 calls. The ledger file
+    already holds thousands of P0 rows, and a total-scoped cap would
+    refuse the first P1 call it ever saw."""
+    path = tmp_path / "ledger.sqlite"
+    seed = BudgetLedger(path)
+    for _ in range(5):
+        seed.reserve(phase="P0", model="m", purpose="probe")
+
+    ledger = BudgetLedger(path, max_calls=2, cap_scope="phase")
+    ledger.reserve(phase="P1", model="m", purpose="agent")
+    ledger.reserve(phase="P1", model="m", purpose="agent")
+
+    with pytest.raises(BudgetExceededError, match="P1"):
+        ledger.reserve(phase="P1", model="m", purpose="agent")
+
+
+def test_a_phase_scoped_cap_leaves_other_phases_alone(tmp_path):
+    path = tmp_path / "ledger.sqlite"
+    ledger = BudgetLedger(path, max_calls=1, cap_scope="phase")
+    ledger.reserve(phase="P1", model="m", purpose="agent")
+
+    ledger.reserve(phase="P2", model="m", purpose="agent")
+
+    assert ledger.totals_per_phase() == {"P1": 1, "P2": 1}
+
+
+def test_the_cap_is_total_scoped_by_default(tmp_path):
+    """Unchanged for every existing caller."""
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite", max_calls=1)
+    ledger.reserve(phase="P0", model="m", purpose="probe")
+
+    with pytest.raises(BudgetExceededError):
+        ledger.reserve(phase="P1", model="m", purpose="agent")
+
+
+def test_an_unknown_cap_scope_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="cap_scope"):
+        BudgetLedger(tmp_path / "ledger.sqlite", max_calls=1, cap_scope="galaxy")  # pyright: ignore[reportArgumentType]
+
+
+def test_check_budget_respects_the_phase_scope(tmp_path):
+    path = tmp_path / "ledger.sqlite"
+    seed = BudgetLedger(path)
+    for _ in range(9):
+        seed.reserve(phase="P0", model="m", purpose="probe")
+
+    BudgetLedger(path, max_calls=3, cap_scope="phase").check_budget(phase="P1")
