@@ -3,22 +3,11 @@ import { useId } from 'react'
 import { formatEffect } from '@/lib/format'
 
 import type { HeatCell } from './blame'
+import { heatBucket } from './heatScale'
 import type { TimelineGeometry } from './timelineScale'
 
-const SCALE_BUCKETS = 5
 const HATCH_SIZE = 5
 const CELL_RADIUS = 2
-
-/**
- * Effect -> one of the five sequential steps. A negative effect (fixing the step
- * made things worse) lands in the lightest bucket; the number in the readout
- * still carries the sign.
- */
-export function heatBucket(effect: number): string {
-  const clamped = Math.min(1, Math.max(0, effect))
-  const bucket = Math.min(SCALE_BUCKETS, Math.floor(clamped * SCALE_BUCKETS) + 1)
-  return `var(--chart-scale-0${bucket})`
-}
 
 interface BlameHeatStripeProps {
   readonly cells: readonly HeatCell[]

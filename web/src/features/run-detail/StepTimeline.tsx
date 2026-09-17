@@ -142,7 +142,8 @@ export function StepTimeline({
     })
   }, [playhead, geometry, reduced])
 
-  const viewport = scrollRef.current?.clientWidth ?? frame.width
+  // The scroll container fills the measured frame, so its viewport is that width.
+  const viewport = frame.width
   const viewportFraction = geometry.contentWidth > 0 ? viewport / geometry.contentWidth : 1
   const scrollFraction = geometry.contentWidth > 0 ? scrollLeft / geometry.contentWidth : 0
   const activeCell = cells[(hovered ?? playhead) - 1]
@@ -158,7 +159,9 @@ export function StepTimeline({
             type="button"
             onClick={onRewind}
             disabled={!canRewind}
-            title={canRewind ? undefined : `Step ${playhead} was never tested, so it cannot be re-run`}
+            title={
+              canRewind ? undefined : `Step ${playhead} was never tested, so it cannot be re-run`
+            }
             className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-line-strong bg-elevated px-2.5 text-small font-medium text-ink hover:border-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted disabled:opacity-60"
           >
             <Rewind aria-hidden="true" className="size-3.5" />
@@ -196,7 +199,7 @@ export function StepTimeline({
         <div
           ref={scrollRef}
           onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
-          className="overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="[scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
         >
           <div
             ref={sliderRef}

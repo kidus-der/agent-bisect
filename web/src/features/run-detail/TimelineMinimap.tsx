@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 
 import type { HeatCell } from './blame'
-import { heatBucket } from './BlameHeatStripe'
+import { heatBucket } from './heatScale'
 
 const HEIGHT = 20
 const TICK_GAP = 1
