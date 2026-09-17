@@ -60,12 +60,20 @@ from agent_bisect.bench.strata import (
 )
 from agent_bisect.core.budget import BudgetExceededError
 from agent_bisect.core.job_status import done, failed, running, write_status
-from agent_bisect.core.llm import AuthenticationError
+from agent_bisect.core.llm import AuthenticationError, TransportError
 from agent_bisect.core.store import sha256_hex
 
 #: How many times one faulted re-run may be retried through infrastructure
 #: failures before the candidate is abandoned as unmeasurable.
 MAX_INFRA_RETRIES = 3
+#: How many times a task that died on infrastructure goes back on the
+#: queue before it is parked and reported. An infra failure decides
+#: nothing (`docs/decisions/0004-p0-probe-protocol.md` §3), so it must
+#: not be able to remove a task from the collection by happening.
+MAX_TASK_PASSES = 3
+#: Seconds to wait before a re-queued pass, so a provider having a bad
+#: minute is not hit again inside it.
+PASS_BACKOFF_SECONDS = 60.0
 #: The phase this pipeline reports itself under, in the ledger and the
 #: dashboard's `runs/<phase>/status.json`.
 PHASE = "P3"
@@ -85,6 +93,8 @@ FUNNEL_COUNTS = (
     "rejected_repeated_call",
     "rejected_infra",
     "infra_retries",
+    "requeued",
+    "parked",
 )
 
 
@@ -105,6 +115,8 @@ class InjectConfig:
     floor_items: int = 60
     #: Wall-clock budget for the whole collection. `None` means no limit.
     max_seconds: float | None = None
+    #: Seconds to wait before re-queueing tasks that died on infrastructure.
+    pass_backoff_seconds: float = PASS_BACKOFF_SECONDS
     trial: int = 0
 
     def as_dict(self) -> dict[str, Any]:
@@ -159,6 +171,16 @@ class ToolStep:
     result_ref: str
     #: The conversation after this step, for the salience heuristics.
     downstream: str = ""
+    #: Just the arguments of later calls that CHANGE the world. A value
+    #: that reaches one of those is a value the run acted on; a value that
+    #: only ever appeared in a read is one a perception fault cannot turn
+    #: into a wrong outcome (`0017` section 7).
+    downstream_writes: str = ""
+
+    @property
+    def flows_into_a_write(self) -> bool:
+        """Does anything this step returned reach a later write's arguments?"""
+        return flows_into(self.result, self.downstream_writes)
 
 
 class InjectRunner(Protocol):
@@ -166,7 +188,7 @@ class InjectRunner(Protocol):
 
     def record_base(self, domain: str, task_id: str, trial: int) -> BaseRun: ...
 
-    def resample(self, base_run_id: str, *, run_id: str, seed: int) -> RerunResult: ...
+    def fresh_run(self, domain: str, task_id: str, *, attempt: int) -> RerunResult: ...
 
     def tool_steps(self, base_run_id: str) -> list[ToolStep]: ...
 
@@ -199,6 +221,31 @@ class _Stop(Exception):
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(reason)
+
+
+#: Values shorter than this match too much text to count as "used later".
+MIN_FLOW_CHARS = 3
+
+
+def flows_into(result: Mapping[str, Any], downstream_writes: str) -> bool:
+    """True when a scalar in `result` re-appears in a later write's arguments."""
+    if not downstream_writes:
+        return False
+    from agent_bisect.bench.salience import scalar_candidates
+
+    body, _is_json = _parsed(result)
+    return any(
+        len(str(candidate.value)) >= MIN_FLOW_CHARS
+        and str(candidate.value) in downstream_writes
+        for candidate in scalar_candidates(body)
+        if not isinstance(candidate.value, bool)
+    )
+
+
+def _parsed(result: Mapping[str, Any]) -> tuple[Any, bool]:
+    from agent_bisect.bench.faults import parse_content
+
+    return parse_content(str(result.get("content") or ""))
 
 
 def derive_seed(base: int, *parts: str) -> int:
@@ -260,6 +307,10 @@ class _Collector:
         #: The work itself needs no lock — each task owns its own runs —
         #: but the tallies, the balance and the append-only log do.
         self._lock = threading.Lock()
+        #: Tasks that died on infrastructure this pass, to be re-queued.
+        self._failed_tasks: list[tuple[str, str]] = []
+        self._parked: list[tuple[str, str]] = []
+        self._gate = _Gate()
         #: Kept items across *every* shard, read from the shared journal.
         #: A sharded collection stops when the dataset is big enough, not
         #: when one worker's own share is.
@@ -277,17 +328,15 @@ class _Collector:
         reason = "tasks exhausted"
         self._publish()
         try:
-            if concurrency <= 1:
-                reason = self._run_serial(tasks) or reason
-            else:
-                reason = self._run_parallel(tasks, concurrency) or reason
+            reason = self._run_passes(tasks, concurrency) or reason
         except _Stop as stop_signal:
             reason = stop_signal.reason
-        self._publish(final=reason)
+        final = self._final_reason(reason)
+        self._publish(final=final)
         return CollectionResult(
             items=self._items[: self._config.target_items],
             counts=dict(self._counts),
-            stopped_reason=reason,
+            stopped_reason=final,
         )
 
     def _should_stop(self) -> str | None:
@@ -311,6 +360,20 @@ class _Collector:
     STOPPED_CLEANLY = frozenset(
         {"tasks exhausted", "target reached", "time budget reached"}
     )
+
+    def _final_reason(self, reason: str) -> str:
+        """A collection that parked work short of its target is not done.
+
+        Saying `done` there would tell the dashboard, and anyone reading
+        it, that the dataset is as large as it is going to get — when in
+        fact tasks are waiting for a provider that was failing.
+        """
+        if self._parked and self._kept_total < self._config.target_items:
+            return (
+                f"{len(self._parked)} tasks parked after {MAX_TASK_PASSES} infrastructure "
+                f"passes; {self._kept_total} of {self._config.target_items} items kept"
+            )
+        return reason
 
     def _publish(self, final: str | None = None) -> None:
         """Write `runs/p3/status.json`, atomically. Never fails the run."""
@@ -336,6 +399,41 @@ class _Collector:
         except OSError as exc:  # pragma: no cover - a full disk is not a collection failure
             self._say(f"could not write the status file: {exc}")
 
+    def _run_passes(self, tasks: Sequence[tuple[str, str]], concurrency: int) -> str | None:
+        """Work the queue, putting infrastructure failures back on it.
+
+        An infra failure decides nothing, so it must not be able to
+        remove a task from the collection simply by happening. Tasks that
+        died on infrastructure are re-queued for a later pass, with a
+        backoff between passes; after `MAX_TASK_PASSES` they are parked
+        and reported rather than silently dropped.
+        """
+        outstanding = list(tasks)
+        self._gate.resize(max(1, concurrency))
+        for attempt in range(1, MAX_TASK_PASSES + 1):
+            if attempt > 1:
+                self._say(f"pass {attempt}: re-queueing {len(outstanding)} infra failures")
+                self._bump("requeued", len(outstanding))
+                time.sleep(self._config.pass_backoff_seconds)
+            with self._lock:
+                self._failed_tasks = []
+            stop = (
+                self._run_serial(outstanding)
+                if concurrency <= 1
+                else self._run_parallel(outstanding, concurrency)
+            )
+            if stop is not None:
+                return stop
+            with self._lock:
+                outstanding = list(self._failed_tasks)
+            if not outstanding:
+                return None
+        with self._lock:
+            self._parked = list(outstanding)
+        self._bump("parked", len(self._parked))
+        self._say(f"parked {len(self._parked)} tasks after {MAX_TASK_PASSES} infra passes")
+        return None
+
     def _run_serial(self, tasks: Sequence[tuple[str, str]]) -> str | None:
         for domain, task_id in tasks:
             stop = self._should_stop()
@@ -359,12 +457,17 @@ class _Collector:
                 return
             self._finish_task(*task)
 
+        def gated(task: tuple[str, str]) -> None:
+            with self._gate:
+                one(task)
+
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="inject") as pool:
-            list(pool.map(one, tasks))
+            list(pool.map(gated, tasks))
         return stopped[0] if stopped else self._should_stop()
 
     def _finish_task(self, domain: str, task_id: str) -> None:
         self._one_task(domain, task_id)
+        self._gate.on_success()
         with self._lock:
             self._kept_total = _kept_count(self._journal)
         self._publish()
@@ -378,6 +481,8 @@ class _Collector:
             self._candidates_for(base)
         except _Infra as failure:
             self._bump("rejected_infra")
+            with self._lock:
+                self._failed_tasks.append((domain, task_id))
             self._journal.log({"kind": "task", "key": f"{domain}-{task_id}",
                                "status": "rejected", "reason_code": "infra",
                                "reason": str(failure)})
@@ -425,21 +530,28 @@ class _Collector:
         return True
 
     def _measure_stability(self, base: BaseRun) -> dict[str, Any]:
-        """Four re-runs of the whole run: forks at step 0 that resample.
+        """Four fresh recordings of the same task.
 
-        A fork with `Resample` at the first step, not a fresh recording:
-        stability is then measured on exactly the code path the effect
-        estimate uses, so a difference between "a fresh run" and "a fork"
-        cannot quietly bias every measurement afterwards. It also links
-        all four re-runs to the base run on the tape, which the dataset
-        card and the dashboard both read.
+        Originally these were forks at step 0 with `Resample`, so that
+        stability was measured on the same code path the effect estimate
+        uses. That turned out to be both unnecessary and broken: a fork
+        at step 0 replays nothing, so it *is* a fresh run with an extra
+        request-hash check over the resampled first turn — and that check
+        can only produce false alarms, because the whole point of
+        resampling is that the turn differs. Live, it failed 68 times and
+        left one base run in thirty looking stable
+        (`docs/decisions/0017-p3-collection-policy.md` §7).
+
+        A fresh recording is simpler, costs exactly the same, and each
+        re-run is a first-class recording on the tape rather than a fork
+        of one.
         """
         results = []
         for index in range(self._config.stability_reruns):
-            seed = derive_seed(self._config.seed, base.run_id, "stability", str(index))
-            run_id = f"{base.run_id}-s{index}"
             results.append(self._guarded(
-                lambda r=run_id, s=seed: self._runner.resample(base.run_id, run_id=r, seed=s)
+                lambda i=index: self._runner.fresh_run(
+                    base.domain, base.task_id, attempt=i
+                )
             ))
         passes = sum(1 for result in results if result.passed)
         rate = passes / len(results) if results else 0.0
@@ -460,10 +572,13 @@ class _Collector:
         found = self._runner.tool_steps(base.run_id)
         self._repeated = {step.step_idx for step in found if _repeats_before(found, step)}
         steps = {step.step_idx: step for step in found}
-        order = attempt_order(
-            bucketed(sorted(steps)),
-            seed=derive_seed(self._config.seed, base.run_id),
-            attempts_per_bucket=self._config.attempts_per_bucket,
+        order = _flowing_first(
+            attempt_order(
+                bucketed(sorted(steps)),
+                seed=derive_seed(self._config.seed, base.run_id),
+                attempts_per_bucket=self._config.attempts_per_bucket,
+            ),
+            steps,
         )
         kept_buckets: set[PositionBucket] = set()
         for bucket, step_idx in order:
@@ -520,7 +635,7 @@ class _Collector:
         """The balanced fault type that can actually be planted here."""
         context = FaultContext(
             tool_name=step.tool_name, tool_args=dict(step.tool_args),
-            downstream=step.downstream,
+            downstream=step.downstream, downstream_writes=step.downstream_writes,
         )
         seed = derive_seed(self._config.seed, base.run_id, f"k{step.step_idx}")
         possible: dict[FaultType, Any] = {}
@@ -677,12 +792,104 @@ class _Collector:
             raise _Stop("budget exhausted") from exc
         except _Stop:
             raise
+        except TransportError as exc:
+            self._gate.on_transport_failure()
+            self._bump(f"transport_{_transport_kind(exc)}")
+            raise _Infra(f"{type(exc).__name__}: {exc}") from exc
         except Exception as exc:  # noqa: BLE001 - an infra failure is data, not a crash
             raise _Infra(f"{type(exc).__name__}: {exc}") from exc
 
 
+class _Gate:
+    """How many tasks may be in flight, adapting down under a storm.
+
+    Additive-increase, multiplicative-decrease over the provider's own
+    signals: halve on a burst of transport failures, creep back up as
+    tasks complete. The limiter, the retry policy and the ledger are
+    unchanged and still do their jobs — this is about not asking a
+    provider that is already failing for more work, which is what turned
+    a slow half-hour into 138 lost tasks.
+    """
+
+    #: Transport failures within one window before the gate reacts.
+    STORM = 3
+    #: Successful tasks before it lets one more thread in.
+    RECOVERY = 8
+
+    def __init__(self, allowed: int = 1, minimum: int = 2) -> None:
+        self._ceiling = max(allowed, minimum)
+        self._allowed = self._ceiling
+        self._minimum = min(minimum, self._ceiling)
+        self._in_flight = 0
+        self._failures = 0
+        self._successes = 0
+        self._condition = threading.Condition()
+
+    @property
+    def allowed(self) -> int:
+        with self._condition:
+            return self._allowed
+
+    def resize(self, allowed: int) -> None:
+        with self._condition:
+            self._ceiling = max(allowed, self._minimum)
+            self._allowed = self._ceiling
+            self._condition.notify_all()
+
+    def __enter__(self) -> _Gate:
+        with self._condition:
+            while self._in_flight >= self._allowed:
+                self._condition.wait(timeout=5.0)
+            self._in_flight += 1
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        with self._condition:
+            self._in_flight -= 1
+            self._condition.notify()
+
+    def on_transport_failure(self) -> None:
+        with self._condition:
+            self._failures += 1
+            self._successes = 0
+            if self._failures >= self.STORM and self._allowed > self._minimum:
+                self._allowed = max(self._minimum, self._allowed // 2)
+                self._failures = 0
+
+    def on_success(self) -> None:
+        with self._condition:
+            self._failures = 0
+            self._successes += 1
+            if self._successes >= self.RECOVERY and self._allowed < self._ceiling:
+                self._allowed += 1
+                self._successes = 0
+                self._condition.notify()
+
+
 class _Infra(Exception):
     """An infrastructure failure: retried, and never scored as a run failure."""
+
+
+def _flowing_first(
+    order: Sequence[tuple[PositionBucket, int]], steps: Mapping[int, ToolStep]
+) -> list[tuple[PositionBucket, int]]:
+    """The same attempts, those that can actually bite tried first.
+
+    A stable sort, so the round-robin over position buckets is preserved
+    inside each group and every stratum is still reached — this changes
+    the ORDER attempts are spent in, never which ones exist
+    (`docs/decisions/0017-p3-collection-policy.md` §7).
+    """
+    return sorted(order, key=lambda entry: not steps[entry[1]].flows_into_a_write)
+
+
+def _transport_kind(exc: Exception) -> str:
+    """`429`, `504`, `timeout` or `other`, for the funnel's error mix."""
+    text = str(exc).lower()
+    for code in ("429", "504", "503", "502"):
+        if code in text:
+            return code
+    return "timeout" if "timeout" in text else "other"
 
 
 def _repeats_before(steps: Sequence[ToolStep], step: ToolStep) -> bool:

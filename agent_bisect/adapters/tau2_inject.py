@@ -44,15 +44,16 @@ from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
 from agent_bisect.adapters.tau2_fault_injector import FaultSpec, fault_injected
 from agent_bisect.adapters.tau2_flaky import FlakyConfig, flaky_world
 from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
-from agent_bisect.attribution.interventions import (
-    ReplaceToolResult,
-    Resample,
-    shaped_completion,
-)
+from agent_bisect.adapters.tau2_tasks import write_tools
+from agent_bisect.attribution.interventions import ReplaceToolResult, shaped_completion
 from agent_bisect.bench.inject import BaseRun, RerunResult, ToolStep
 from agent_bisect.core.runner import ForkSpec, PrefixMode, run_fork
 from agent_bisect.core.store import BlobStore, sha256_hex
 from agent_bisect.core.tape import RunManifest, Step, TapeReader, TapeWriter
+
+#: Stability re-runs are recorded as trials of the same task, offset so
+#: they can never be mistaken for a base recording.
+STABILITY_TRIAL = 100
 
 
 class BaseRecordingAbortedError(RuntimeError):
@@ -192,9 +193,25 @@ class Tau2InjectRunner:
     # -- reading the tape --------------------------------------------------
 
     def tool_steps(self, base_run_id: str) -> list[ToolStep]:
-        """Every tool-result step of the run, with what followed it."""
+        """Every tool-result step of the run, with what followed it.
+
+        `downstream_writes` is the arguments of the later calls that
+        CHANGE the world, kept apart from the rest of the conversation:
+        a value that reaches one of those is a value the run acted on,
+        and that is the only kind a perception fault reliably turns into
+        a wrong outcome (`docs/decisions/0017-p3-collection-policy.md`
+        §7).
+        """
         steps = self.reader.get_steps(base_run_id)
+        domain = self.reader.get_manifest(base_run_id).domain
+        writes = write_tools(domain)
         texts = [self._text_of(step) for step in steps]
+        write_args = [
+            json.dumps(dict(step.tool_args or {}))
+            if step.actor == "tool" and (step.tool_name or "") in writes
+            else ""
+            for step in steps
+        ]
         found: list[ToolStep] = []
         for index, step in enumerate(steps):
             if step.actor != "tool" or step.tool_result_ref is None:
@@ -207,6 +224,9 @@ class Tau2InjectRunner:
                     result=self.store.get_json(step.tool_result_ref),
                     result_ref=step.tool_result_ref,
                     downstream="\n".join(texts[index + 1 :]),
+                    downstream_writes="\n".join(
+                        part for part in write_args[index + 1 :] if part
+                    ),
                 )
             )
         return found
@@ -229,10 +249,33 @@ class Tau2InjectRunner:
 
     # -- forking -----------------------------------------------------------
 
-    def resample(self, base_run_id: str, *, run_id: str, seed: int) -> RerunResult:
-        """The whole run again, sampled fresh: the stability check."""
-        return self._fork(base_run_id, run_id=run_id, fork_step=0,
-                          intervention=Resample(step=0), seed=seed)
+    def fresh_run(self, domain: str, task_id: str, *, attempt: int) -> RerunResult:
+        """The same task recorded again: the stability check.
+
+        A recording, not a fork at step 0 with `Resample`. A fork at step
+        0 replays nothing, so it is a fresh run wearing a request-hash
+        check over its own resampled first turn — a check that can only
+        fire falsely, since resampling exists to make that turn differ.
+
+        The run id is claimed rather than derived, so a task re-queued
+        after an infrastructure failure does not collide with the ids its
+        previous attempt already put on the tape.
+        """
+        item = BatchItem(domain=domain, task_id=task_id, trial=STABILITY_TRIAL + attempt)
+        with self._id_lock:
+            run_id = free_run_id(self.reader, item)
+        recorded = (
+            self._record_flaky(domain, task_id, run_id)
+            if self.flaky is not None
+            else record_run(
+                self._spec(domain, task_id), run_id=run_id, store=self.store, tape=self.tape
+            )
+        )
+        if recorded.outcome is None:
+            raise BaseRecordingAbortedError(
+                f"{run_id} ended on {recorded.termination_reason}; it has no outcome"
+            )
+        return RerunResult(run_id=run_id, passed=recorded.outcome.passed)
 
     def fault_fork(
         self,

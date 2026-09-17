@@ -48,6 +48,11 @@ Path = tuple[PathPart, ...]
 
 SALIENT_KEY_BONUS = 3.0
 DOWNSTREAM_BONUS = 4.0
+#: A value that reaches a later call which CHANGES the world is the only
+#: kind a perception fault reliably turns into a wrong outcome. It
+#: outranks every other signal, because the others are guesses about what
+#: the agent might use and this one is a record of what it did use.
+WRITE_FLOW_BONUS = 8.0
 SHAPE_BONUS = 1.0
 DEPTH_PENALTY = 0.5
 #: Dropping a whole sub-record is a gross change an agent notices at once.
@@ -95,7 +100,7 @@ def key_is_salient(key: str) -> bool:
     return bool(SALIENT_TOKENS & set(key.lower().split("_")))
 
 
-def score_of(path: Path, value: Any, downstream: str) -> float:
+def score_of(path: Path, value: Any, downstream: str, downstream_writes: str = "") -> float:
     """How much an agent is likely to care about `value` at `path`."""
     key = path[-1] if path and isinstance(path[-1], str) else ""
     score = 1.0 - DEPTH_PENALTY * len(path)
@@ -105,6 +110,8 @@ def score_of(path: Path, value: Any, downstream: str) -> float:
         text = str(value)
         if len(text) >= MIN_DOWNSTREAM_CHARS and text in downstream:
             score += DOWNSTREAM_BONUS
+        if len(text) >= MIN_DOWNSTREAM_CHARS and downstream_writes and text in downstream_writes:
+            score += WRITE_FLOW_BONUS
     if looks_like_identifier(value) or looks_like_date(value):
         score += SHAPE_BONUS
     if isinstance(path[-1] if path else "", int):
@@ -112,36 +119,44 @@ def score_of(path: Path, value: Any, downstream: str) -> float:
     return score
 
 
-def scalar_candidates(body: Any, downstream: str = "") -> list[Candidate]:
+def scalar_candidates(
+    body: Any, downstream: str = "", downstream_writes: str = ""
+) -> list[Candidate]:
     """Every scalar leaf of `body`, scored. The root counts when it is one."""
     found: list[Candidate] = []
-    _walk_scalars(body, (), downstream, found)
+    _walk_scalars(body, (), downstream, downstream_writes, found)
     return found
 
 
-def _walk_scalars(node: Any, path: Path, downstream: str, found: list[Candidate]) -> None:
+def _walk_scalars(
+    node: Any, path: Path, downstream: str, writes: str, found: list[Candidate]
+) -> None:
     if is_scalar(node):
-        found.append(Candidate(path, node, score_of(path, node, downstream)))
+        found.append(Candidate(path, node, score_of(path, node, downstream, writes)))
         return
     for part, child in _children(node):
-        _walk_scalars(child, (*path, part), downstream, found)
+        _walk_scalars(child, (*path, part), downstream, writes, found)
 
 
-def droppable_candidates(body: Any, downstream: str = "") -> list[Candidate]:
+def droppable_candidates(
+    body: Any, downstream: str = "", downstream_writes: str = ""
+) -> list[Candidate]:
     """Every dict key and list element that could be dropped, scored."""
     found: list[Candidate] = []
-    _walk_droppable(body, (), downstream, found)
+    _walk_droppable(body, (), downstream, downstream_writes, found)
     return found
 
 
-def _walk_droppable(node: Any, path: Path, downstream: str, found: list[Candidate]) -> None:
+def _walk_droppable(
+    node: Any, path: Path, downstream: str, writes: str, found: list[Candidate]
+) -> None:
     for part, child in _children(node):
         here = (*path, part)
-        score = score_of(here, child, downstream)
+        score = score_of(here, child, downstream, writes)
         if not is_scalar(child) and isinstance(part, str):
             score -= CONTAINER_PENALTY
         found.append(Candidate(here, child, score))
-        _walk_droppable(child, here, downstream, found)
+        _walk_droppable(child, here, downstream, writes, found)
 
 
 def _children(node: Any) -> list[tuple[PathPart, Any]]:

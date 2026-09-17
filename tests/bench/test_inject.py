@@ -76,10 +76,10 @@ class FakeRunner:
         return BaseRun(run_id=run_id, domain=domain, task_id=task_id,
                        passed=self.base_passes, steps=20)
 
-    def resample(self, base_run_id: str, *, run_id: str, seed: int) -> RerunResult:
+    def fresh_run(self, domain: str, task_id: str, *, attempt: int) -> RerunResult:
+        run_id = f"{domain}-{task_id}-t{100 + attempt}"
         self.resamples.append(run_id)
-        index = len([name for name in self.resamples if name.startswith(base_run_id)]) - 1
-        return RerunResult(run_id=run_id, passed=index < self.stability_passes)
+        return RerunResult(run_id=run_id, passed=attempt < self.stability_passes)
 
     def tool_steps(self, base_run_id: str) -> list[ToolStep]:
         return [tool_step(index * 2 + 1) for index in range(self.tool_steps_per_run)]
@@ -94,9 +94,16 @@ class FakeRunner:
         return RerunResult(run_id=run_id, passed=index < self.faulted_passes)
 
 
+def config_for(**overrides) -> InjectConfig:
+    # No backoff in tests: the re-queue pass is what is under test, not
+    # the minute it waits for a provider to recover.
+    return InjectConfig(pass_backoff_seconds=0.0, **overrides)
+
+
 def run(tmp_path, runner, **overrides):
-    config = InjectConfig(**overrides)
-    return collect(runner, tasks=AIRLINE, journal=Journal(tmp_path), config=config)
+    return collect(
+        runner, tasks=AIRLINE, journal=Journal(tmp_path), config=config_for(**overrides)
+    )
 
 
 # ---- the funnel ----
@@ -199,7 +206,7 @@ def test_every_position_bucket_is_represented(tmp_path):
 def test_every_candidate_is_logged_with_its_verdict(tmp_path):
     journal = Journal(tmp_path)
     collect(FakeRunner(faulted_passes=4), tasks=AIRLINE, journal=journal,
-            config=InjectConfig())
+            config=config_for())
 
     verdicts = [event for event in journal.events() if event["kind"] == "candidate"]
     assert verdicts
@@ -232,6 +239,93 @@ def test_a_call_that_already_happened_earlier_is_never_faulted(tmp_path):
     assert {item["planted_step"] for item in result.items} <= {1}
 
 
+# ---- infrastructure never decides anything ----
+
+
+def test_a_task_lost_to_infrastructure_goes_back_on_the_queue(tmp_path):
+    """An infra failure decides nothing, so it must not be able to remove
+    a task from the collection simply by happening."""
+
+    class FlakyOnce(FakeRunner):
+        def __init__(self) -> None:
+            super().__init__()
+            self._failed: set[str] = set()
+
+        def fresh_run(self, domain, task_id, *, attempt):
+            if task_id not in self._failed:
+                self._failed.add(task_id)
+                raise RuntimeError("504 Gateway Timeout")
+            return super().fresh_run(domain, task_id, attempt=attempt)
+
+    result = run(tmp_path, FlakyOnce())
+
+    assert result.counts["requeued"] > 0
+    assert result.counts["parked"] == 0
+    assert result.items
+
+
+def test_tasks_that_never_clear_are_parked_and_reported(tmp_path):
+    class AlwaysBroken(FakeRunner):
+        def fresh_run(self, domain, task_id, *, attempt):
+            raise RuntimeError("504 Gateway Timeout")
+
+    result = run(tmp_path, AlwaysBroken())
+
+    assert result.counts["parked"] == len(AIRLINE)
+    assert "parked" in result.stopped_reason
+
+
+def test_a_parked_collection_short_of_its_target_is_not_reported_as_done(tmp_path):
+    class AlwaysBroken(FakeRunner):
+        def fresh_run(self, domain, task_id, *, attempt):
+            raise RuntimeError("504 Gateway Timeout")
+
+    collect(AlwaysBroken(), tasks=AIRLINE, journal=Journal(tmp_path / "p3"),
+            config=config_for(), runs_dir=tmp_path)
+
+    status = json.loads((tmp_path / "p3" / "status.json").read_text())
+    assert status["state"] == "failed"
+    assert "parked" in status["error"]
+
+
+def test_the_transport_error_mix_is_counted(tmp_path):
+    from agent_bisect.core.llm import TransportError
+
+    class Gateways(FakeRunner):
+        def fresh_run(self, domain, task_id, *, attempt):
+            raise TransportError("litellm.Timeout: OpenAIException - Error code: 504")
+
+    result = run(tmp_path, Gateways())
+
+    assert result.counts["transport_504"] > 0
+
+
+def test_the_gate_halves_in_flight_under_a_storm_and_creeps_back():
+    from agent_bisect.bench.inject import _Gate
+
+    gate = _Gate(allowed=16, minimum=2)
+
+    for _ in range(_Gate.STORM):
+        gate.on_transport_failure()
+    halved = gate.allowed
+    for _ in range(_Gate.RECOVERY):
+        gate.on_success()
+
+    assert halved == 8
+    assert gate.allowed == 9
+
+
+def test_the_gate_never_falls_below_its_minimum():
+    from agent_bisect.bench.inject import _Gate
+
+    gate = _Gate(allowed=4, minimum=2)
+
+    for _ in range(_Gate.STORM * 10):
+        gate.on_transport_failure()
+
+    assert gate.allowed == 2
+
+
 # ---- concurrency ----
 
 
@@ -243,7 +337,7 @@ def test_tasks_run_concurrently_without_losing_any(tmp_path):
     tasks = [("airline", str(index)) for index in range(12)]
 
     result = collect(FakeRunner(), tasks=tasks, journal=journal,
-                     config=InjectConfig(attempts_per_bucket=1), concurrency=6)
+                     config=config_for(attempts_per_bucket=1), concurrency=6)
 
     assert result.counts["base_recorded"] == len(tasks)
     assert result.counts["candidates"] == sum(
@@ -262,10 +356,10 @@ def test_concurrent_collection_breaks_the_same_steps_as_a_serial_one(tmp_path):
     it tries, not in which type each kept item ended up with."""
     tasks = [("airline", str(index)) for index in range(6)]
     serial = collect(FakeRunner(), tasks=tasks, journal=Journal(tmp_path / "one"),
-                     config=InjectConfig(attempts_per_bucket=1))
+                     config=config_for(attempts_per_bucket=1))
 
     parallel = collect(FakeRunner(), tasks=tasks, journal=Journal(tmp_path / "two"),
-                       config=InjectConfig(attempts_per_bucket=1), concurrency=4)
+                       config=config_for(attempts_per_bucket=1), concurrency=4)
 
     def steps(result):
         return sorted((item["task_id"], item["planted_step"]) for item in result.items)
@@ -278,7 +372,7 @@ def test_a_concurrent_collection_stops_on_the_target_too(tmp_path):
     tasks = [("airline", str(index)) for index in range(12)]
 
     result = collect(FakeRunner(), tasks=tasks, journal=Journal(tmp_path),
-                     config=InjectConfig(target_items=2), concurrency=4)
+                     config=config_for(target_items=2), concurrency=4)
 
     assert result.stopped_reason == "target reached"
 
@@ -306,11 +400,11 @@ def test_a_shard_stops_on_the_shared_count_not_its_own(tmp_path):
     """Two shards write one journal, so the second sees the first's items
     and stops when the dataset is big enough."""
     journal = Journal(tmp_path)
-    collect(FakeRunner(), tasks=AIRLINE[:2], journal=journal, config=InjectConfig())
+    collect(FakeRunner(), tasks=AIRLINE[:2], journal=journal, config=config_for())
     first = _kept_on_disk(journal)
 
     second = collect(FakeRunner(), tasks=AIRLINE[2:], journal=journal,
-                     config=InjectConfig(target_items=first))
+                     config=config_for(target_items=first))
 
     assert second.stopped_reason == "target reached"
     assert _kept_on_disk(journal) == first
@@ -327,7 +421,7 @@ def test_progress_is_published_where_the_live_page_reads_it(tmp_path):
     from agent_bisect.server.schemas_live import JobStatus
 
     collect(FakeRunner(), tasks=AIRLINE, journal=Journal(tmp_path / "p3"),
-            config=InjectConfig(target_items=100), runs_dir=tmp_path,
+            config=config_for(target_items=100), runs_dir=tmp_path,
             calls_spent=lambda: 412)
 
     status = json.loads((tmp_path / "p3" / "status.json").read_text())
@@ -344,7 +438,7 @@ def test_a_clean_stop_is_published_as_a_failure(tmp_path):
             raise BudgetExceededError("budget exceeded")
 
     collect(Broke(), tasks=AIRLINE, journal=Journal(tmp_path / "p3"),
-            config=InjectConfig(), runs_dir=tmp_path)
+            config=config_for(), runs_dir=tmp_path)
 
     status = json.loads((tmp_path / "p3" / "status.json").read_text())
     assert status["state"] == "failed"
@@ -362,10 +456,10 @@ def test_nothing_is_published_without_a_runs_directory(tmp_path):
 
 def test_a_second_pass_pays_for_nothing_twice(tmp_path):
     journal = Journal(tmp_path)
-    first = collect(FakeRunner(), tasks=AIRLINE, journal=journal, config=InjectConfig())
+    first = collect(FakeRunner(), tasks=AIRLINE, journal=journal, config=config_for())
     runner = FakeRunner()
 
-    second = collect(runner, tasks=AIRLINE, journal=journal, config=InjectConfig())
+    second = collect(runner, tasks=AIRLINE, journal=journal, config=config_for())
 
     assert [item["item_id"] for item in second.items] == [item["item_id"] for item in first.items]
     assert runner.recorded == []

@@ -121,6 +121,10 @@ class FaultContext:
     tool_name: str = ""
     tool_args: Mapping[str, Any] = field(default_factory=dict)
     downstream: str = ""
+    #: Just the arguments of later calls that change the world. A value
+    #: that reaches one of those is a value the run acted on, which is
+    #: what a planted fault has to break to matter at all.
+    downstream_writes: str = ""
     earlier: Mapping[str, Any] | None = None
 
 
@@ -190,7 +194,7 @@ def plant(
 def _plant_wrong_value(
     body: Any, rng: random.Random, context: FaultContext
 ) -> tuple[Any, Mutation]:
-    chosen = _pick(scalar_candidates(body, context.downstream), "wrong_value", rng)
+    chosen = _pick(_ranked(body, context), "wrong_value", rng)
     new = _wrong_scalar(chosen.value, rng)
     return (
         replaced_at(body, chosen.path, new),
@@ -258,7 +262,10 @@ def _shift_date(value: str, days: int) -> str | None:
 def _plant_missing_field(
     body: Any, rng: random.Random, context: FaultContext
 ) -> tuple[Any, Mutation]:
-    chosen = _pick(droppable_candidates(body, context.downstream), "missing_field", rng)
+    chosen = _pick(
+        droppable_candidates(body, context.downstream, context.downstream_writes),
+        "missing_field", rng,
+    )
     return (
         dropped_at(body, chosen.path),
         Mutation(
@@ -289,11 +296,7 @@ def _plant_stale_record(
                 detail="the same call's result from earlier in the run",
             ),
         )
-    candidates = [
-        candidate
-        for candidate in scalar_candidates(body, context.downstream)
-        if _has_a_past(candidate.value)
-    ]
+    candidates = [candidate for candidate in _ranked(body, context) if _has_a_past(candidate.value)]
     chosen = _pick(candidates, "stale_record", rng)
     new = _rolled_back(chosen.value, rng)
     return (
@@ -394,6 +397,16 @@ def _entity_of(key: str) -> str:
 
 
 # ---- shared -----------------------------------------------------------------
+
+
+def _ranked(body: Any, context: FaultContext) -> list[Candidate]:
+    """Scalar leaves, scored with the downstream-write flow weighted in."""
+    return scalar_candidates(body, context.downstream, context.downstream_writes)
+
+
+def parse_content(content: str) -> tuple[Any, bool]:
+    """`(body, is_json)` for a tau2 tool result's content."""
+    return _parse(content)
 
 
 def _pick(candidates: list[Candidate], fault_type: str, rng: random.Random) -> Candidate:
