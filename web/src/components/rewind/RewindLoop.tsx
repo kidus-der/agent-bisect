@@ -19,8 +19,11 @@ import {
 
 const BLAMED_SCALE = 1.06
 const IN_VIEW_AMOUNT = 0.35
-/** Cells stay instrument-sized: a 12-step tape must not become twelve wide slabs at 1440. */
-const MAX_CELL_PX = 48
+/**
+ * Cells grow into the panel rather than leaving it empty, but stop well short
+ * of becoming slabs: a 12-step tape fills roughly two thirds of a 1440 panel.
+ */
+const MAX_CELL_PX = 68
 
 /** Opacity is the only channel that moves, so the desaturation costs no layout. */
 const STATE_OPACITY: Readonly<Record<TapeStepState, number>> = {
@@ -282,7 +285,7 @@ export function RewindLoop({
       }
     >
       <p className="sr-only">{text}</p>
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-center lg:gap-8">
         <div style={{ maxWidth: spec.stepCount * MAX_CELL_PX }} className="min-w-0">
           {href ? (
             <Link
