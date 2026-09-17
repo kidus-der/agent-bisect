@@ -260,7 +260,8 @@ per-model USD price list); `cost_per_diagnosis_calls` is the ledger's real
 call count over `runs/blame/`'s diagnosed-run count.
 `OverviewPayload.hero_run` is the earliest-`item_id` run Bisect diagnosed
 exactly (or, failing that, its earliest attempt), resolved against the
-real tape index. `GET /api/dataset` reads `data/manifest.json` via
+real tape index -- `null` (never the rest of the page failing too) if that
+run isn't in `runs/index.sqlite`. `GET /api/dataset` reads `data/manifest.json` via
 `agent_bisect.bench.manifest.load_frozen`; an unfrozen or tampered
 manifest is `DataNotAvailable`, not a 500.
 
