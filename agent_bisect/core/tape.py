@@ -34,9 +34,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agent_bisect.core.config import redact
 from agent_bisect.core.store import canonical_json_bytes, sha256_hex
 
-Actor = Literal["agent", "user", "tool"]
+#: tau2 has three participants; `evaluator` is a fourth recorded party --
+#: its NL-assertion judge is an LLM call on the reward path for tasks whose
+#: `reward_basis` includes NL_ASSERTION (40 of 114 retail tasks; 0 of 50
+#: airline ones). It goes through the same `llm_utils.completion` seam, so
+#: it is recorded and replayed like any other call.
+Actor = Literal["agent", "user", "tool", "evaluator"]
 
 _SAMPLING_PARAM_KEYS = (
+    "tool_choice",
     "temperature",
     "top_p",
     "max_tokens",
@@ -121,6 +127,13 @@ class Step(BaseModel):
     state immediately following it; `state_hash` is the domain
     snapshotter's own hash of that post-step state (for tau2, its
     `Environment.get_db_hash()`), checked after every restore.
+    `state_hash_before` is the same hash for the state *entering* the
+    step, which is what makes a step self-contained for `restore(k)`:
+    step k-1's `state_hash` would say the same thing for every k but 0.
+
+    `from_tape` marks a step a forked run inherited from its parent's
+    recording rather than spending a call on: the fork's prefix rows point
+    at the parent's blobs instead of duplicating them.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -139,6 +152,8 @@ class Step(BaseModel):
     state_before: str
     state_after: str
     state_hash: str
+    state_hash_before: str | None = None
+    from_tape: bool = False
     model: str | None = None
     params: dict[str, Any] | None = None
     seed: int | None = None
