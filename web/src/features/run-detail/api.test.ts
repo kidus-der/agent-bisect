@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { ApiError } from '@/api/client'
+
 import {
   availableOrNull,
   isNotAvailable,
@@ -8,6 +10,7 @@ import {
   normalizeStepPayload,
   runDetailKeys,
   runDetailPaths,
+  unwrapReruns,
 } from './api'
 
 describe('runDetailPaths', () => {
@@ -106,5 +109,74 @@ describe('normalizeStateDiff', () => {
   it('passes not_available through untouched', () => {
     const raw = { status: 'not_available', reason: 'no recordings yet' } as const
     expect(normalizeStateDiff(raw)).toBe(raw)
+  })
+})
+
+describe('unwrapReruns', () => {
+  const rows = [
+    {
+      rerun_id: 'r-t7-0',
+      arm: 'treated' as const,
+      step: 7,
+      seed: 107,
+      passed: true,
+      n_steps: 12,
+      calls: 10,
+    },
+  ]
+  const meta = { simulated: true, data_source: 'fixture' as const }
+
+  it('is ready with the rows when the fetch succeeded', () => {
+    // Arrange / Act
+    const view = unwrapReruns({
+      isPending: false,
+      isError: false,
+      error: null,
+      data: { data: { reruns: rows }, meta },
+    })
+
+    // Assert
+    expect(view).toMatchObject({ status: 'ready', rows, reason: null })
+  })
+
+  it('is pending while the fetch is in flight, with no rows to misread', () => {
+    const view = unwrapReruns({ isPending: true, isError: false, error: null, data: undefined })
+
+    expect(view).toMatchObject({ status: 'pending', rows: [] })
+  })
+
+  it('reports an error instead of claiming the run has no re-runs', () => {
+    // Arrange: the failure mode this helper exists to prevent.
+    const error = new ApiError({ kind: 'network', code: 'network_error', message: 'unreachable' })
+
+    // Act
+    const view = unwrapReruns({ isPending: false, isError: true, error, data: undefined })
+
+    // Assert
+    expect(view.status).toBe('error')
+    expect(view.rows).toEqual([])
+    expect(view.reason).toBe('unreachable')
+  })
+
+  it('separates "the server cannot answer yet" from "there are none"', () => {
+    const view = unwrapReruns({
+      isPending: false,
+      isError: false,
+      error: null,
+      data: { data: { status: 'not_available', reason: 'no recordings yet' }, meta },
+    })
+
+    expect(view).toMatchObject({ status: 'unavailable', rows: [], reason: 'no recordings yet' })
+  })
+
+  it('is ready, not unavailable, for a run that genuinely has zero re-runs', () => {
+    const view = unwrapReruns({
+      isPending: false,
+      isError: false,
+      error: null,
+      data: { data: { reruns: [] }, meta },
+    })
+
+    expect(view).toMatchObject({ status: 'ready', rows: [] })
   })
 })
