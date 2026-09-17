@@ -119,10 +119,15 @@ class BaseRun:
 
 @dataclass(frozen=True)
 class RerunResult:
-    """One re-run: its own recording, and whether it passed."""
+    """One re-run: its own recording, and whether it passed.
+
+    `intervention_ref` is the blob hash of what was applied to it, so a
+    forked run can be traced back to the change that produced it.
+    """
 
     run_id: str
     passed: bool
+    intervention_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -236,12 +241,17 @@ class _Collector:
         )
 
     def _one_task(self, domain: str, task_id: str) -> None:
-        base = self._base_run(domain, task_id)
-        if base is None:
-            return
-        if not self._is_stable(base):
-            return
-        self._candidates_for(base)
+        """One task through the funnel. Infra failures cost the task, not the run."""
+        try:
+            base = self._base_run(domain, task_id)
+            if base is None or not self._is_stable(base):
+                return
+            self._candidates_for(base)
+        except _Infra as failure:
+            self._bump("rejected_infra")
+            self._journal.log({"kind": "task", "key": f"{domain}-{task_id}",
+                               "status": "rejected", "reason_code": "infra",
+                               "reason": str(failure)})
 
     # -- stage 1: the base recording ---------------------------------------
 
@@ -465,6 +475,7 @@ class _Collector:
             "intervention": ReplaceToolResult(
                 step=step.step_idx, new_result=dict(mutated)
             ).to_ref(),
+            "intervention_ref": failed.intervention_ref,
             "seeds": list(seeds),
             "n_reruns": len(reruns),
         }

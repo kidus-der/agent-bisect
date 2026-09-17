@@ -80,6 +80,8 @@ class DatasetItem(BaseModel):
     oracle: dict[str, Any]
     #: `Intervention.to_ref()` of the `ReplaceToolResult` that planted it.
     intervention: dict[str, Any]
+    #: Blob hash of that ref, so the forked recording can be traced back to it.
+    intervention_ref: str | None = None
     seeds: list[int]
     n_reruns: int = Field(ge=1)
 
