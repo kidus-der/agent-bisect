@@ -53,7 +53,11 @@ def recorded(tmp_path) -> Store:
         (8, 9, "late"),
         (0, 1, "early"),
         (0, 2, "early"),
-        (1, 2, "late"),
+        # Thirds are by fraction of the run, so in a two-step run the
+        # second step is 1/2 of the way through: the middle third, not the
+        # last. Real runs are 4+ steps, where this never bites.
+        (1, 2, "middle"),
+        (4, 5, "late"),
     ],
 )
 def test_a_step_falls_in_the_third_of_the_run_it_belongs_to(position, total, expected):
