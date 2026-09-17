@@ -3,7 +3,7 @@ import { Command } from 'cmdk'
 import { Radio, Search, Tag } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   MIN_SEARCH_CHARS,
@@ -28,7 +28,35 @@ interface CommandPaletteProps {
   readonly onOpenChange: (open: boolean) => void
 }
 
-function DetailPane({ item }: { readonly item: PaletteItem | undefined }) {
+/** What the preview pane shows, whichever kind of result is selected. */
+interface DetailContent {
+  readonly id: string
+  readonly icon: PaletteItem['icon']
+  readonly group: string
+  readonly label: string
+  readonly detail: string
+  readonly token: string
+}
+
+function paletteDetail(item: PaletteItem): DetailContent {
+  return { ...item, group: item.group }
+}
+
+function runDetail(hit: SearchHit): DetailContent {
+  const recording = hit.status === 'recording'
+  return {
+    id: `run:${hit.id}`,
+    icon: recording ? Radio : Tag,
+    group: 'Runs',
+    label: hit.title,
+    detail: recording
+      ? `${hit.subtitle ?? 'A recorded run'} — still recording, so it has no outcome yet.`
+      : (hit.subtitle ?? 'A recorded run.'),
+    token: hit.href,
+  }
+}
+
+function DetailPane({ item }: { readonly item: DetailContent | undefined }) {
   if (!item) return null
   const Icon = item.icon
   return (
@@ -88,13 +116,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const transition = useSpringTransition('snap')
   const [selectedId, setSelectedId] = useState<string>(PALETTE_ITEMS[0]?.id ?? '')
   const [query, setQuery] = useState('')
-  const selected = PALETTE_ITEMS.find((item) => item.id === selectedId)
 
   // Runs come from the server; the static items above are filtered by cmdk.
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS)
   const search = useSearchQuery(debouncedQuery)
   const hits = runHits(search.data?.data)
   const searching = query.trim().length >= MIN_SEARCH_CHARS
+
+  // The previous selection is usually gone once the list changes; clearing it
+  // lets cmdk select the new first row and report it back.
+  useEffect(() => setSelectedId(''), [debouncedQuery])
+
+  const selectedHit = hits.find((hit) => `run:${hit.id}` === selectedId)
+  const selectedItem = PALETTE_ITEMS.find((item) => item.id === selectedId)
+  const selected = selectedHit
+    ? runDetail(selectedHit)
+    : selectedItem
+      ? paletteDetail(selectedItem)
+      : undefined
 
   const run = (item: PaletteItem): void => {
     onOpenChange(false)
