@@ -24,37 +24,32 @@ function run(overrides: Partial<RunSummary>): RunSummary {
   }
 }
 
-const META = { simulated: true, data_source: 'fixture', total: 3, page: 1, limit: 100 } as const
+const META = { simulated: true, data_source: 'fixture', page: 1, limit: 100 } as const
 
-function page(runs: readonly RunSummary[], total = 3): RunsPageResult {
+function page(runs: readonly RunSummary[], total = runs.length): RunsPageResult {
   return { data: { runs: [...runs] }, meta: { ...META, total, next_cursor: null } }
 }
 
 const RUNS = [
   run({ run_id: 'brief-12-step', task_id: 'refund_after_cancellation', fault_type: 'wrong_value' }),
   run({ run_id: 'run-0001', task_id: 'order_dup_investigation', fault_type: 'tool_error' }),
-  run({ run_id: 'run-0002', task_id: 'refund_window', domain: 'retail', fault_type: null }),
+  run({ run_id: 'run-0002', task_id: 'refund_window', domain: 'retail' }),
 ]
 
 describe('narrowRuns', () => {
-  test('flattens every loaded page', () => {
-    const narrowed = narrowRuns([page(RUNS.slice(0, 2)), page(RUNS.slice(2))], DEFAULT_RUNS_SEARCH)
-    expect(narrowed.rows).toHaveLength(3)
+  test('flattens every loaded page without filtering anything itself', () => {
+    const narrowed = narrowRuns([page(RUNS.slice(0, 2), 3), page(RUNS.slice(2), 3)])
+    expect(narrowed.rows.map((entry) => entry.run_id)).toEqual([
+      'brief-12-step',
+      'run-0001',
+      'run-0002',
+    ])
     expect(narrowed.loaded).toBe(3)
-    expect(narrowed.total).toBe(3)
   })
 
-  test('matches free text against both the run id and the task id', () => {
-    const byId = narrowRuns([page(RUNS)], { ...DEFAULT_RUNS_SEARCH, q: 'brief' })
-    expect(byId.rows.map((entry) => entry.run_id)).toEqual(['brief-12-step'])
-
-    const byTask = narrowRuns([page(RUNS)], { ...DEFAULT_RUNS_SEARCH, q: 'REFUND' })
-    expect(byTask.rows.map((entry) => entry.run_id)).toEqual(['brief-12-step', 'run-0002'])
-  })
-
-  test('filters by fault type, which the endpoint has no parameter for', () => {
-    const narrowed = narrowRuns([page(RUNS)], { ...DEFAULT_RUNS_SEARCH, fault: 'tool_error' })
-    expect(narrowed.rows.map((entry) => entry.run_id)).toEqual(['run-0001'])
+  test('takes the matching total from the latest page, not the rows in hand', () => {
+    // The server counts after every filter, so one page of 2 can report 266.
+    expect(narrowRuns([page(RUNS.slice(0, 2), 266)]).total).toBe(266)
   })
 
   test('reports not_available instead of an empty list', () => {
@@ -62,13 +57,13 @@ describe('narrowRuns', () => {
       data: { status: 'not_available', reason: 'no recordings yet' },
       meta: { ...META, total: null, next_cursor: null },
     }
-    const narrowed = narrowRuns([unavailable], DEFAULT_RUNS_SEARCH)
+    const narrowed = narrowRuns([unavailable])
     expect(narrowed.notAvailable).toBe(true)
     expect(narrowed.rows).toEqual([])
   })
 
   test('an empty page is not the same as an unavailable one', () => {
-    expect(narrowRuns([page([], 0)], DEFAULT_RUNS_SEARCH).notAvailable).toBe(false)
+    expect(narrowRuns([page([], 0)]).notAvailable).toBe(false)
   })
 })
 
@@ -82,26 +77,30 @@ describe('runFacets', () => {
 })
 
 describe('resultSummary', () => {
-  const narrowed = (search: RunsSearch) => narrowRuns([page(RUNS)], search)
-
-  test('counts against the server total when the server did all the filtering', () => {
-    expect(resultSummary(narrowed(DEFAULT_RUNS_SEARCH), DEFAULT_RUNS_SEARCH, true)).toBe(
-      '3 of 3 runs',
-    )
+  test('counts the whole corpus when nothing is filtered', () => {
+    expect(resultSummary(narrowRuns([page(RUNS, 266)]), DEFAULT_RUNS_SEARCH)).toBe('266 runs')
   })
 
-  test('says what it actually searched while pages are still arriving', () => {
+  test('says the count is a match when a filter is on', () => {
     const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, q: 'refund' }
-    expect(resultSummary(narrowed(search), search, false)).toBe('2 runs in the 3 loaded so far')
+    expect(resultSummary(narrowRuns([page(RUNS, 33)]), search)).toBe('33 runs match')
   })
 
-  test('counts against the total once every page is in', () => {
-    const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, q: 'refund' }
-    expect(resultSummary(narrowed(search), search, true)).toBe('2 of 3 runs')
+  test('counts the matching total, not the page in hand', () => {
+    const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, fault: 'tool_error' }
+    expect(resultSummary(narrowRuns([page(RUNS.slice(0, 1), 21)]), search)).toBe('21 runs match')
   })
 
   test('uses the singular for one run', () => {
     const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, q: 'brief' }
-    expect(resultSummary(narrowed(search), search, true)).toBe('1 of 3 run')
+    expect(resultSummary(narrowRuns([page(RUNS.slice(0, 1), 1)]), search)).toBe('1 run matches')
+  })
+
+  test('falls back to what is loaded when the server reports no total', () => {
+    const noTotal: RunsPageResult = {
+      data: { runs: [...RUNS] },
+      meta: { ...META, total: null, next_cursor: null },
+    }
+    expect(resultSummary(narrowRuns([noTotal]), DEFAULT_RUNS_SEARCH)).toBe('3 runs')
   })
 })

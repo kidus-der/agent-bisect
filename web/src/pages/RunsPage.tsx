@@ -66,10 +66,9 @@ export function RunsPage() {
     if (hasNextPage && !isFetchingNextPage && pageCount < AUTO_PAGE_LIMIT) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, pageCount])
 
-  const narrowed = useMemo(() => narrowRuns(pages, search), [pages, search])
+  const narrowed = useMemo(() => narrowRuns(pages), [pages])
   const facets = useMemo(() => runFacets(pages), [pages])
-  const allLoaded = !hasNextPage
-  const summary = resultSummary(narrowed, search, allLoaded)
+  const summary = resultSummary(narrowed, search)
   const filtered = hasActiveFilters(search)
 
   const header = (

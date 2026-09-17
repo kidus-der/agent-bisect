@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
 import { cn } from '@/lib/utils'
 
-import { FAULT_TYPES, type FaultType, type RunOutcome, type RunStatus } from './api'
+import { FAULT_FILTERS, type FaultFilter, NO_FAULT, type RunOutcome, type RunStatus } from './api'
 import type { RunFacets } from './runRows'
 import { type RunsSearch, clearFilters, hasActiveFilters } from './runsSearch'
 
@@ -31,11 +31,12 @@ const STATUS_OPTIONS = [
   { value: 'recording', label: 'Recording' },
 ] as const
 
-const FAULT_LABELS: Readonly<Record<FaultType, string>> = {
+const FAULT_LABELS: Readonly<Record<FaultFilter, string>> = {
   wrong_value: 'wrong value',
   missing_field: 'missing field',
   stale_record: 'stale record',
   tool_error: 'tool error',
+  [NO_FAULT]: 'none planted',
 }
 
 function fromAll<T extends string>(value: WithAll<T>): T | null {
@@ -106,8 +107,8 @@ function SearchField({ value, onChange }: SearchFieldProps) {
         type="search"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        placeholder="Search run or task id"
-        aria-label="Search runs by run id or task id"
+        placeholder="Search runs"
+        aria-label="Search runs by run id, task id, model or tool name"
         className="h-full min-w-0 flex-1 bg-transparent text-small text-ink outline-none placeholder:text-ink-muted"
       />
     </div>
@@ -143,7 +144,7 @@ function FilterControls({ search, facets, onChange }: FilterControlsProps) {
       />
       <ChipGroup
         label="fault"
-        options={FAULT_TYPES.map((fault) => ({ value: fault, label: FAULT_LABELS[fault] }))}
+        options={FAULT_FILTERS.map((fault) => ({ value: fault, label: FAULT_LABELS[fault] }))}
         value={search.fault}
         onChange={(fault) => onChange({ ...search, fault })}
       />
