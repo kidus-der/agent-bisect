@@ -1,4 +1,4 @@
-import { Rewind, RotateCcw } from 'lucide-react'
+import { Bot, Rewind, RotateCcw, User, Wrench } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useMeasure from 'react-use-measure'
@@ -24,6 +24,13 @@ const AXIS_HEIGHT = 16
 const PAGE_STEP = 5
 const SCROLL_MARGIN_PX = 48
 const AXIS_TICK_TARGET = 8
+
+/** The actor glyphs drawn over each cell, named once in the header. */
+const ACTOR_LEGEND = [
+  { actor: 'user', Icon: User },
+  { actor: 'agent', Icon: Bot },
+  { actor: 'tool', Icon: Wrench },
+] as const
 
 interface Intervention {
   readonly before: string
@@ -161,13 +168,29 @@ export function StepTimeline({
   const viewportFraction = geometry.contentWidth > 0 ? viewport / geometry.contentWidth : 1
   const scrollFraction = geometry.contentWidth > 0 ? scrollLeft / geometry.contentWidth : 0
   const activeCell = cells[(hovered ?? playhead) - 1]
+  const READOUT_WIDTH = 260
+  const readoutOffset = Math.min(
+    Math.max(geometry.center(hovered ?? playhead) - scrollLeft - READOUT_WIDTH / 2, 0),
+    Math.max(frame.width - READOUT_WIDTH, 0),
+  )
   const tapeBandWidth = rewind ? geometry.x(rewind.step) : 0
   const rerunBandStart = rewind ? geometry.x(Math.min(rewind.step + 1, nSteps)) : 0
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <InstrumentLabel as="h2">tape</InstrumentLabel>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <InstrumentLabel as="h2">tape</InstrumentLabel>
+          {/* The glyphs above each cell are never otherwise explained. */}
+          <p className="flex items-center gap-2.5 font-mono text-[11px] tracking-wide text-ink-muted uppercase">
+            {ACTOR_LEGEND.map(({ actor, Icon }) => (
+              <span key={actor} className="flex items-center gap-1">
+                <Icon aria-hidden="true" className="size-3" strokeWidth={2} />
+                {actor}
+              </span>
+            ))}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -331,13 +354,18 @@ export function StepTimeline({
         />
       ) : null}
 
-      <p
-        aria-live="polite"
-        className="mt-3 flex min-h-5 flex-wrap items-baseline gap-x-2 border-t border-line pt-3 font-mono text-small"
-      >
-        <span className="font-medium text-ink">step {hovered ?? playhead}</span>
-        <span className="num text-ink-muted">{readout(activeCell)}</span>
-      </p>
+      {/* Anchored under the playhead rather than pinned to the far left, so the
+          numbers sit beside the cell they describe. */}
+      <div className="mt-3 border-t border-line pt-3">
+        <p
+          aria-live="polite"
+          className="flex min-h-5 flex-wrap items-baseline gap-x-2 font-mono text-small"
+          style={{ marginLeft: readoutOffset }}
+        >
+          <span className="font-medium text-ink">step {hovered ?? playhead}</span>
+          <span className="num text-ink-muted">{readout(activeCell)}</span>
+        </p>
+      </div>
       {intervention ? (
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 font-mono text-small">
           <span className="font-medium text-blame">step {rewind?.step ?? playhead}</span>
