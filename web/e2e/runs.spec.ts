@@ -115,7 +115,14 @@ test('the list virtualizes: scrolling renders rows that were never in the DOM', 
 
   const lastId = RECORDED.lastRunId
   await expect(page.getByText(lastId, { exact: true })).toHaveCount(0)
-  await page.getByRole('group', { name: /scrollable/ }).evaluate((node) => {
+  const scroller = page.getByRole('group', { name: /scrollable/ })
+  // The panel settles after its legend and chips lay out, so scroll once the
+  // height has stopped changing, then again from the settled position.
+  await scroller.evaluate((node) => {
+    node.scrollTop = node.scrollHeight
+  })
+  await page.waitForTimeout(200)
+  await scroller.evaluate((node) => {
     node.scrollTop = node.scrollHeight
   })
   await expect(page.getByText(lastId, { exact: true })).toBeVisible()
