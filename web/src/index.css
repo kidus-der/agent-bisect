@@ -96,13 +96,14 @@
 @utility skeleton-shimmer {
   position: relative;
   overflow: hidden;
-  background-color: var(--bx-elevated);
+  /* Mixed from the hairline, so a block shows on white in the light theme too. */
+  background-color: color-mix(in srgb, var(--bx-line) 70%, var(--bx-surface));
 
   &::after {
     content: '';
     position: absolute;
     inset: 0;
-    background-image: linear-gradient(100deg, transparent 30%, var(--bx-line) 50%, transparent 70%);
+    background-image: linear-gradient(100deg, transparent 30%, var(--bx-line-strong) 50%, transparent 70%);
     transform: translateX(-100%);
     animation: skeleton-sweep 1.6s linear infinite;
   }
