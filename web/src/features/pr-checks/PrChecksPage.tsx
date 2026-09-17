@@ -8,6 +8,7 @@ import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { Skeleton, TableSkeleton } from '@/components/primitives/Skeleton'
 import { formatPValue, formatPercent, formatPoints, newcombeInterval } from '@/lib/stats'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/pages/PageHeader'
 
@@ -16,6 +17,7 @@ import { GATE_COMMAND, type PrCheckSummary, usePrChecksQuery } from './api'
 /** The list endpoint has no run count; the suite is 24 scenarios x 4 runs. */
 const RUNS_PER_REF = 96
 const TABLE_MAX_HEIGHT = 460
+const MOBILE_ROW_HEIGHT = 76
 
 function change(check: PrCheckSummary): number {
   return check.head_pass_rate - check.base_pass_rate
@@ -74,31 +76,42 @@ function DeltaCell({ check }: { readonly check: PrCheckSummary }) {
 const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
   {
     id: 'pr',
-    header: 'pr',
-    width: '4.5rem',
+    header: 'pr · suite',
     sortValue: (row) => row.pr_number,
+    // Below `sm` the suite and the verdict have no column of their own, so they
+    // stack under the number: the suite name is the row's identity and a
+    // verdict carried by colour alone would not be a verdict.
     cell: (row) => (
-      <Link
-        to="/pr-checks/$checkId"
-        params={{ checkId: row.check_id }}
-        className="num text-measure underline-offset-2 hover:underline"
-      >
-        #{row.pr_number}
-      </Link>
+      <span className="flex flex-col gap-0.5">
+        <Link
+          to="/pr-checks/$checkId"
+          params={{ checkId: row.check_id }}
+          className="num text-measure underline-offset-2 hover:underline"
+        >
+          #{row.pr_number}
+        </Link>
+        {/* A hard cap, not just `truncate`: the table does not use a fixed
+            layout, so an unbounded cell simply widens the row. */}
+        <span className="block max-w-[8rem] truncate num text-[12px] text-ink-muted sm:hidden">
+          {row.title}
+        </span>
+        <span className="sm:hidden">
+          <VerdictChip check={row} />
+        </span>
+      </span>
     ),
   },
   {
     id: 'verdict',
     header: 'verdict',
     width: '7rem',
+    hideOnMobile: true,
     sortValue: (row) => (row.is_regression ? 0 : 1),
     cell: (row) => <VerdictChip check={row} />,
   },
   {
     id: 'suite',
     header: 'scenario suite',
-    // On a phone the row keeps the number, the verdict and the change with its
-    // interval — the columns the page exists for. The rest scroll away.
     hideOnMobile: true,
     sortValue: (row) => row.title,
     cell: (row) => <span className="num text-ink">{row.title}</span>,
@@ -148,6 +161,8 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
     id: 'open',
     header: '',
     width: '2rem',
+    // At 390 the chevron would push the change column off the row; the
+    // link-coloured PR number carries the affordance there instead.
     hideOnMobile: true,
     cell: () => <ChevronRight aria-hidden="true" className="size-4 text-ink-muted" />,
   },
@@ -165,6 +180,9 @@ function ListSkeleton() {
 }
 
 function CheckList({ checks }: { readonly checks: readonly PrCheckSummary[] }) {
+  // The stacked mobile cell needs a taller row; above `sm` the default holds.
+  const narrow = useMediaQuery('(max-width: 640px)')
+  const rowHeight = narrow ? MOBILE_ROW_HEIGHT : undefined
   if (checks.length === 0) {
     return (
       <Panel variant="canvas">
@@ -202,6 +220,7 @@ function CheckList({ checks }: { readonly checks: readonly PrCheckSummary[] }) {
         getRowId={(row) => row.check_id}
         caption="Gated pull requests: base and head pass rate on the same scenario suite, with the change and its 95% interval."
         maxHeight={TABLE_MAX_HEIGHT}
+        rowHeight={rowHeight}
         initialSort={{ columnId: 'delta', direction: 'asc' }}
       />
     </Panel>
