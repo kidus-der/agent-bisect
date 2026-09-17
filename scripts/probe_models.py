@@ -231,16 +231,26 @@ def probe_models(
     """
     configs = {model: text_run_config(model, user_model) for model in models}
     done: dict[str, list[TaskProbeResult]] = {model: [] for model in models}
-    pending: list[tuple[str, Any]] = []
+    per_model: dict[str, list[Any]] = {model: [] for model in models}
     for model in models:
         for task in tasks:
             existing = load_checkpoint(model, task.id)
             if existing is None:
-                pending.append((model, task))
+                per_model[model].append(task)
             else:
                 done[model].append(existing)
         print(f"{model}: {len(done[model])} done, "
-              f"{len(tasks) - len(done[model])} to run")
+              f"{len(per_model[model])} to run")
+    # Round-robin, not model-major. Submitted in model-major order every slot
+    # in the pool goes to the first model, which saturates that one endpoint's
+    # queue (its per-call latency then climbs with depth) while the other
+    # models' separate rate buckets sit idle.
+    pending: list[tuple[str, Any]] = [
+        (model, per_model[model][i])
+        for i in range(max((len(v) for v in per_model.values()), default=0))
+        for model in models
+        if i < len(per_model[model])
+    ]
     if not pending:
         return done
     print(f"running {len(pending)} (model, task) pairs at concurrency {concurrency}")
@@ -370,7 +380,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", default="all",
                         choices=("all", "toolcheck", "usersim", "probe", "judge"))
-    parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--concurrency", type=int, default=12)
     parser.add_argument("--tasks", type=int, default=N_TASKS)
     parser.add_argument("--models", nargs="*", default=None,
                         help="Agent candidates to probe (default: the usable ones).")
@@ -403,10 +413,18 @@ def run_usersim_stage(ledger: BudgetLedger, tasks: list[Any], checker, concurren
 
     sanity_model = f"{SANITY_AGENT}#usersim-{slug(USER_SIM_PRIMARY)}"
     config = text_run_config(SANITY_AGENT, USER_SIM_PRIMARY)
-    rows = []
-    for task in tasks[:SANITY_TASKS]:
-        existing = load_checkpoint(sanity_model, task.id)
-        rows.append(existing or run_one_task(sanity_model, task, config, checker))
+    wanted = tasks[:SANITY_TASKS]
+    rows = [row for row in (load_checkpoint(sanity_model, t.id) for t in wanted) if row]
+    pending = [t for t in wanted if load_checkpoint(sanity_model, t.id) is None]
+    if pending:
+        # A τ² conversation is serial within itself, so the only way to finish
+        # the sanity check promptly is to run its tasks side by side.
+        with ThreadPoolExecutor(max_workers=max(1, min(concurrency, len(pending)))) as pool:
+            futures = [
+                pool.submit(run_one_task, sanity_model, task, config, checker)
+                for task in pending
+            ]
+            rows.extend(future.result() for future in futures)
     usable, reason = user_sim_is_usable(rows)
     chosen = USER_SIM_PRIMARY if usable else USER_SIM_FALLBACK
     payload = {"primary": USER_SIM_PRIMARY, "fallback": USER_SIM_FALLBACK,
