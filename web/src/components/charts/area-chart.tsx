@@ -8,6 +8,7 @@ import {
   isValidElement,
   type ReactNode,
   useCallback,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -154,13 +155,17 @@ function ChartInner({
   onPhaseChange,
 }: ChartInnerProps) {
   const lines = useMemo(() => extractAreaConfigs(children), [children]);
+  // Local change: the registry hard-codes this id, so a second AreaChart on the
+  // same page reuses the first one's clip and never reveals. Colons are stripped
+  // because the id goes into a `url(#...)` reference (same as `dash-tail-stroke`).
+  const clipPathId = `chart-area-grow-clip-${useId().replace(/:/g, "")}`;
 
   return (
     <TimeSeriesChartInner
       animationDuration={animationDuration}
       animationEasing={animationEasing}
       chartStatus={chartStatus}
-      clipPathId="chart-area-grow-clip"
+      clipPathId={clipPathId}
       containerRef={containerRef}
       data={data}
       enterTransition={enterTransition}

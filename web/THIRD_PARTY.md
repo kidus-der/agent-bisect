@@ -13,6 +13,7 @@ Installed with `npx shadcn@latest add @bklit/<slug>`. Local changes to vendored 
 
 - `charts/chart-loading-label.tsx`: import path `../components/shimmering-text` → `@/components/shimmering-text` (the registry path did not resolve).
 - The `@theme` lines the registry appended to `index.css` were discarded (they referenced `var(----chart-*)`, four dashes). Every `--chart-*` variable is now generated from `src/design/tokens.ts` by `src/design/tokens-css.ts`.
+- `charts/line-chart.tsx`, `charts/area-chart.tsx`: the reveal `clipPath` id was hard-coded (`chart-grow-clip` / `chart-area-grow-clip`), so two line charts (or two area charts) on one page shared a single clip and the second never revealed. Both now derive the id from `useId()`, with colons stripped because it is referenced through `url(#...)` — the same convention `charts/dash-tail-stroke.tsx` already uses.
 - `charts/live-line.tsx`: the live value badge hard-coded `fontFamily="SF Mono, Menlo, Monaco, monospace"` and a 6px radius, so it read as a foreign face next to every other numeral. It now uses `var(--font-mono)` with tabular numerals, the 4px step radius and a `line-strong` hairline.
 
 shadcn/ui itself (MIT, https://ui.shadcn.com) is used as CLI + `shadcn/tailwind.css` only; its generated `ui/` components were removed because the primitives here are built directly on Radix.
