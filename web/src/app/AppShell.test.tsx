@@ -118,6 +118,22 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  // 'qqzz' fuzzy-matches no page or command, so the action is the only row left.
+  test('a search always offers the filter-runs action, and Enter opens Runs with that filter', async () => {
+    mockMeta(true)
+    const user = userEvent.setup()
+    const router = createAppRouter(createMemoryHistory({ initialEntries: ['/'] }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<App router={router} queryClient={queryClient} />)
+    await user.click(await screen.findByRole('button', { name: 'Open command palette' }))
+    // The palette is a lazy chunk: wait for its input before typing.
+    await user.type(await screen.findByRole('combobox'), 'qqzz')
+    expect(await screen.findByRole('option', { name: /Filter Runs by “qqzz”/ })).toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument()
+    expect(router.state.location.search).toMatchObject({ q: 'qqzz' })
+  })
+
   test('the palette can toggle the theme', async () => {
     mockMeta(true)
     const user = userEvent.setup()
