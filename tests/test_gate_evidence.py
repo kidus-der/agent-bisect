@@ -7,6 +7,8 @@ numbers that produced the verdict.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from scripts.gates.evidence import (
     current_commit,
@@ -27,8 +29,8 @@ PASSING = [_Criterion("runs", True, "20 recorded runs"), _Criterion("state", Tru
 FAILING = [_Criterion("runs", True, "20 recorded runs"), _Criterion("state", False, "98.1%")]
 
 
-def _evidence(criteria, **overrides) -> str:
-    kwargs = dict(
+def _evidence(criteria, **overrides: Any) -> str:
+    kwargs: dict[str, Any] = dict(
         gate="P1",
         title="record and snapshot",
         script="scripts/gates/p1.py",
