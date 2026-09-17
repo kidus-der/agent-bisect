@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -107,12 +108,12 @@ def test_list_runs_reads_real_recording(one_run_dir):
     assert all(cell.tested is False for cell in runs[0].blame_stripe)
 
 
-def test_list_runs_cost_and_calls_are_unknown_without_a_ledger(one_run_dir):
-    """No `runs/ledger.sqlite` at all (this fixture never writes one) -- both
-    genuinely unknown, `None`, never a fake `0`/`0.0` that would read as
-    "free". `cost_usd` stays `None` even once `calls` is attributable
-    (below): there's still no per-model USD price anywhere in this codebase
-    to multiply by."""
+def test_list_runs_cost_and_calls_are_unknown_without_attribution(one_run_dir):
+    """`one_run_dir`'s one ledger row has `run_id=None` (unattributed), so
+    "real-run-1" itself has zero *attributable* rows -- `None`, never a
+    fake `0`/`0.0` that would read as "free". `cost_usd` stays `None` even
+    once `calls` is attributable (below): there's still no per-model USD
+    price anywhere in this codebase to multiply by."""
     repo = RealRepository(runs_dir=one_run_dir)
     runs, _ = repo.list_runs(RunFilter())
     assert runs[0].cost_usd is None
@@ -516,3 +517,90 @@ def test_evaluator_actor_step_is_reported_not_rejected(tmp_path):
     assert runs[0].sparkline[0].actor == "evaluator"
     detail = repo.run_detail("evaluated-run")
     assert detail.steps[0].actor == "evaluator"
+
+
+def test_live_snapshot_has_no_jobs_when_no_status_files_exist(one_run_dir):
+    """No `runs/<phase>/status.json` anywhere -- an honest empty tuple, not
+    an invented job."""
+    repo = RealRepository(runs_dir=one_run_dir)
+    assert repo.live_snapshot().jobs == ()
+
+
+def test_live_snapshot_reads_a_real_job_status_file(one_run_dir):
+    """The runs/<phase>/status.json convention (documented in
+    docs/design/api-contract.md): a long-running job writes its own
+    progress there, and the live snapshot reports exactly that, never a
+    fabricated field it didn't provide."""
+    phase_dir = one_run_dir / "p1"
+    phase_dir.mkdir()
+    (phase_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "kind": "record",
+                "state": "running",
+                "progress": 0.45,
+                "label": "tau2 run recording",
+                "items_done": 9,
+                "items_total": 20,
+                "model": "nvidia/nemotron-3-super-120b-a12b",
+                "calls_spent": 812,
+                "started_at": "2026-09-17T09:00:00Z",
+                "last_checkpoint_at": "2026-09-17T09:12:00Z",
+                "eta_seconds": 640.0,
+            }
+        )
+    )
+
+    repo = RealRepository(runs_dir=one_run_dir)
+    jobs = repo.live_snapshot().jobs
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.job_id == "p1"
+    assert job.phase == "P1"
+    assert job.kind == "record"
+    assert job.state == "running"
+    assert job.progress == 0.45
+    assert job.items_done == 9
+    assert job.items_total == 20
+    assert job.model == "nvidia/nemotron-3-super-120b-a12b"
+    assert job.calls_spent == 812
+    assert job.eta_seconds == 640.0
+    # Never invented: this status.json had no error field.
+    assert job.error is None
+
+
+def test_live_snapshot_skips_a_malformed_status_file(one_run_dir):
+    """A single unreadable/invalid status.json must not take down the
+    whole live snapshot -- it's skipped, not fatal."""
+    phase_dir = one_run_dir / "p3"
+    phase_dir.mkdir()
+    (phase_dir / "status.json").write_text("{not valid json")
+
+    repo = RealRepository(runs_dir=one_run_dir)
+    assert repo.live_snapshot().jobs == ()
+
+
+def test_live_snapshot_reads_multiple_phase_status_files(one_run_dir):
+    p1 = one_run_dir / "p1"
+    p1.mkdir()
+    (p1 / "status.json").write_text(
+        json.dumps({"kind": "record", "state": "queued", "progress": 0.0})
+    )
+    p5 = one_run_dir / "p5"
+    p5.mkdir()
+    (p5 / "status.json").write_text(
+        json.dumps(
+            {
+                "kind": "eval",
+                "state": "done",
+                "progress": 1.0,
+                "finished_at": "2026-09-17T10:00:00Z",
+            }
+        )
+    )
+
+    repo = RealRepository(runs_dir=one_run_dir)
+    jobs = {job.job_id: job for job in repo.live_snapshot().jobs}
+    assert set(jobs) == {"p1", "p5"}
+    assert jobs["p1"].state == "queued"
+    assert jobs["p5"].state == "done"
