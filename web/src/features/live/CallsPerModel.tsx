@@ -77,7 +77,12 @@ export function CallsPerModel({ rows, simulated, status }: CallsPerModelProps) {
           <span className="num text-display font-semibold text-ink">
             {formatNumber(total, { decimals: 1 })}
           </span>
-          <span className="label-instrument">calls / min · scale 0–{domainMax} shared</span>
+          {/* The total is a sum across models, so it can and does exceed the
+              per-trace axis; saying so stops the headline reading as off-scale. */}
+          <span className="label-instrument">
+            calls / min · sum of {series.length} {series.length === 1 ? 'model' : 'models'}
+          </span>
+          <span className="label-instrument">traces share 0–{domainMax}</span>
         </div>
       </header>
 
