@@ -11,7 +11,6 @@ import { ParentSize } from '@visx/responsive'
 import { scaleLinear, scaleLog } from '@visx/scale'
 import { motion, useInView, useReducedMotion } from 'motion/react'
 import { useRef } from 'react'
-import useMeasure from 'react-use-measure'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { PercentYAxis } from '@/components/chart-theme/PercentYAxis'
@@ -21,7 +20,6 @@ import { formatNumber } from '@/lib/format'
 import { formatPercent } from '@/lib/stats'
 
 import type { CiValue, CostAccuracyPoint, MethodName } from './api'
-import { placeLabels } from './labelPlacement'
 import { methodLabel } from './api'
 
 const MARGIN = { top: 18, right: 28, bottom: 46, left: 44 } as const
@@ -33,8 +31,7 @@ const MIN_HEIGHT = 240
  */
 const Y_DOMAIN = [0.5, 1] as const
 const Y_TICKS = [0.5, 0.6, 0.7, 0.8, 0.9, 1] as const
-const X_TICKS = [0.03, 0.1, 0.3, 1, 3] as const
-/** A narrow plot cannot fit five money labels without them touching. */
+/** Three money labels; five touch at the widths this chart gets. */
 const X_TICKS_NARROW = [0.03, 0.3, 3] as const
 const POINT_RADIUS = 5
 const HEADLINE_RADIUS = 7
@@ -43,11 +40,11 @@ const POINT_DELAY_SECONDS = 0.07
 const IN_VIEW_AMOUNT = 0.3
 const MIN_COST_USD = 0.02
 /**
- * Plot width below which five labels cannot be placed without colliding, so the
- * points are numbered and named in a legend instead. Measured on the plot, not
- * the viewport: at 1440 this chart is one of two columns and is already ~640px.
+ * Five points, two of which share a cost, never resolve into five in-place
+ * labels at any width this chart actually gets — at 1440 `Bisect` and `Re-run
+ * live` still float between their points. So the points are always numbered and
+ * the legend always names them: one reading, at every size.
  */
-const LABEL_WIDTH_FLOOR_PX = 520
 const BADGE_RADIUS = 9
 
 /**
@@ -94,11 +91,9 @@ interface PlotProps {
   readonly height: number
   readonly revealed: boolean
   readonly reduced: boolean
-  /** Numbered points plus a legend, for widths where labels cannot fit. */
-  readonly numbered: boolean
 }
 
-function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps) {
+function Plot({ points, width, height, revealed, reduced }: PlotProps) {
   const innerWidth = Math.max(width - MARGIN.left - MARGIN.right, 0)
   const innerHeight = Math.max(height - MARGIN.top - MARGIN.bottom, 0)
   const costs = points.map((point) => Math.max(point.mean_cost_usd, MIN_COST_USD))
@@ -108,20 +103,6 @@ function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps)
   })
   const y = scaleLinear<number>({ domain: [...Y_DOMAIN], range: [innerHeight, 0] })
   const pointX = (point: ScatterPoint): number => x(Math.max(point.mean_cost_usd, MIN_COST_USD))
-  const labels = new Map(
-    (numbered
-      ? []
-      : placeLabels(
-          points.map((point) => ({
-            id: point.method,
-            x: pointX(point),
-            y: y(point.accuracy),
-            length: methodLabel(point.method).length,
-          })),
-          innerWidth,
-        )
-    ).map((entry) => [entry.id, entry]),
-  )
 
   return (
     <svg width={width} height={height} aria-hidden="true">
@@ -135,7 +116,7 @@ function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps)
           titleOffset={MARGIN.left - 12}
         />
 
-        {(numbered ? X_TICKS_NARROW : X_TICKS).map((tick) => (
+        {X_TICKS_NARROW.map((tick) => (
           <text
             key={tick}
             x={x(tick)}
@@ -163,7 +144,6 @@ function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps)
           const isHeadline = point.method === 'bisect'
           const cx = pointX(point)
           const cy = y(point.accuracy)
-          const label = labels.get(point.method)
           return (
             <motion.g
               key={point.method}
@@ -205,40 +185,21 @@ function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps)
                 stroke={colour}
                 strokeWidth={2}
               />
-              {numbered ? (
-                // Too narrow to label in place: the point carries its index and
-                // the legend under the plot carries the name.
-                <text
-                  x={cx}
-                  y={cy + BADGE_RADIUS + 12}
-                  textAnchor="middle"
-                  stroke={chartColours.background}
-                  strokeWidth={3}
-                  paintOrder="stroke"
-                  fontSize={11}
-                  fontWeight={650}
-                  fill={colour}
-                  className="num"
-                >
-                  {index + 1}
-                </text>
-              ) : (
-                /* Direct labels: no legend to cross-reference. A halo in the panel
-                   fill keeps one readable where it crosses a neighbour's whisker. */
-                <text
-                  x={cx + (label?.dx ?? 0)}
-                  y={cy + (label?.dy ?? 0)}
-                  textAnchor={label?.anchor ?? 'start'}
-                  stroke={chartColours.background}
-                  strokeWidth={3}
-                  paintOrder="stroke"
-                  fontSize={12}
-                  fontWeight={isHeadline ? 650 : 500}
-                  fill={isHeadline ? colour : chartColours.foreground}
-                >
-                  {methodLabel(point.method)}
-                </text>
-              )}
+              {/* The point carries its index; the legend below names it. */}
+              <text
+                x={cx}
+                y={cy + BADGE_RADIUS + 12}
+                textAnchor="middle"
+                stroke={chartColours.background}
+                strokeWidth={3}
+                paintOrder="stroke"
+                fontSize={11}
+                fontWeight={650}
+                fill={colour}
+                className="num"
+              >
+                {index + 1}
+              </text>
             </motion.g>
           )
         })}
@@ -279,9 +240,6 @@ export function CostAccuracyScatter({ points, intervalsUnavailable }: CostAccura
   const reduced = useReducedMotion() ?? false
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inView = useInView(containerRef, { amount: IN_VIEW_AMOUNT, once: true })
-  // Measured, not a media query: the plot's width depends on its grid column.
-  const [plotRef, plotBounds] = useMeasure()
-  const numbered = plotBounds.width > 0 && plotBounds.width < LABEL_WIDTH_FLOOR_PX
 
   return (
     <ChartFrame
@@ -289,7 +247,7 @@ export function CostAccuracyScatter({ points, intervalsUnavailable }: CostAccura
       title="What the accuracy costs"
       description={describe(points)}
       // The legend needs its own room; it must never sit over the axis.
-      heightClassName={numbered ? 'h-80' : 'h-64'}
+      heightClassName="h-80"
       legend={
         intervalsUnavailable ? (
           <span className="label-instrument">intervals unavailable_</span>
@@ -305,7 +263,7 @@ export function CostAccuracyScatter({ points, intervalsUnavailable }: CostAccura
           </p>
         ) : (
           <>
-            <div ref={plotRef} className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1">
               <ParentSize debounceTime={0}>
                 {({ width, height }) =>
                   width === 0 ? null : (
@@ -315,13 +273,12 @@ export function CostAccuracyScatter({ points, intervalsUnavailable }: CostAccura
                       height={Math.max(height, MIN_HEIGHT)}
                       revealed={inView}
                       reduced={reduced}
-                      numbered={numbered}
                     />
                   )
                 }
               </ParentSize>
             </div>
-            {numbered ? <ScatterLegend points={points} /> : null}
+            <ScatterLegend points={points} />
           </>
         )}
       </div>
