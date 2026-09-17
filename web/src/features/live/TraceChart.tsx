@@ -1,4 +1,5 @@
 import { curveMonotoneX } from '@visx/curve'
+import { localPoint } from '@visx/event'
 import { GridRows } from '@visx/grid'
 import { Group } from '@visx/group'
 import { LinearGradient } from '@visx/gradient'
@@ -6,11 +7,12 @@ import { ParentSize } from '@visx/responsive'
 import { scaleLinear, scaleTime } from '@visx/scale'
 import { Area, LinePath } from '@visx/shape'
 import { motion, useReducedMotion } from 'motion/react'
-import { useId } from 'react'
+import { type PointerEvent, useId } from 'react'
 
 import { springTransition } from '@/design/motion'
 
 import type { SeriesPoint } from './callsSeries'
+import { nearestPoint } from './traceCursor'
 
 const MARGIN = { top: 10, right: 58, bottom: 22, left: 40 } as const
 const Y_TICKS = 3
@@ -25,6 +27,8 @@ const PULSE_SECONDS = 1.8
 const BADGE_HEIGHT = 20
 const BADGE_CHAR_WIDTH = 7.2
 const BADGE_PADDING = 10
+/** Gap between the mark and the badge hanging off it. */
+const BADGE_OFFSET = 8
 const MS_PER_SECOND = 1000
 
 /** Hours and minutes only: the window is tens of minutes, and seconds collide. */
@@ -36,6 +40,44 @@ function xTickCount(innerWidth: number): number {
   return Math.max(MIN_X_TICKS, Math.min(MAX_X_TICKS, Math.floor(innerWidth / X_TICK_PITCH_PX)))
 }
 
+interface ValueBadgeProps {
+  readonly x: number
+  readonly y: number
+  readonly label: string
+  /** Which side of `x` the badge hangs off, so it never leaves the plot. */
+  readonly side: 'right' | 'left'
+}
+
+function ValueBadge({ x, y, label, side }: ValueBadgeProps) {
+  const width = label.length * BADGE_CHAR_WIDTH + BADGE_PADDING * 2
+  const left = side === 'right' ? x + BADGE_OFFSET : x - BADGE_OFFSET - width
+  return (
+    <g transform={`translate(${left},${y})`}>
+      <rect
+        x={0}
+        y={-BADGE_HEIGHT / 2}
+        width={width}
+        height={BADGE_HEIGHT}
+        rx={4}
+        fill="var(--bx-elevated)"
+        stroke="var(--bx-line-strong)"
+      />
+      <text
+        x={BADGE_PADDING}
+        y={0}
+        dy="0.32em"
+        fill="var(--bx-text)"
+        fontSize={11}
+        fontWeight={500}
+        fontFamily="var(--font-mono)"
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+      >
+        {label}
+      </text>
+    </g>
+  )
+}
+
 interface PlotProps {
   readonly width: number
   readonly height: number
@@ -44,9 +86,21 @@ interface PlotProps {
   readonly domainMax: number
   readonly formatValue: (value: number) => string
   readonly gradientId: string
+  readonly cursorTime: number | null
+  readonly onCursorTime: (time: number | null) => void
 }
 
-function Plot({ width, height, points, colour, domainMax, formatValue, gradientId }: PlotProps) {
+function Plot({
+  width,
+  height,
+  points,
+  colour,
+  domainMax,
+  formatValue,
+  gradientId,
+  cursorTime,
+  onCursorTime,
+}: PlotProps) {
   const reduced = useReducedMotion() ?? false
   const innerWidth = Math.max(0, width - MARGIN.left - MARGIN.right)
   const innerHeight = Math.max(0, height - MARGIN.top - MARGIN.bottom)
@@ -66,7 +120,18 @@ function Plot({ width, height, points, colour, domainMax, formatValue, gradientI
   const tipX = px(last)
   const tipY = py(last)
   const badgeLabel = formatValue(last.value)
-  const badgeWidth = badgeLabel.length * BADGE_CHAR_WIDTH + BADGE_PADDING * 2
+
+  const cursor = cursorTime === null ? null : nearestPoint(points, cursorTime)
+  const cursorX = cursor ? px(cursor) : 0
+  // The badge flips to the left half-way across so it never runs off the plot.
+  const cursorSide = cursorX > innerWidth / 2 ? 'left' : 'right'
+
+  function handlePointer(event: PointerEvent<SVGRectElement>) {
+    const local = localPoint(event)
+    if (!local) return
+    const time = x.invert(local.x - MARGIN.left).valueOf() / MS_PER_SECOND
+    onCursorTime(time)
+  }
 
   return (
     <svg width={width} height={height} role="presentation">
@@ -152,29 +217,63 @@ function Plot({ width, height, points, colour, domainMax, formatValue, gradientI
           stroke="var(--bx-surface)"
           strokeWidth={1.5}
         />
-        <g transform={`translate(${tipX + 8},${tipY})`}>
-          <rect
-            x={0}
-            y={-BADGE_HEIGHT / 2}
-            width={badgeWidth}
-            height={BADGE_HEIGHT}
-            rx={4}
-            fill="var(--bx-elevated)"
-            stroke="var(--bx-line-strong)"
-          />
-          <text
-            x={BADGE_PADDING}
-            y={0}
-            dy="0.32em"
-            fill="var(--bx-text)"
-            fontSize={11}
-            fontWeight={500}
-            fontFamily="var(--font-mono)"
-            style={{ fontVariantNumeric: 'tabular-nums' }}
-          >
-            {badgeLabel}
-          </text>
-        </g>
+        {/* The live tip steps aside while the cursor is reading the series. */}
+        {cursor ? null : <ValueBadge x={tipX} y={tipY} label={badgeLabel} side="right" />}
+
+        {cursor ? (
+          <g>
+            <line
+              x1={px(cursor)}
+              x2={px(cursor)}
+              y1={0}
+              y2={innerHeight}
+              stroke="var(--bx-line-strong)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <circle
+              cx={px(cursor)}
+              cy={py(cursor)}
+              r={TIP_RADIUS + 1}
+              fill={colour}
+              stroke="var(--bx-surface)"
+              strokeWidth={1.5}
+            />
+            <ValueBadge
+              x={px(cursor)}
+              y={py(cursor)}
+              label={formatValue(cursor.value)}
+              side={cursorSide}
+            />
+            <text
+              x={px(cursor)}
+              y={innerHeight + 16}
+              textAnchor="middle"
+              fill="var(--bx-text)"
+              fontSize={11}
+              fontFamily="var(--font-mono)"
+              stroke="var(--bx-surface)"
+              strokeWidth={3}
+              paintOrder="stroke"
+            >
+              {formatClock(new Date(cursor.time * MS_PER_SECOND))}
+            </text>
+          </g>
+        ) : null}
+
+        {/*
+          Pointer surface. Hovering either trace moves the cursor on both, so the
+          two models can be read at one instant; it carries no information of its
+          own, and the numbers are in the chart's description for everyone else.
+        */}
+        <rect
+          width={innerWidth}
+          height={innerHeight}
+          fill="transparent"
+          onPointerMove={handlePointer}
+          onPointerDown={handlePointer}
+          onPointerLeave={() => onCursorTime(null)}
+        />
       </Group>
     </svg>
   )
@@ -186,6 +285,9 @@ interface TraceChartProps {
   /** Shared across every trace on the page: the comparison is the point. */
   readonly domainMax: number
   readonly formatValue: (value: number) => string
+  /** Shared with every trace on the page, as a time: see `traceCursor`. */
+  readonly cursorTime: number | null
+  readonly onCursorTime: (time: number | null) => void
 }
 
 /**
@@ -196,7 +298,14 @@ interface TraceChartProps {
  * its right edge on `Date.now()` (so a snapshot a minute old trailed off flat),
  * and faded its only two axis labels out at the plot edges.
  */
-export function TraceChart({ points, colour, domainMax, formatValue }: TraceChartProps) {
+export function TraceChart({
+  points,
+  colour,
+  domainMax,
+  formatValue,
+  cursorTime,
+  onCursorTime,
+}: TraceChartProps) {
   const gradientId = `trace-${useId().replace(/:/g, '')}`
   return (
     <ParentSize debounceTime={10}>
@@ -209,6 +318,8 @@ export function TraceChart({ points, colour, domainMax, formatValue }: TraceChar
           domainMax={domainMax}
           formatValue={formatValue}
           gradientId={gradientId}
+          cursorTime={cursorTime}
+          onCursorTime={onCursorTime}
         />
       )}
     </ParentSize>
