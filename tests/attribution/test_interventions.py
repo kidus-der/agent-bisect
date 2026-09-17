@@ -80,9 +80,9 @@ ALL = (
 
 @pytest.mark.parametrize("intervention", ALL, ids=lambda i: i.name)
 def test_every_intervention_satisfies_the_core_protocol(intervention):
-    assert isinstance(intervention, Intervention)
     assert intervention.name
     assert intervention.describe()
+    assert isinstance(intervention, Intervention)
 
 
 @pytest.mark.parametrize("intervention", ALL, ids=lambda i: i.name)
