@@ -108,6 +108,18 @@ def turn_index(messages: Sequence[Any]) -> int:
     return index
 
 
+def _resampled(turn: ScriptedTurn, repeat: int) -> ScriptedTurn:
+    """The same turn, said differently — what a fresh sample looks like.
+
+    Tool calls are left alone: changing which tools a resample calls would
+    change what the world does, and these exist to vary the *text*, which
+    is what a request hash is mostly made of.
+    """
+    if turn.content is None:
+        return turn
+    return ScriptedTurn(content=f"{turn.content} (resampled {repeat})", tool_calls=turn.tool_calls)
+
+
 def _message(turn: ScriptedTurn) -> dict[str, Any]:
     message: dict[str, Any] = {"role": "assistant", "content": turn.content}
     if turn.tool_calls:
@@ -123,10 +135,28 @@ def _message(turn: ScriptedTurn) -> dict[str, Any]:
 
 
 class ScriptedLLM:
-    """A `completion_fn` that answers from a per-model script."""
+    """A `completion_fn` that answers from a per-model script.
 
-    def __init__(self, scripts: Mapping[str, Sequence[ScriptedTurn]]) -> None:
+    `vary_on_resample` makes a *repeat* of a turn this instance has
+    already served come back with different text. It is off by default,
+    and deliberately so: at temperature 0, which is what tau2 runs and
+    what `config/models.toml` pins, asking the same history twice really
+    does return the same answer, and the fork tests that check a
+    no-op fork reproduces its recording depend on that. Turn it on for
+    the tests that need a resample to *differ* — the ones that catch
+    control flow which only works while the new answer happens to match
+    the old one.
+    """
+
+    def __init__(
+        self,
+        scripts: Mapping[str, Sequence[ScriptedTurn]],
+        *,
+        vary_on_resample: bool = False,
+    ) -> None:
         self._scripts = {model: tuple(turns) for model, turns in scripts.items()}
+        self._vary_on_resample = vary_on_resample
+        self._served: dict[tuple[str, int], int] = {}
         self._calls_by_model: dict[str, int] = {}
         self._requests: list[dict[str, Any]] = []
         # One instance serves a whole batch, and a batch may record
@@ -169,13 +199,20 @@ class ScriptedLLM:
         with self._lock:
             self._calls_by_model[name] = self._calls_by_model.get(name, 0) + 1
             self._requests.append({"model": model, "messages": messages, **kwargs})
+            repeat = self._served.get((name, position), 0)
+            self._served[(name, position)] = repeat + 1
+        turn = script[position]
+        varied = bool(repeat) and self._vary_on_resample
+        if varied:
+            turn = _resampled(turn, repeat)
         return litellm.ModelResponse(
-            id=f"fake-{name}-{position}",
+            # The id moves only when the answer does: a temperature-0
+            # model asked the same thing twice returns the same payload,
+            # ids and all, and the no-op fork tests rely on that.
+            id=f"fake-{name}-{position}-{repeat}" if varied else f"fake-{name}-{position}",
             created=_FIXED_CREATED,
             model=name,
-            choices=[
-                {"index": 0, "finish_reason": "stop", "message": _message(script[position])}
-            ],
+            choices=[{"index": 0, "finish_reason": "stop", "message": _message(turn)}],
             usage={
                 "prompt_tokens": _FAKE_PROMPT_TOKENS,
                 "completion_tokens": _FAKE_COMPLETION_TOKENS,
