@@ -28,8 +28,7 @@ type SummaryResult = ApiResult<BenchmarkSummary | NotAvailable>
 export function useBenchmarkQuery(): UseQueryResult<SummaryResult, ApiError> {
   return useQuery<SummaryResult, ApiError>({
     queryKey: benchmarkKeys.summary,
-    queryFn: ({ signal }) =>
-      apiFetch<BenchmarkSummary | NotAvailable>('/benchmark', { signal }),
+    queryFn: ({ signal }) => apiFetch<BenchmarkSummary | NotAvailable>('/benchmark', { signal }),
   })
 }
 

@@ -43,8 +43,7 @@ export function wilsonInterval(rate: number, n: number): Interval | null {
   const denominator = 1 + zSquaredOverN
   const centre = (rate + zSquaredOverN / HALF) / denominator
   const spread =
-    (Z_95 / denominator) *
-    Math.sqrt((rate * (1 - rate)) / n + (Z_95 * Z_95) / (QUARTER * n * n))
+    (Z_95 / denominator) * Math.sqrt((rate * (1 - rate)) / n + (Z_95 * Z_95) / (QUARTER * n * n))
   return { low: clampToUnit(centre - spread), high: clampToUnit(centre + spread) }
 }
 

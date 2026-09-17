@@ -40,7 +40,7 @@ export function NotMeasuredState({
         {Array.from({ length: HATCH_CELLS }, (_, index) => (
           <span
             key={index}
-            className="hatch h-8 w-5 rounded-step border border-line-strong sm:w-7"
+            className="h-8 w-5 rounded-step border border-line-strong hatch sm:w-7"
           />
         ))}
       </div>
