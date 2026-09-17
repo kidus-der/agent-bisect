@@ -8,6 +8,7 @@ import { formatNumber } from '@/lib/format'
 
 import type { CallsPoint } from './api'
 import { type ModelSeries, buildModelSeries, sharedDomainMax, shortModelName } from './callsSeries'
+import { stepCursor } from './traceCursor'
 import { TraceChart } from './TraceChart'
 
 /** Cyan for the first model, violet for the second: two measurement channels, not a ranking. */
@@ -21,11 +22,19 @@ interface ModelTraceProps {
   readonly series: ModelSeries
   readonly index: number
   readonly domainMax: number
-  readonly cursorTime: number | null
+  readonly cursorTime: number
+  readonly resting: boolean
   readonly onCursorTime: (time: number | null) => void
 }
 
-function ModelTrace({ series, index, domainMax, cursorTime, onCursorTime }: ModelTraceProps) {
+function ModelTrace({
+  series,
+  index,
+  domainMax,
+  cursorTime,
+  resting,
+  onCursorTime,
+}: ModelTraceProps) {
   const colour = roleColour(SERIES_ROLES[index % SERIES_ROLES.length] ?? 'measure')
   return (
     <li className="flex min-w-0 flex-col gap-1.5 border-t border-line pt-4 first:border-t-0 first:pt-0">
@@ -47,6 +56,7 @@ function ModelTrace({ series, index, domainMax, cursorTime, onCursorTime }: Mode
           domainMax={domainMax}
           formatValue={formatRate}
           cursorTime={cursorTime}
+          resting={resting}
           onCursorTime={onCursorTime}
         />
       </div>
@@ -65,9 +75,22 @@ interface CallsPerModelProps {
 export function CallsPerModel({ rows, simulated, status }: CallsPerModelProps) {
   const series = useMemo(() => buildModelSeries(rows), [rows])
   // One cursor for the whole panel: hovering either trace reads both at the same
-  // instant, which is the comparison the panel exists to make.
-  const [cursorTime, setCursorTime] = useState<number | null>(null)
-  const handleCursorTime = useCallback((time: number | null) => setCursorTime(time), [])
+  // instant, which is the comparison the panel exists to make. `null` means it
+  // is parked at the newest sample rather than absent — a cursor nobody can see
+  // until they happen to hover is not discoverable.
+  const [driven, setDriven] = useState<number | null>(null)
+  const handleCursorTime = useCallback((time: number | null) => setDriven(time), [])
+  const samples = series[0]?.points ?? []
+  const restingTime = samples.at(-1)?.time ?? 0
+  const cursorTime = driven ?? restingTime
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') return setDriven(null)
+    const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : null
+    if (direction === null) return
+    event.preventDefault()
+    setDriven(stepCursor(samples, cursorTime, direction))
+  }
   const domainMax = sharedDomainMax(series)
   const total = series.reduce((sum, entry) => sum + entry.latest, 0)
 
@@ -97,18 +120,32 @@ export function CallsPerModel({ rows, simulated, status }: CallsPerModelProps) {
       {series.length === 0 ? (
         <p className="py-8 text-ink-muted">No model has been called in this window.</p>
       ) : (
-        <ul className="m-0 flex list-none flex-col gap-4 p-0">
-          {series.map((entry, index) => (
-            <ModelTrace
-              key={entry.model}
-              series={entry}
-              index={index}
-              domainMax={domainMax}
-              cursorTime={cursorTime}
-              onCursorTime={handleCursorTime}
-            />
-          ))}
-        </ul>
+        // The traces share one cursor, so they share one focus stop: arrow keys
+        // drive it sample by sample and Escape parks it back at now.
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the group is the focus stop, so it is where the keys land
+        <div
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- WCAG 2.1.1 wins
+          tabIndex={0}
+          role="group"
+          aria-label="Call-rate traces. Left and right arrows move the shared time cursor."
+          onKeyDown={handleKeyDown}
+          onBlur={() => setDriven(null)}
+          className="rounded-card -outline-offset-2"
+        >
+          <ul className="m-0 flex list-none flex-col gap-4 p-0">
+            {series.map((entry, index) => (
+              <ModelTrace
+                key={entry.model}
+                series={entry}
+                index={index}
+                domainMax={domainMax}
+                cursorTime={cursorTime}
+                resting={driven === null}
+                onCursorTime={handleCursorTime}
+              />
+            ))}
+          </ul>
+        </div>
       )}
 
       {simulated ? (

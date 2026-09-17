@@ -86,7 +86,9 @@ interface PlotProps {
   readonly domainMax: number
   readonly formatValue: (value: number) => string
   readonly gradientId: string
-  readonly cursorTime: number | null
+  readonly cursorTime: number
+  /** True while the cursor is parked at the newest sample, not being driven. */
+  readonly resting: boolean
   readonly onCursorTime: (time: number | null) => void
 }
 
@@ -99,6 +101,7 @@ function Plot({
   formatValue,
   gradientId,
   cursorTime,
+  resting,
   onCursorTime,
 }: PlotProps) {
   const reduced = useReducedMotion() ?? false
@@ -121,7 +124,7 @@ function Plot({
   const tipY = py(last)
   const badgeLabel = formatValue(last.value)
 
-  const cursor = cursorTime === null ? null : nearestPoint(points, cursorTime)
+  const cursor = nearestPoint(points, cursorTime)
   const cursorX = cursor ? px(cursor) : 0
   // The badge flips to the left half-way across so it never runs off the plot.
   const cursorSide = cursorX > innerWidth / 2 ? 'left' : 'right'
@@ -217,11 +220,11 @@ function Plot({
           stroke="var(--bx-surface)"
           strokeWidth={1.5}
         />
-        {/* The live tip steps aside while the cursor is reading the series. */}
-        {cursor ? null : <ValueBadge x={tipX} y={tipY} label={badgeLabel} side="right" />}
+        {/* The live tip's own badge steps aside while the cursor is driven. */}
+        {resting ? <ValueBadge x={tipX} y={tipY} label={badgeLabel} side="right" /> : null}
 
         {cursor ? (
-          <g data-slot="trace-cursor">
+          <g data-slot="trace-cursor" data-resting={resting ? 'true' : 'false'}>
             <line
               x1={px(cursor)}
               x2={px(cursor)}
@@ -229,7 +232,8 @@ function Plot({
               y2={innerHeight}
               stroke="var(--bx-line-strong)"
               strokeWidth={1}
-              strokeDasharray="3 3"
+              strokeDasharray={resting ? '2 4' : '3 3'}
+              opacity={resting ? 0.7 : 1}
             />
             <circle
               cx={px(cursor)}
@@ -239,12 +243,14 @@ function Plot({
               stroke="var(--bx-surface)"
               strokeWidth={1.5}
             />
-            <ValueBadge
-              x={px(cursor)}
-              y={py(cursor)}
-              label={formatValue(cursor.value)}
-              side={cursorSide}
-            />
+            {resting ? null : (
+              <ValueBadge
+                x={px(cursor)}
+                y={py(cursor)}
+                label={formatValue(cursor.value)}
+                side={cursorSide}
+              />
+            )}
             <text
               x={px(cursor)}
               y={innerHeight + 16}
@@ -286,7 +292,8 @@ interface TraceChartProps {
   readonly domainMax: number
   readonly formatValue: (value: number) => string
   /** Shared with every trace on the page, as a time: see `traceCursor`. */
-  readonly cursorTime: number | null
+  readonly cursorTime: number
+  readonly resting: boolean
   readonly onCursorTime: (time: number | null) => void
 }
 
@@ -304,6 +311,7 @@ export function TraceChart({
   domainMax,
   formatValue,
   cursorTime,
+  resting,
   onCursorTime,
 }: TraceChartProps) {
   const gradientId = `trace-${useId().replace(/:/g, '')}`
@@ -319,6 +327,7 @@ export function TraceChart({
           formatValue={formatValue}
           gradientId={gradientId}
           cursorTime={cursorTime}
+          resting={resting}
           onCursorTime={onCursorTime}
         />
       )}
