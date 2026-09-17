@@ -6,6 +6,7 @@ import { useInView } from 'motion/react'
 import { useRef } from 'react'
 
 import { StatTicker } from '@/components/primitives/StatTicker'
+import { COST_UNIT_LABEL, formatUsd } from '@/lib/cost'
 import { cn } from '@/lib/utils'
 
 import type { Kpis } from './api'
@@ -23,10 +24,16 @@ interface KpiRowProps {
 interface KpiSpec {
   readonly id: string
   readonly label: string
-  readonly value: number
+  /** Null when the server measured nothing for it — rendered as a dash. */
+  readonly value: number | null
   readonly caption: string
   readonly decimals?: number
   readonly prefix?: string
+}
+
+function priceCaption(usd: number | null): string {
+  const price = formatUsd(usd)
+  return price === null ? `mean, ${COST_UNIT_LABEL}` : `mean, ${COST_UNIT_LABEL} · ${price}`
 }
 
 function kpiSpecs(kpis: Kpis): readonly KpiSpec[] {
@@ -50,12 +57,13 @@ function kpiSpecs(kpis: Kpis): readonly KpiSpec[] {
       caption: 'model calls, all phases',
     },
     {
+      // Calls are measured on every run; USD needs a price list that real mode
+      // does not carry, so it rides in the caption when it exists at all.
       id: 'cost',
       label: 'cost per diagnosis',
-      value: kpis.cost_per_diagnosis_usd,
-      caption: 'mean, USD',
-      decimals: 2,
-      prefix: '$',
+      value: kpis.cost_per_diagnosis_calls,
+      caption: priceCaption(kpis.cost_per_diagnosis_usd),
+      decimals: 0,
     },
   ]
 }
@@ -81,15 +89,24 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
     >
       {kpiSpecs(kpis).map((spec, index) => (
         <div key={spec.id} className="flex min-h-21 flex-col justify-center px-4 py-3">
-          <StatTicker
-            label={spec.label}
-            value={spec.value}
-            caption={spec.caption}
-            decimals={spec.decimals}
-            prefix={spec.prefix}
-            delaySeconds={index * KPI_STAGGER_SECONDS}
-            play={inView}
-          />
+          {spec.value === null ? (
+            // Nothing measured: a dash, never a ticker counting up to zero.
+            <div className="flex flex-col gap-1">
+              <span className="label-instrument">{spec.label}</span>
+              <span className="num text-stat text-ink-muted">—</span>
+              <span className="label-instrument">{spec.caption}</span>
+            </div>
+          ) : (
+            <StatTicker
+              label={spec.label}
+              value={spec.value}
+              caption={spec.caption}
+              decimals={spec.decimals}
+              prefix={spec.prefix}
+              delaySeconds={index * KPI_STAGGER_SECONDS}
+              play={inView}
+            />
+          )}
         </div>
       ))}
     </section>
