@@ -178,29 +178,60 @@ class TapeLLM:
 
     Never makes a call: `load_json` reads a blob, and a request whose
     `canonical_request_hash` differs from the recorded one raises.
+
+    `unsafe_positional=True` removes **only** that hash check, serving the
+    step at the current position whatever was asked for. It is not a
+    fallback and nothing selects it automatically: it exists so P5 can
+    reproduce the CAR-style *re-run-live* baseline of
+    `docs/brief/summary.md` §8, which has no snapshots and therefore no way
+    to keep the prefix identical once a tool answers differently. Serving a
+    recorded reply to a request that was never made is exactly the failure
+    mode that baseline is being measured for, so it is counted
+    (`unguarded_calls`) rather than hidden. Every other guard stays on: the
+    actor must match, the tape must not be exhausted, and a step with no
+    recorded response is still a `DivergenceError`.
     """
 
-    def __init__(self, cursor: TapeCursor, load_json: Callable[[str], Any]) -> None:
+    def __init__(
+        self,
+        cursor: TapeCursor,
+        load_json: Callable[[str], Any],
+        *,
+        unsafe_positional: bool = False,
+    ) -> None:
         self._cursor = cursor
         self._load_json = load_json
+        self._unsafe_positional = unsafe_positional
         self._calls_served = 0
+        self._unguarded_calls = 0
 
     @property
     def calls_served(self) -> int:
         return self._calls_served
+
+    @property
+    def unguarded_calls(self) -> int:
+        """Responses served to a request the recording does not match.
+
+        Always 0 unless `unsafe_positional` is on, and the measure of how
+        far the re-run-live baseline drifted from its own recording.
+        """
+        return self._unguarded_calls
 
     def serve(self, request: Mapping[str, Any]) -> Any:
         """Return the recorded response payload for `request`."""
         step = self._cursor.take(LLM_ACTORS)
         got_hash = canonical_request_hash(dict(request))
         if got_hash != step.request_hash:
-            raise DivergenceError(
-                step_idx=step.step_idx,
-                actor=step.actor,
-                expected=str(step.request_hash),
-                got=got_hash,
-                diff=short_request_diff(self._recorded_request(step), request),
-            )
+            if not self._unsafe_positional:
+                raise DivergenceError(
+                    step_idx=step.step_idx,
+                    actor=step.actor,
+                    expected=str(step.request_hash),
+                    got=got_hash,
+                    diff=short_request_diff(self._recorded_request(step), request),
+                )
+            self._unguarded_calls += 1
         if step.response_ref is None:
             raise DivergenceError(
                 step_idx=step.step_idx,
