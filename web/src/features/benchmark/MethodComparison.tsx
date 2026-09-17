@@ -123,8 +123,8 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
         ))}
       </div>
 
-      <div className="flex shrink-0 items-baseline justify-end gap-4 text-right">
-        <div className="flex w-[7.5rem] flex-col items-end">
+      <div className="flex shrink-0 items-baseline justify-start gap-4 text-left sm:justify-end sm:text-right">
+        <div className="flex w-[7.5rem] flex-col items-start sm:items-end">
           <span className={cn('num text-ink', focal ? 'text-stat font-semibold' : 'text-h2')}>
             {formatPercent(value)}
           </span>
