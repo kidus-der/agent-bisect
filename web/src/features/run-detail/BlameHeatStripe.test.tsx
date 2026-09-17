@@ -6,7 +6,9 @@ import type { HeatCell } from './blame'
 import { timelineGeometry } from './timelineScale'
 
 /** The brief run's real effects: ten ordinary steps and one blamed +0.88. */
-const BRIEF_EFFECTS = [-0.0625, 0.125, 0.125, 0.125, 0.0625, 0.0625, 0.875, 0.25, 0.0625, 0.0625, 0, -0.0625]
+const BRIEF_EFFECTS = [
+  -0.0625, 0.125, 0.125, 0.125, 0.0625, 0.0625, 0.875, 0.25, 0.0625, 0.0625, 0, -0.0625,
+]
 
 const CELLS: readonly HeatCell[] = BRIEF_EFFECTS.map((effect, index) => ({
   step: index + 1,
