@@ -38,7 +38,7 @@ test('a list row opens its detail', async ({ page }) => {
   await mockP6eApi(page)
   await openList(page)
 
-  await page.getByRole('link', { name: /reschedule_flight_change/ }).click()
+  await page.getByRole('link', { name: '#1000' }).click()
 
   await expect(page).toHaveURL(new RegExp(`/pr-checks/${REGRESSION_CHECK}$`))
   await expect(page.getByText('Regression detected').first()).toBeVisible()
@@ -90,8 +90,9 @@ test('a clean check reports no regression and no decisive step', async ({ page }
   await openDetail(page, CLEAN_CHECK)
 
   await expect(page.getByText('No regression').first()).toBeVisible()
+  // With neither ref decisive the panel collapses to that one line.
   await expect(page.getByText('No step was decisive on either ref.')).toBeVisible()
-  await expect(page.getByText('none').first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Where the blame rule lands' })).toHaveCount(0)
 })
 
 test('an unmeasured gate is reported, never filled in with numbers', async ({ page }) => {
