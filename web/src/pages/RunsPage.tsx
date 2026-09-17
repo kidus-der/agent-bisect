@@ -76,7 +76,9 @@ export function RunsPage() {
     <PageHeader
       label="runs"
       title="Runs"
-      description="Every recorded run. Open one to scrub its tape and see which step carries the blame."
+      // The content here is the list; every pixel above it costs a row.
+      density="compact"
+      description="Open one to scrub its tape and see which step carries the blame."
     />
   )
 
@@ -133,7 +135,7 @@ export function RunsPage() {
       <div className="flex flex-col gap-4">
         {/* Toolbar and table are one instrument: the filters sit inside the panel they narrow. */}
         <Panel variant="card" className="p-0" bodyClassName="min-w-0">
-          <div className="border-b border-line p-4">
+          <div className="border-b border-line px-4 py-3">
             <RunsFilters search={search} facets={facets} onChange={apply} summary={summary} />
           </div>
 
@@ -159,6 +161,11 @@ export function RunsPage() {
               search={search}
               onSortChange={onSortChange}
               onOpen={onOpen}
+              footer={
+                narrowed.total === null
+                  ? `${narrowed.loaded} shown`
+                  : `${narrowed.loaded} of ${narrowed.total}`
+              }
             />
           )}
         </Panel>

@@ -3,6 +3,7 @@
  * requests it), rows are virtualized, and below the md breakpoint each row
  * becomes a two-line card instead of a sideways scroll.
  */
+import { ChevronRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -15,7 +16,7 @@ import type { RunSummary, SortableRunField } from './api'
 import { RunBlame, RunBlameStripe, RunNumber, RunOutcome, RunSparkline } from './cells'
 import type { RunsSearch } from './runsSearch'
 
-const ROW_HEIGHT = 52
+const ROW_HEIGHT = 46
 const COMPACT_ROW_HEIGHT = 92
 const MIN_TABLE_HEIGHT = 320
 const DEFAULT_TABLE_HEIGHT = 560
@@ -162,6 +163,19 @@ const RUN_COLUMNS: ReadonlyArray<DataTableColumn<RunSummary>> = [
     cell: (run) => <RunNumber value={run.calls} />,
     sortValue: (run) => run.calls,
   },
+  {
+    // The blueprint ends each row in an affordance; rows are clickable and
+    // nothing else said so.
+    id: 'open',
+    header: '',
+    width: '2.5rem',
+    cell: () => (
+      <ChevronRight
+        aria-hidden="true"
+        className="size-4 text-ink-muted transition-colors group-hover/row:text-ink"
+      />
+    ),
+  },
 ]
 
 function CompactRun({ run }: { readonly run: RunSummary }) {
@@ -193,9 +207,11 @@ interface RunsTableProps {
   readonly search: RunsSearch
   readonly onSortChange: (column: SortableRunField) => void
   readonly onOpen: (run: RunSummary) => void
+  /** What the footer reports, e.g. "40 of 266 shown". */
+  readonly footer: string
 }
 
-export function RunsTable({ rows, search, onSortChange, onOpen }: RunsTableProps) {
+export function RunsTable({ rows, search, onSortChange, onOpen, footer }: RunsTableProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wide = useMediaQuery(WIDE_QUERY)
   const height = useTableHeight(
@@ -207,21 +223,31 @@ export function RunsTable({ rows, search, onSortChange, onOpen }: RunsTableProps
 
   return (
     <div ref={containerRef}>
-      <DataTable
-        columns={RUN_COLUMNS}
-        rows={rows}
-        getRowId={(run) => run.run_id}
-        caption="Recorded runs"
-        sort={sort}
-        onSortChange={(columnId) => {
-          if (SORTABLE.has(columnId)) onSortChange(columnId as SortableRunField)
-        }}
-        onRowActivate={onOpen}
-        maxHeight={height}
-        rowHeight={ROW_HEIGHT}
-        compactRowHeight={COMPACT_ROW_HEIGHT}
-        renderCompactRow={(run) => <CompactRun run={run} />}
-      />
+      <div className="relative">
+        <DataTable
+          columns={RUN_COLUMNS}
+          rows={rows}
+          getRowId={(run) => run.run_id}
+          caption="Recorded runs"
+          sort={sort}
+          onSortChange={(columnId) => {
+            if (SORTABLE.has(columnId)) onSortChange(columnId as SortableRunField)
+          }}
+          onRowActivate={onOpen}
+          maxHeight={height}
+          rowHeight={ROW_HEIGHT}
+          compactRowHeight={COMPACT_ROW_HEIGHT}
+          renderCompactRow={(run) => <CompactRun run={run} />}
+        />
+        {/* The list used to end sliced flat at the card edge; this says it continues. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface to-transparent"
+        />
+      </div>
+      <div className="flex items-center justify-between border-t border-line px-3 py-2">
+        <span className="num text-small text-ink-muted">{footer}</span>
+      </div>
     </div>
   )
 }

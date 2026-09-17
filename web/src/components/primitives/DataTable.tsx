@@ -138,7 +138,7 @@ function BodyRow<Row>({ row, columns, rowHeight, rowIndex, onRowActivate }: Body
       transition={springTransition('settle', reduced)}
       style={{ height: rowHeight }}
       className={cn(
-        'relative border-b border-line last:border-b-0 hover:bg-elevated',
+        'group/row relative border-b border-line last:border-b-0 hover:bg-elevated',
         interactive && 'cursor-pointer focus-visible:-outline-offset-2',
       )}
     >
