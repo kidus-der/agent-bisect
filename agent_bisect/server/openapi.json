@@ -1739,7 +1739,14 @@
             "$ref": "#/components/schemas/HeadlineResult"
           },
           "hero_run": {
-            "$ref": "#/components/schemas/RunSummary"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "kpis": {
             "$ref": "#/components/schemas/Kpis"
