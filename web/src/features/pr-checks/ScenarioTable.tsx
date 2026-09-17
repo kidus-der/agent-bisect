@@ -1,74 +1,27 @@
-import { DataTable, type DataTableColumn } from '@/components/primitives/DataTable'
+import { DataTable } from '@/components/primitives/DataTable'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
-import { formatPercent, formatPoints } from '@/lib/stats'
-
-import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry, scaleKeyLabel } from './deltaBarGeometry'
-import { cn } from '@/lib/utils'
+import { useMediaQuery } from '@/lib/useMediaQuery'
+import { formatPoints } from '@/lib/stats'
 
 import type { ScenarioRow } from './api'
+import { scaleKeyLabel } from './deltaBarGeometry'
+import { WORSE_THRESHOLD, scenarioDelta } from './deltaMarks'
+import { scenarioColumns } from './scenarioColumns'
 
 const TABLE_MAX_HEIGHT = 380
-const WORSE_THRESHOLD = -0.0001
-/**
- * One width for the bars and for the key above them. They are not stacked in the
- * same column, so the key has to be recognisable as a key rather than an axis —
- * sharing the track width is what lets a reader match the two by eye.
- */
-const TRACK_WIDTH = 'w-40'
-
-function delta(row: ScenarioRow): number {
-  return row.head_pass_rate - row.base_pass_rate
-}
-
-/**
- * A bar either side of a centre zero line, scaled against the largest change in
- * the suite — so the longest bar is the worst scenario and every other bar is
- * readable against it. Scaled against the full 0-100 range instead, every row
- * drew the same stub and the mark encoded nothing.
- */
-function DeltaBar({ value, scale }: { readonly value: number; readonly scale: number }) {
-  const worse = value < WORSE_THRESHOLD
-  const bar = deltaBarGeometry(value, scale)
-  return (
-    <span aria-hidden="true" className={cn('relative inline-block h-4 align-middle', TRACK_WIDTH)}>
-      {/* Anchored on the axis midpoint the header declares: the side says the
-          sign, the length says the size. */}
-      <span
-        className={cn(
-          'absolute top-1/2 h-2.5 -translate-y-1/2',
-          worse ? 'rounded-l-step bg-fail' : 'rounded-r-step bg-pass',
-        )}
-        style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
-      />
-      <ZeroRule />
-    </span>
-  )
-}
-
-/**
- * Zero, drawn at the one x the bars anchor on. It overhangs its row so the
- * rules in consecutive rows join into a single line down the column — a bar's
- * side only means something against a zero the reader can see.
- */
-function ZeroRule({ overhang = true }: { readonly overhang?: boolean }) {
-  return (
-    <span
-      className={cn('absolute z-10 w-px bg-line-strong', overhang ? '-inset-y-3' : 'inset-y-0')}
-      style={{ left: `${ZERO_MIDPOINT_PERCENT}%` }}
-    />
-  )
-}
+/** Below this the wide column set does not fit and the numbers scroll away. */
+const NARROW_QUERY = '(max-width: 640px)'
 
 /**
  * What a full-length bar means. It used to draw its own track with a centre
  * tick, which sat three hundred pixels from the tick the bars actually anchor
  * on — two axes disagreeing. Zero is now marked in the column itself, so the key
- * only has to state the extent.
+ * only has to state the extent — and at 390 there are no bars to key at all.
  */
 function DeltaAxisLegend({ scale }: { readonly scale: number }) {
   return (
-    <span className="flex items-center gap-2 text-[12px] text-ink-muted">
+    <span className="hidden items-center gap-2 text-[12px] text-ink-muted sm:flex">
       <InstrumentLabel>scale</InstrumentLabel>
       <span className="num">{scaleKeyLabel(scale, (value) => formatPoints(value, 0))}</span>
       <span>· zero at the rule</span>
@@ -76,62 +29,9 @@ function DeltaAxisLegend({ scale }: { readonly scale: number }) {
   )
 }
 
-function buildColumns(scale: number): ReadonlyArray<DataTableColumn<ScenarioRow>> {
-  return [
-    {
-      id: 'scenario',
-      header: 'scenario',
-      sortValue: (row) => row.scenario,
-      cell: (row) => <span className="num text-ink">{row.scenario}</span>,
-    },
-    {
-      id: 'delta',
-      header: 'change',
-      numeric: true,
-      sortValue: (row) => delta(row),
-      cell: (row) => {
-        const value = delta(row)
-        const worse = value < WORSE_THRESHOLD
-        return (
-          <span className="inline-flex items-center justify-end gap-2">
-            <DeltaBar value={value} scale={scale} />
-            <span className={cn('w-20 num', worse ? 'text-fail' : 'text-pass')}>
-              <span aria-hidden="true">{worse ? '▼' : '▲'}</span> {formatPoints(value, 0)}
-            </span>
-          </span>
-        )
-      },
-    },
-    {
-      id: 'base',
-      header: 'base',
-      numeric: true,
-      sortValue: (row) => row.base_pass_rate,
-      cell: (row) => (
-        <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
-      ),
-    },
-    {
-      id: 'head',
-      header: 'head',
-      numeric: true,
-      sortValue: (row) => row.head_pass_rate,
-      cell: (row) => <span className="num text-ink">{formatPercent(row.head_pass_rate, 0)}</span>,
-    },
-    {
-      id: 'n',
-      header: 'runs',
-      numeric: true,
-      hideOnMobile: true,
-      sortValue: (row) => row.n,
-      cell: (row) => <span className="num text-ink-muted">{row.n}</span>,
-    },
-  ]
-}
-
 /** The largest absolute change in the suite; every bar is drawn against it. */
 function deltaScale(scenarios: readonly ScenarioRow[]): number {
-  return scenarios.reduce((largest, row) => Math.max(largest, Math.abs(delta(row))), 0)
+  return scenarios.reduce((largest, row) => Math.max(largest, Math.abs(scenarioDelta(row))), 0)
 }
 
 interface ScenarioTableProps {
@@ -139,7 +39,10 @@ interface ScenarioTableProps {
 }
 
 export function ScenarioTable({ scenarios }: ScenarioTableProps) {
-  const worse = scenarios.filter((row) => delta(row) < WORSE_THRESHOLD).length
+  const narrow = useMediaQuery(NARROW_QUERY)
+  const worse = scenarios.filter((row) => scenarioDelta(row) < WORSE_THRESHOLD).length
+  const scale = deltaScale(scenarios)
+
   return (
     <Panel variant="card" bodyClassName="flex flex-col gap-4">
       <header className="flex flex-col gap-1">
@@ -147,7 +50,7 @@ export function ScenarioTable({ scenarios }: ScenarioTableProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 className="text-h3 text-ink">Every scenario in the suite</h3>
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <DeltaAxisLegend scale={deltaScale(scenarios)} />
+            <DeltaAxisLegend scale={scale} />
             <span className="num text-small text-ink-muted">
               {worse} of {scenarios.length} worse on head
             </span>
@@ -158,7 +61,7 @@ export function ScenarioTable({ scenarios }: ScenarioTableProps) {
         <p className="py-6 text-ink-muted">This check ran no scenarios.</p>
       ) : (
         <DataTable
-          columns={buildColumns(deltaScale(scenarios))}
+          columns={scenarioColumns(scale, narrow)}
           rows={scenarios}
           getRowId={(row) => row.scenario}
           caption="Pass rate per scenario on base and head, with the change between them."
