@@ -66,7 +66,14 @@ identifiers that comparison can never succeed:
 - the identifier is a dictionary **key** in `db.reservations`, so a single
   difference changes the whole database hash.
 
-Every flaky run that writes anything would therefore score reward 0, for a
+Measured, not assumed: recording a flaky run that books a flight and then
+scoring it with `EvaluationType.ALL` does not merely return 0 — it **raises**.
+`Environment.set_state` replays the write action, sees `HATHAT` where the
+recording holds a random id, and raises `ValueError` under its strict replay
+(`vendor/tau2-bench/src/tau2/environment/environment.py:399-402`). There is no
+reward to report at all.
+
+Every flaky run that writes anything would therefore fail to score, for a
 reason that has nothing to do with the agent. Scoring an environment artefact
 as an agent failure is exactly what `docs/decisions/0004-p0-probe-protocol.md`
 §3 forbids, and it would make the flaky-world arm unusable as evidence for or
