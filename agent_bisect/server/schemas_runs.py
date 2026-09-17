@@ -22,8 +22,10 @@ class SparkPoint(BaseModel):
 
     step_idx: int
     actor: Actor
-    latency_ms: int
-    tokens: int
+    # `None`, never a made-up `0`, when the recorded step didn't carry this
+    # telemetry -- real_repository.py leaves it unset rather than "0ms/0 tok".
+    latency_ms: int | None
+    tokens: int | None
 
 
 class BlameCell(BaseModel):
@@ -48,8 +50,11 @@ class RunSummary(BaseModel):
     decisive_step: int | None
     fault_type: FaultType | None
     planted_step: int | None
-    cost_usd: float
-    calls: int
+    # `None`, never `0`/`0.0`, when per-run cost isn't attributable yet (real
+    # mode: the ledger has no run_id column until P1b). Fixture mode always
+    # has a real number here.
+    cost_usd: float | None
+    calls: int | None
     sparkline: tuple[SparkPoint, ...]
     blame_stripe: tuple[BlameCell, ...]
 
@@ -184,7 +189,8 @@ class RunDetail(BaseModel):
     tau2_commit: str
     created_at: str
     outcome: Outcome
-    reward: float
+    # `None`, never `0.0`, when the run has no outcome row yet (still recording).
+    reward: float | None
     steps: tuple[StepView, ...]
     planted_step: int | None
     fault_type: FaultType | None

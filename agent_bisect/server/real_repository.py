@@ -54,6 +54,15 @@ _LIVE_WINDOW_MINUTES = 30
 _RECENT_WINDOW_SECONDS = 60
 
 
+def _total_tokens(step: Step) -> int | None:
+    """`None` only when neither side was ever recorded; otherwise the honest
+    sum, treating a genuinely-unrecorded side as 0 rather than the whole
+    figure as unknown."""
+    if step.tokens_in is None and step.tokens_out is None:
+        return None
+    return (step.tokens_in or 0) + (step.tokens_out or 0)
+
+
 def _ro_connect(path: Path) -> sqlite3.Connection | None:
     """A read-only connection to `path`, or `None` if it doesn't exist yet."""
     if not path.exists():
@@ -129,8 +138,8 @@ class RealRepository:
             SparkPoint(
                 step_idx=step.step_idx,
                 actor=step.actor,
-                latency_ms=step.latency_ms or 0,
-                tokens=(step.tokens_in or 0) + (step.tokens_out or 0),
+                latency_ms=step.latency_ms,
+                tokens=_total_tokens(step),
             )
             for step in steps
         )
@@ -147,8 +156,10 @@ class RealRepository:
             decisive_step=None,
             fault_type=None,
             planted_step=None,
-            cost_usd=0.0,
-            calls=0,
+            # Not 0.0/0: the ledger has no run_id column yet (P1b), so
+            # per-run cost/calls genuinely aren't attributable, not free.
+            cost_usd=None,
+            calls=None,
             sparkline=sparkline,
             blame_stripe=blame_stripe,
         )
@@ -219,7 +230,8 @@ class RealRepository:
             tau2_commit=manifest.tau2_commit,
             created_at=manifest.created_at.isoformat(),
             outcome="pass" if (outcome and outcome.passed) else "fail",
-            reward=outcome.reward if outcome else 0.0,
+            # Not 0.0: a run with no outcome row yet is still recording, not failed.
+            reward=outcome.reward if outcome else None,
             steps=step_views,
             planted_step=None,
             fault_type=None,
