@@ -106,7 +106,8 @@ function BarRow({ bar, index }: BarRowProps) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-        <h3 className="text-h3 text-ink">{bar.label}</h3>
+        {/* The blueprint dots are texture, not something to read type through. */}
+        <h3 className="bg-ground pr-2 text-h3 text-ink">{bar.label}</h3>
         <TickingPercent value={bar.value} className={cn('num text-stat', ROLE_TEXT[bar.role])} />
       </div>
       <div
@@ -122,7 +123,7 @@ function BarRow({ bar, index }: BarRowProps) {
         />
       </div>
       <Whisker bar={bar} reduced={reduced} delay={delay} />
-      <p className="-mt-0.5 num text-small text-ink-muted">
+      <p className="-mt-0.5 w-fit bg-ground pr-2 num text-small text-ink-muted">
         95% CI {formatPercent(bar.low)} – {formatPercent(bar.high)}
       </p>
     </div>
@@ -166,7 +167,7 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
       aria-labelledby="headline-result"
       className="relative flex flex-col gap-6 border border-dashed border-line-strong bg-ground blueprint-dots p-5 sm:p-6 lg:p-8"
     >
-      <header className="flex flex-col gap-3">
+      <header className="flex w-fit flex-col gap-3 bg-ground pr-3">
         <InstrumentLabel>
           {sampleSize == null
             ? 'result · step accuracy'
