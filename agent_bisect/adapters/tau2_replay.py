@@ -28,8 +28,8 @@ stops. A live call before the fork step is impossible by construction, and
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, replace
+from contextlib import AbstractContextManager, ExitStack, contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -66,6 +66,19 @@ ToolMode = Literal["verify", "snapshot", "rerun_live"]
 
 #: `replay_run`'s fork step: the tape governs every step, for ever.
 REPLAY_EVERYTHING = None
+
+
+class ForkSeedError(ValueError):
+    """A fork asked for a seed its own prefix could not survive.
+
+    tau2 threads the run seed into every model request (`llm_args`), so it
+    is part of `canonical_request_hash`: a fork that re-pins the seed
+    diverges on its own first prefix step, and one that injects the new
+    seed only from the fork step on produces a recording whose prefix and
+    suffix want two different orchestrator seeds -- unreplayable either
+    way. Resampling at the fork step is what the `Resample` intervention
+    is for; it makes a live call instead of changing the seed.
+    """
 
 
 class NoLiveCallError(DivergenceError):
@@ -403,14 +416,25 @@ def _termination_of(simulation: Any) -> str:
 
 
 def replay_run(
-    run_id: str, *, store: BlobStore, reader: TapeReader, expect_same_outcome: bool = True
+    run_id: str,
+    *,
+    store: BlobStore,
+    reader: TapeReader,
+    expect_same_outcome: bool = True,
+    tool_mode: ToolMode = "verify",
 ) -> ReplayResult:
     """Re-run a recording end to end from the tape. Zero network calls.
 
     Every LLM response comes from the recording with its request hash
-    checked; every tool is executed for real and asserted to reproduce
-    both its recorded result and the recorded state hash. The replay must
-    consume the whole tape and reach the same reward, or it raises.
+    checked. `tool_mode` decides the tools: `verify` (the default, and
+    what the P2 gate asserts) re-executes each one and requires its
+    recorded result and state hash back; `snapshot` serves the recorded
+    result and restores the world from the recorded snapshot instead,
+    which is what a recording whose tool result was deliberately altered
+    needs -- a P3 dataset item's recorded result *is* the planted
+    mutation, so re-executing the tool would rightly disagree with it.
+    Either way the whole tape must be consumed and the same reward
+    reached, or it raises.
     """
     manifest = reader.get_manifest(run_id)
     steps = reader.get_steps(run_id)
@@ -422,7 +446,7 @@ def replay_run(
         store=store,
         sink=sink,
         fork_step=REPLAY_EVERYTHING,
-        tool_mode="verify",
+        tool_mode=tool_mode,
     )
     with _driving(replayer, orchestrator.environment, None):
         simulation = _run(orchestrator)
@@ -462,6 +486,7 @@ class Tau2ForkDriver:
         tape: TapeWriter,
         live_completion: Callable[..., Any],
         unsafe_positional: bool = False,
+        environment_hook: Callable[[Any], AbstractContextManager[Any]] | None = None,
     ) -> None:
         self._spec = spec
         self._store = store
@@ -469,6 +494,13 @@ class Tau2ForkDriver:
         self._tape = tape
         self._live_completion = live_completion
         self._unsafe_positional = unsafe_positional
+        # Entered around the whole run and *before* the recorder and the
+        # replayer wrap `get_response`, so a standing component installed
+        # on the environment -- a planted fault (decision 0016) -- is what
+        # the agent sees AND what the tape records. Installed after those
+        # wrappers, the tape would record the true answer while the agent
+        # saw the corrupted one.
+        self._environment_hook = environment_hook
         self._fork_step = spec.fork_step
         self._intervention: Intervention = NoOpIntervention()
         self.result: ReplayResult | None = None
@@ -491,8 +523,13 @@ class Tau2ForkDriver:
                 diff=f"run {parent.run_id!r} has {len(steps)} steps",
             )
         spec = _spec_from(parent)
-        if seed is not None:
-            spec = replace(spec, seed=seed)
+        if seed is not None and seed != parent.seed:
+            raise ForkSeedError(
+                f"fork {self._spec.run_id!r} asked for seed {seed}, but its parent "
+                f"{parent.run_id!r} was recorded with seed {parent.seed}; tau2 puts the "
+                "seed in every model request, so it is part of the canonical request hash "
+                "and the fork would diverge on its own first prefix step"
+            )
         orchestrator = build_orchestrator(spec, self._spec.run_id)
         recorder = Tau2Recorder(
             self._spec.run_id,
@@ -522,7 +559,10 @@ class Tau2ForkDriver:
             live_completion=self._live_completion,
             unsafe_positional=self._unsafe_positional,
         )
-        with _driving(replayer, orchestrator.environment, recorder):
+        with ExitStack() as stack:
+            if self._environment_hook is not None:
+                stack.enter_context(self._environment_hook(orchestrator.environment))
+            stack.enter_context(_driving(replayer, orchestrator.environment, recorder))
             simulation = _run(orchestrator)
 
         termination = _termination_of(simulation)
