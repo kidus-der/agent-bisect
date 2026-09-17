@@ -73,4 +73,7 @@ class OverviewPayload(BaseModel):
     recall_at_m: tuple[RecallPoint, ...]
     recall_provenance: RecallProvenance
     cost_vs_accuracy: tuple[CostAccuracyPoint, ...]
-    hero_run: RunSummary
+    # `None` only when the run P5 would feature isn't in the tape index --
+    # real, not fabricated: real mode never invents a run to fill this slot.
+    # Fixture mode always has one.
+    hero_run: RunSummary | None

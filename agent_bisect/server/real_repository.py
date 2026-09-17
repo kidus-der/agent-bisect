@@ -191,11 +191,6 @@ class RealRepository:
                     recall_doc.get("bisect", {}).items(), key=lambda kv: int(kv[0])
                 )
             )
-            hero = self._hero_run_summary(items)
-            if hero is None:
-                raise DataNotAvailable(
-                    "no diagnosed run to feature (data/results/p5_items.json is empty)"
-                )
             return OverviewPayload(
                 headline=HeadlineResult(
                     bisect=CiValue.model_validate(bisect_row["accuracy"]),
@@ -209,7 +204,10 @@ class RealRepository:
                 cost_vs_accuracy=tuple(
                     self._cost_accuracy_point(row) for row in summary["methods"]
                 ),
-                hero_run=hero,
+                # `None` when P5 has run but the run it would feature isn't
+                # in the tape index -- everything else above is still real
+                # and still worth serving; only this one slot degrades.
+                hero_run=self._hero_run_summary(items),
             )
         except (KeyError, ValidationError) as exc:
             raise DataNotAvailable(f"data/results/p5_summary.json is malformed: {exc}") from exc

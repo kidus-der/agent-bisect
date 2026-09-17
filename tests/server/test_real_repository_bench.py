@@ -156,7 +156,35 @@ def test_overview_recall_provenance_mirrors_the_real_report(p5_repo):
 
 def test_overview_hero_run_is_the_earliest_exact_bisect_diagnosis(p5_repo):
     hero = p5_repo.overview().hero_run
+    assert hero is not None
     assert hero.run_id == "real-run-1"  # "item-a" < "item-b", both exact
+
+
+def test_overview_hero_run_is_none_without_degrading_the_rest(tmp_path):
+    """Caught against p5-blame's real toy output: P5 results with no
+    matching tape index (`runs/index.sqlite` never built) must not take
+    the whole Overview payload down -- only the one slot that needs it."""
+    runs_dir = tmp_path / "runs"
+    data_dir = tmp_path / "data"
+    # No _write_tape_run call: the hero item's run_id resolves nowhere.
+    scores = [
+        _scored("item-a", "bisect", "unindexed-run", planted=5, predicted=5, ranking=(5, 3)),
+        _scored("item-a", "judge_all_at_once", "unindexed-run", planted=5, predicted=None),
+    ]
+    report = build_report(scores, split="test", seed=20260917, bootstrap_resamples=200)
+    write_results(
+        scores=scores,
+        outcome_rows=[],
+        report=report,
+        runs_dir=runs_dir / "p5",
+        results_dir=data_dir / "results",
+    )
+    repo = RealRepository(runs_dir=runs_dir, data_dir=data_dir)
+
+    payload = repo.overview()
+
+    assert payload.hero_run is None
+    assert payload.headline.bisect.value == 1.0
 
 
 def test_dataset_is_not_available_before_a_frozen_manifest(tmp_path):
