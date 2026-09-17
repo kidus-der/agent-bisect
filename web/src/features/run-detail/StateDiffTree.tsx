@@ -23,7 +23,8 @@ function CountChip({ kind, value }: { readonly kind: DiffKind; readonly value: n
     <span
       className={cn(
         'inline-flex h-5 items-center gap-1 rounded-pill border px-1.5 num text-[11px]',
-        value === 0 ? 'border-line text-ink-muted opacity-60' : KIND_STYLE[kind],
+        // Opacity would drop the muted text below AA; a zero already reads as none.
+        value === 0 ? 'border-line text-ink-muted' : KIND_STYLE[kind],
       )}
     >
       <span aria-hidden="true">{KIND_GLYPH[kind]}</span>
