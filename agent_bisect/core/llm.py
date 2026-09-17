@@ -91,6 +91,34 @@ class TransportError(Exception):
         self.retry_after = retry_after
 
 
+def transport_error_from(
+    exc: BaseException,
+    *,
+    status_code: int | None = None,
+    retry_after: float | None = None,
+) -> TransportError:
+    """Build a `TransportError` that keeps NOTHING of the original reachable.
+
+    `raise TransportError(redact(str(exc))) from exc` only redacts the
+    message. The original exception stays reachable as `__cause__`, and a
+    provider error commonly quotes the request — headers included — so one
+    `logging.exception` or an unhandled traceback puts the key back on
+    screen. The chain is severed on both links (`__cause__` and
+    `__context__`) and suppressed in tracebacks; the original type and its
+    redacted message are folded into the new message so the error stays
+    diagnosable. Raise the result with `from None`.
+    """
+    error = TransportError(
+        redact(f"{type(exc).__name__}: {exc}"),
+        status_code=status_code if status_code is not None else getattr(exc, "status_code", None),
+        retry_after=retry_after if retry_after is not None else _extract_retry_after(exc),
+    )
+    error.__cause__ = None
+    error.__context__ = None
+    error.__suppress_context__ = True
+    return error
+
+
 class Transport(Protocol):
     """Dependency-injected transport. Tests supply a fake; production uses `LiteLLMTransport`."""
 
@@ -108,6 +136,8 @@ class LiteLLMTransport:
         import litellm
         from litellm.types.utils import ModelResponse
 
+        failure: TransportError | None = None
+        raw = None
         try:
             # We never pass stream=True, so litellm always returns a
             # ModelResponse; its signature's Union with CustomStreamWrapper
@@ -123,12 +153,16 @@ class LiteLLMTransport:
                     api_key=api_key,
                 ),
             )
-        except Exception as exc:  # noqa: BLE001 - normalize every litellm failure below
-            status_code = getattr(exc, "status_code", None)
-            retry_after = _extract_retry_after(exc)
-            raise TransportError(
-                redact(str(exc)), status_code=status_code, retry_after=retry_after
-            ) from exc
+        except Exception as exc:  # noqa: BLE001 - normalized by transport_error_from
+            failure = transport_error_from(exc)
+        if failure is not None:
+            # Raised OUTSIDE the except block on purpose. `raise ... from None`
+            # inside one still sets __context__ to the exception being handled
+            # -- it is only hidden from tracebacks, not detached -- and that
+            # object holds the unredacted provider text. Out here there is no
+            # exception being handled, so __context__ stays None.
+            raise failure
+        assert raw is not None
 
         choice = raw.choices[0]
         # `usage` is set dynamically by litellm's ModelResponse.__init__ and
@@ -144,7 +178,7 @@ class LiteLLMTransport:
         )
 
 
-def _extract_retry_after(exc: Exception) -> float | None:
+def _extract_retry_after(exc: BaseException) -> float | None:
     headers = getattr(exc, "response", None)
     headers = getattr(headers, "headers", None) if headers is not None else None
     if not headers:

@@ -44,12 +44,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent_bisect.core.budget import BudgetLedger, CallRecord, current_phase
-from agent_bisect.core.config import Settings, get_settings, redact
+from agent_bisect.core.config import Settings, get_settings
 from agent_bisect.core.limits import get_shared_limiter
 from agent_bisect.core.llm import (
     RETRYABLE_STATUS_CODES,
     TransportError,
     compute_backoff_s,
+    transport_error_from,
 )
 
 DEFAULT_MAX_ELAPSED_S = 300.0
@@ -92,10 +93,10 @@ OnCall = Callable[[dict, Any, CallMeta], None]
 
 
 def _as_transport_error(exc: BaseException) -> TransportError:
+    """Normalise to a TransportError that keeps nothing unredacted reachable."""
     if isinstance(exc, TransportError):
         return exc
-    status_code = getattr(exc, "status_code", None)
-    return TransportError(redact(f"{type(exc).__name__}: {exc}"), status_code=status_code)
+    return transport_error_from(exc)
 
 
 class Tau2Router:
@@ -164,20 +165,29 @@ class Tau2Router:
             self._ledger.check_budget()
             self.limiter_for(model).acquire_sync()
             call_start = self._clock()
+            failure: TransportError | None = None
+            response = None
             try:
                 response = self._completion_fn(**payload)
-            except Exception as exc:  # noqa: BLE001 - normalised and re-raised below
+            except Exception as exc:  # noqa: BLE001 - normalised below
                 # Deliberately Exception, not BaseException: a KeyboardInterrupt
                 # has no status_code, so it would be classified as retryable and
                 # slept on until the elapsed budget ran out. Ctrl+C must stop a
                 # probe, not be swallowed by the backoff.
-                error = _as_transport_error(exc)
-                delay = self._delay_before_retry(error, model, purpose, call_start, start, attempt)
-                attempt += 1
-                self._sleep(delay)
-                continue
-            self._record(model, purpose, "ok", call_start)
-            return response, attempt + 1
+                failure = _as_transport_error(exc)
+            if failure is None:
+                self._record(model, purpose, "ok", call_start)
+                return response, attempt + 1
+            delay = self._delay_before_retry(
+                failure, model, purpose, call_start, start, attempt
+            )
+            if delay is None:
+                # Raised OUTSIDE the except block: `raise` inside one re-links
+                # __context__ to the provider exception, whose text is
+                # unredacted. See core.llm.transport_error_from.
+                raise failure
+            attempt += 1
+            self._sleep(delay)
 
     def _delay_before_retry(
         self,
@@ -187,15 +197,20 @@ class Tau2Router:
         call_start: float,
         start: float,
         attempt: int,
-    ) -> float:
-        """Record the failed attempt and return the delay before retrying, or re-raise."""
+    ) -> float | None:
+        """Record the failed attempt; return the retry delay, or None to give up.
+
+        Returning None rather than raising keeps the `raise` at the call
+        site, outside the `except` block, so the provider exception is not
+        re-linked as `__context__`.
+        """
         retryable = exc.status_code is None or exc.status_code in RETRYABLE_STATUS_CODES
         if not retryable:
             self._record(model, purpose, "error", call_start)
-            raise exc
+            return None
         if self._clock() - start >= self._config.max_elapsed_s:
             self._record(model, purpose, "exhausted", call_start)
-            raise exc
+            return None
         self._record(model, purpose, "retrying", call_start)
         # Without this the ledger shows a "retrying" row with no reason, and a
         # run that is quietly burning a third of its calls on retries looks
