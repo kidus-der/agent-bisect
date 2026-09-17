@@ -15,6 +15,8 @@ interface SegmentedControlProps<T extends string> {
   readonly onChange: (value: T) => void
   /** Accessible name for the group. */
   readonly label: string
+  /** `sm` for a secondary control beside a primary one (direction.md §4). */
+  readonly size?: 'sm' | 'md'
   readonly className?: string
 }
 
@@ -24,6 +26,7 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   label,
+  size = 'md',
   className,
 }: SegmentedControlProps<T>) {
   const groupId = useId()
@@ -39,7 +42,8 @@ export function SegmentedControl<T extends string>({
           <label
             key={option.value}
             className={cn(
-              'relative inline-flex h-7 cursor-pointer items-center rounded-[4px] px-3 text-small font-medium',
+              'relative inline-flex cursor-pointer items-center rounded-[4px] font-medium',
+              size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-3 text-small',
               'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus',
               checked ? 'text-ink' : 'text-ink-muted hover:text-ink',
             )}

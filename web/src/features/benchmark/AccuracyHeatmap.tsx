@@ -28,6 +28,11 @@ function headerLines(shortLabel: string): readonly string[] {
   return shortLabel.split(/[\s/]+/)
 }
 
+/** One line wherever the column is wide enough for it. */
+function headerSingleLine(shortLabel: string): string {
+  return headerLines(shortLabel).join('·')
+}
+
 interface MatrixProps {
   readonly faultTypes: readonly FaultType[]
   readonly methods: readonly MethodName[]
@@ -55,9 +60,16 @@ function Matrix({ faultTypes, methods, cellAt, ramp, domain, onHover }: MatrixPr
           key={method}
           className="flex flex-col items-center justify-end pb-1 text-center label-instrument leading-3"
         >
-          {headerLines(methodMeta(method).shortLabel).map((line) => (
-            <span key={line}>{line}</span>
-          ))}
+          <span className="sm:hidden">
+            {headerLines(methodMeta(method).shortLabel).map((line) => (
+              <span key={line} className="block">
+                {line}
+              </span>
+            ))}
+          </span>
+          <span className="hidden sm:inline">
+            {headerSingleLine(methodMeta(method).shortLabel)}
+          </span>
         </span>
       ))}
 
@@ -199,11 +211,14 @@ export function AccuracyHeatmap({ cells }: AccuracyHeatmapProps) {
           <InstrumentLabel>accuracy_by_fault</InstrumentLabel>
           <h3 className="text-h3 text-ink">Which faults each method can find</h3>
         </div>
+        {/* Secondary to the cost histogram's method picker: two controls of the
+            same weight on one page read as one system (direction.md §4). */}
         <SegmentedControl
           label="Accuracy matrix view"
           options={VIEW_OPTIONS}
           value={view}
           onChange={setView}
+          size="sm"
         />
       </header>
 
