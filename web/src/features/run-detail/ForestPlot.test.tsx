@@ -64,6 +64,27 @@ describe('ForestPlot', () => {
     expect(onSelectStep).toHaveBeenCalledWith(2)
   })
 
+  it('draws the blamed row a visible whisker like every other row', () => {
+    // Arrange / Act: a gradient stroke on a zero-height line renders as nothing,
+    // so the one row that most needs its interval lost it.
+    const { container } = render(
+      <ForestPlot
+        rows={ROWS}
+        domain={[-0.4, 1]}
+        delta={FALLBACK_DELTA}
+        selectedStep={7}
+        onSelectStep={vi.fn()}
+      />,
+    )
+
+    // Assert: every row has a whisker, and none is painted with a gradient url.
+    const whiskers = container.querySelectorAll('[data-whisker]')
+    expect(whiskers).toHaveLength(ROWS.length * 3)
+    for (const whisker of whiskers) {
+      expect(whisker.getAttribute('stroke')).not.toContain('url(')
+    }
+  })
+
   it('labels the threshold it is drawn against', () => {
     renderPlot()
 
