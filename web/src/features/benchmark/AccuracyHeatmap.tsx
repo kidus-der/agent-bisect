@@ -129,7 +129,8 @@ function FaultRow({
         return (
           <motion.span
             key={method}
-            initial={reduced ? undefined : { opacity: 0, scale: 0.94 }}
+            initial={reduced ? false : { opacity: 0, scale: 0.94 }}
+            animate={reduced ? { opacity: 1, scale: 1 } : undefined}
             whileInView={reduced ? undefined : { opacity: 1, scale: 1 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={delayedSpring(

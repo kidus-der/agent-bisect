@@ -67,7 +67,8 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
 
   return (
     <motion.li
-      initial={reduced ? undefined : { opacity: 0, y: 6 }}
+      initial={reduced ? false : { opacity: 0, y: 6 }}
+      animate={reduced ? { opacity: 1, y: 0 } : undefined}
       whileInView={reduced ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.35 }}
       transition={enter}
@@ -95,7 +96,8 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
         className={cn(TRACK_CELL, 'relative min-w-0', focal ? 'h-10' : 'h-8')}
       >
         <motion.span
-          initial={reduced ? undefined : { scaleX: 0 }}
+          initial={reduced ? false : { scaleX: 0 }}
+          animate={reduced ? { scaleX: 1 } : undefined}
           whileInView={reduced ? undefined : { scaleX: 1 }}
           viewport={{ once: true, amount: 0.35 }}
           transition={enter}
