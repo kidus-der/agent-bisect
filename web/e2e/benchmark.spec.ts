@@ -1,7 +1,13 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page, expect, test } from '@playwright/test'
 
-import { horizontalOverflow, mockP6eApi, applyTheme } from './p6e.fixtures'
+import {
+  BENCHMARK,
+  NOT_AVAILABLE_REASON,
+  applyTheme,
+  horizontalOverflow,
+  mockP6eApi,
+} from './p6e.fixtures'
 
 const MOBILE = { width: 390, height: 844 } as const
 
@@ -123,6 +129,60 @@ test('the page does not scroll sideways at 390px', async ({ page }) => {
   await page.setViewportSize(MOBILE)
   await openBenchmark(page)
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+})
+
+test('real mode: no price list, no flaky-world run, and recall past the replay', async ({
+  page,
+}) => {
+  // Arrange — the shape real mode actually returns. The fixture server always
+  // carries a price and a no-snapshot arm, so neither can be reached otherwise.
+  await mockP6eApi(page)
+  const summary = BENCHMARK.data as {
+    readonly methods: ReadonlyArray<Record<string, unknown>>
+  }
+  await page.route('**/api/benchmark*', (route) =>
+    route.fulfill({
+      json: {
+        ...BENCHMARK,
+        data: {
+          ...summary,
+          flaky_ablation: null,
+          methods: summary.methods.map((method) => ({ ...method, mean_cost_usd: null })),
+        },
+      },
+    }),
+  )
+  await openBenchmark(page)
+
+  // Assert — calls stand in for the price, and nothing prints a dollar figure.
+  await expect(page.getByText('780 calls').first()).toBeVisible()
+  await expect(page.getByText(/\$\d/)).toHaveCount(0)
+  // The missing ablation is stated, not hidden.
+  await expect(page.getByText('No flaky-world run to compare against')).toBeVisible()
+  await expect(page.getByText(/What snapshots are worth/)).toHaveCount(0)
+})
+
+test('an unmeasured overview, benchmark and dataset each say so', async ({ page }) => {
+  await mockP6eApi(page, { unmeasured: true })
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: { status: 'not_available', reason: 'no evaluation yet' },
+        error: null,
+        meta: { simulated: false, data_source: 'real' },
+      },
+    }),
+  )
+  await applyTheme(page, 'dark')
+
+  await page.goto('/')
+  await expect(page.getByText('no evaluation yet')).toBeVisible()
+
+  await page.goto('/benchmark')
+  // One reason, shown verbatim, for both the benchmark and the dataset below it.
+  await expect(page.getByText(NOT_AVAILABLE_REASON).first()).toBeVisible()
+  await expect(page.getByText(/\d+\.\d%/)).toHaveCount(0)
 })
 
 for (const theme of ['dark', 'light'] as const) {
