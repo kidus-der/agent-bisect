@@ -54,9 +54,11 @@ unplanted; `meta.total` always reflects the filtered count.
 
 **Nullable, honestly:** `RunSummary.cost_usd`/`calls`, `SparkPoint.latency_ms`/
 `tokens`, and `RunDetail.reward` are `T | null` — fixture mode always has a
-real number, real mode returns `null` (never a fake `0`) when genuinely
-unknown: per-run cost/calls (ledger has no `run_id` column until P1b), a
-step that never recorded telemetry, or a run with no outcome row yet.
+real number; real mode returns `null` (never a fake `0`) when genuinely
+unknown. `calls` is real in real mode (the ledger's `run_id` column, P1b);
+`cost_usd` stays `null` (no per-model USD price exists in this codebase
+yet); so does a step's telemetry the run never recorded, or a run with no
+outcome row yet.
 
 **Run status:** `RunSummary`/`RunDetail` carry `status: "recording" |
 "complete"`. No outcome row → `"recording"`, `outcome`/`reward` null (never

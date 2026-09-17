@@ -57,9 +57,10 @@ class RunSummary(BaseModel):
     decisive_step: int | None
     fault_type: FaultType | None
     planted_step: int | None
-    # `None`, never `0`/`0.0`, when per-run cost isn't attributable yet (real
-    # mode: the ledger has no run_id column until P1b). Fixture mode always
-    # has a real number here.
+    # `None`, never `0`/`0.0`, when genuinely unattributable. Fixture mode
+    # always has a real number. Real mode: `calls` is real (the ledger's
+    # `calls.run_id` column, P1b); `cost_usd` stays `None` -- no per-model
+    # USD price exists anywhere in this codebase to multiply `calls` by.
     cost_usd: float | None
     calls: int | None
     sparkline: tuple[SparkPoint, ...]
