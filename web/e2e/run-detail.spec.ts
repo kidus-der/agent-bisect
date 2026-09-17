@@ -78,7 +78,7 @@ test('dragging the playhead scrubs the tape and the inspector follows', async ({
   await page.mouse.up()
 
   await expect(slider).toHaveAttribute('aria-valuenow', '12')
-  await expect(page.getByRole('heading', { name: 'Step 12' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Step 12', exact: true })).toBeVisible()
 })
 
 test('rewinding to step 7 bands the tape, tags the intervention and replays the tail', async ({
