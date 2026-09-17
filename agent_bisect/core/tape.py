@@ -199,6 +199,15 @@ class Outcome(BaseModel):
 
     run_id: str
     reward: float
+    #: Blob hash of the domain's own reward breakdown (for tau2, its
+    #: `RewardInfo`: db_check, action_checks, nl_assertions, ...). Kept by
+    #: reference because it is large and only read when explaining a run.
+    breakdown_ref: str | None = None
+    #: Why the run stopped, in the domain's own words (tau2's
+    #: `TerminationReason`). A run that died on infrastructure has no
+    #: outcome row at all rather than a zero reward -- an infra failure is
+    #: never scored as an agent failure.
+    termination_reason: str | None = None
     # Default is never actually used: `_derive_passed` (mode="before") fills
     # this in from `reward` before pydantic applies field defaults, for
     # every dict-style construction (the only kind used in this codebase).
