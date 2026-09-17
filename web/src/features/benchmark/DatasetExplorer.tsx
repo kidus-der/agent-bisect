@@ -8,8 +8,7 @@ import { EmptyState } from '@/components/primitives/EmptyState'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { Skeleton, TableSkeleton } from '@/components/primitives/Skeleton'
-import { formatPercent } from '@/lib/stats'
-import { cn } from '@/lib/utils'
+import { formatPercent, formatPoints } from '@/lib/stats'
 
 import type { DatasetEntry, DatasetPage } from './api'
 import { useDatasetQuery } from './api'
@@ -43,10 +42,20 @@ const SPLIT_OPTIONS = [
   { value: 'test', label: 'test' },
 ]
 
-function RateCell({ rate, tone }: { readonly rate: number; readonly tone: 'base' | 'faulted' }) {
+/**
+ * Both rates are neutral: coral is the fail role, and a pass rate is a rate, not
+ * a failure. The drop between them is what the reader is after, so it is shown
+ * as its own signed delta.
+ */
+function RateCell({ rate }: { readonly rate: number }) {
+  return <span className="num text-ink">{formatPercent(rate, 0)}</span>
+}
+
+function DropCell({ entry }: { readonly entry: DatasetEntry }) {
+  const drop = entry.faulted_pass_rate - entry.base_pass_rate
   return (
-    <span className={cn('num', tone === 'faulted' ? 'text-fail' : 'text-ink')}>
-      {formatPercent(rate, 0)}
+    <span className="num whitespace-nowrap text-ink-muted">
+      <span aria-hidden="true">▼</span> {formatPoints(drop, 0)}
     </span>
   )
 }
@@ -117,14 +126,22 @@ const COLUMNS: ReadonlyArray<DataTableColumn<DatasetEntry>> = [
     header: 'base pass',
     numeric: true,
     sortValue: (row) => row.base_pass_rate,
-    cell: (row) => <RateCell rate={row.base_pass_rate} tone="base" />,
+    cell: (row) => <RateCell rate={row.base_pass_rate} />,
   },
   {
     id: 'faulted_pass_rate',
     header: 'faulted pass',
     numeric: true,
     sortValue: (row) => row.faulted_pass_rate,
-    cell: (row) => <RateCell rate={row.faulted_pass_rate} tone="faulted" />,
+    cell: (row) => <RateCell rate={row.faulted_pass_rate} />,
+  },
+  {
+    id: 'drop',
+    header: 'drop',
+    numeric: true,
+    hideOnMobile: true,
+    sortValue: (row) => row.faulted_pass_rate - row.base_pass_rate,
+    cell: (row) => <DropCell entry={row} />,
   },
 ]
 
