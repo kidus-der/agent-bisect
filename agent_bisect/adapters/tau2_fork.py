@@ -39,21 +39,6 @@ INFRA_RETRIES = 1
 _RETRY_SEED_OFFSET = 1_000_003
 
 
-def _seeded(completion: Callable[..., Any], seed: int) -> Callable[..., Any]:
-    """`completion` with `seed` pinned, for the live suffix of one fork.
-
-    Two arms of the same step differ only in their draw, and the draw is
-    what this changes. The prefix never reaches here — it is served from
-    the tape — so pinning the seed at the live seam is what lets a fork
-    vary without its recorded prefix ceasing to match.
-    """
-
-    def with_seed(**payload: Any) -> Any:
-        return completion(**{**payload, "seed": seed})
-
-    return with_seed
-
-
 class Tau2ForkExecutor:
     """Runs one fork per request, reusing any the tape already holds."""
 
@@ -103,12 +88,24 @@ class Tau2ForkExecutor:
         return RerunOutcome(passed=outcome.passed, n_steps=len(steps), calls=0)
 
     def _run_once(self, request: RerunRequest, seed: int) -> RerunOutcome:
-        # `ForkSpec.seed` is left None on purpose: it would re-pin the whole
-        # re-driven run, including the prefix, and `seed` is one of the
-        # sampling params `canonical_request_hash` covers -- so a fork that
-        # re-seeded the run would diverge on its own first prefix step.
-        # The seed belongs to the *live suffix*, which is the only part
-        # being sampled, so it is applied there instead.
+        # A fork carries NO per-re-run seed, and the draw's seed reaches
+        # only the fork's identity (`rerun_id`) and its recorded row.
+        #
+        # Two things were tried and both are wrong. Putting it on
+        # `ForkSpec.seed` re-pins the whole re-driven run, and `seed` is one
+        # of the sampling params `canonical_request_hash` covers, so the
+        # fork diverges on its own first prefix step. Injecting it at the
+        # live seam instead keeps the prefix matching but makes the forked
+        # *recording* unreplayable: its prefix rows and its suffix rows
+        # would want two different orchestrator seeds. Carrying a suffix
+        # seed properly needs the replay engine to record it on the fork
+        # manifest and re-apply it from the fork step onward, which it does
+        # not do (same conclusion as `bench/inject.py`, commit ee41bed).
+        #
+        # So the arms' draws differ only by provider non-determinism. That
+        # is a real dependency and P5 reports it: if re-runs do not vary,
+        # N draws are not N observations and the interval is not a 95%
+        # interval. P3's stability check (re-run 4x) is what measures it.
         spec = ForkSpec(
             parent_run_id=request.parent_run_id,
             run_id=request.run_id,
@@ -121,7 +118,7 @@ class Tau2ForkExecutor:
             store=self._store,
             reader=self._reader,
             tape=self._tape,
-            live_completion=_seeded(self._live(), seed),
+            live_completion=self._live(),
             unsafe_positional=request.unsafe_positional,
         )
         outcome = run_fork(driver, spec, request.intervention)
