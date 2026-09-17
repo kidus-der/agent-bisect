@@ -141,7 +141,7 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
         </div>
         {/* Calls lead: they are measured on every run. A price is shown only
             when the server sent one — real mode has no price list. */}
-        <div className="hidden w-[5rem] flex-col items-end sm:flex">
+        <div className="hidden w-[6rem] flex-col items-end whitespace-nowrap sm:flex">
           <span className="num text-small text-ink">{formatCalls(result.mean_calls)}</span>
           {formatUsd(result.mean_cost_usd) === null ? null : (
             <span className="num text-[12px] text-ink-muted">
