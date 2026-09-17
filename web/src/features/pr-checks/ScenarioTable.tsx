@@ -3,7 +3,7 @@ import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { formatPercent, formatPoints } from '@/lib/stats'
 
-import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry } from './deltaBarGeometry'
+import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry, scaleKeyLabel } from './deltaBarGeometry'
 import { cn } from '@/lib/utils'
 
 import type { ScenarioRow } from './api'
@@ -67,11 +67,10 @@ function ZeroRule({ overhang = true }: { readonly overhang?: boolean }) {
  * only has to state the extent.
  */
 function DeltaAxisLegend({ scale }: { readonly scale: number }) {
-  const extent = formatPoints(scale, 0).replace(/^[+−]/, '')
   return (
     <span className="flex items-center gap-2 text-[12px] text-ink-muted">
       <InstrumentLabel>scale</InstrumentLabel>
-      <span className="num">±{extent} pts</span>
+      <span className="num">{scaleKeyLabel(scale, (value) => formatPoints(value, 0))}</span>
       <span>· zero at the rule</span>
     </span>
   )

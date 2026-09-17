@@ -29,3 +29,12 @@ export function deltaBarGeometry(value: number, scale: number): DeltaBarGeometry
   if (value < 0) return { left: MIDPOINT - half, width: half }
   return { left: MIDPOINT, width: half }
 }
+
+/**
+ * The key above the change column: how far a full-length bar reaches, either
+ * way from the rule. `formatPoints` already carries the unit, so the label must
+ * not add a second one.
+ */
+export function scaleKeyLabel(scale: number, formatPoints: (value: number) => string): string {
+  return `\u00B1${formatPoints(scale).replace(/^[+\u2212-]/, '')}`
+}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry } from './deltaBarGeometry'
+import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry, scaleKeyLabel } from './deltaBarGeometry'
 
 /** The worst change in the suite; every bar is drawn against it. */
 const SCALE = 0.67
@@ -63,5 +63,18 @@ describe('deltaBarGeometry', () => {
     expect(deltaBarGeometry(0, SCALE)).toEqual({ left: 50, width: 0 })
     expect(deltaBarGeometry(-0.5, 0)).toEqual({ left: 50, width: 0 })
     expect(deltaBarGeometry(Number.NaN, SCALE)).toEqual({ left: 50, width: 0 })
+  })
+})
+
+describe('scaleKeyLabel', () => {
+  test('states the extent once, with the unit the formatter already carries', () => {
+    expect(scaleKeyLabel(0.67, (value) => `+${Math.round(value * 100)} pts`)).toBe('\u00B167 pts')
+  })
+
+  test("drops the formatter's sign, whichever one it used", () => {
+    const minus = scaleKeyLabel(0.67, () => '\u221267 pts')
+    const hyphen = scaleKeyLabel(0.67, () => '-67 pts')
+    expect(minus).toBe('\u00B167 pts')
+    expect(hyphen).toBe('\u00B167 pts')
   })
 })
