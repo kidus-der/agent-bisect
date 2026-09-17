@@ -8,6 +8,7 @@ own -- exactly as `cli.py` will.
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 import typer
@@ -56,6 +57,83 @@ def test_record_refuses_without_a_key(runner, tmp_path, monkeypatch):
 
     assert result.exit_code == 1
     assert "NVIDIA_API_KEY" in result.output
+
+
+def _scripted_record(monkeypatch, store: Store):
+    """Point `bisect record` at the scripted model instead of the network.
+
+    Only the model and the credential check are replaced; the command
+    builds its own batch, its own store and its own ledger.
+    """
+    import agent_bisect.cli_record as cli_record
+    from agent_bisect.adapters.tau2 import recording_session
+    from agent_bisect.adapters.tau2_fake_llm import ScriptedLLM
+    from tests.tau2_offline import UNUSED_API_BASE, UNUSED_API_KEY, no_limiter
+
+    llm = ScriptedLLM(AIRLINE_READS.scripts)
+
+    def scripted_session(*, ledger, phase):
+        return recording_session(
+            ledger=ledger,
+            phase=phase,
+            completion_fn=llm.completion,
+            api_key=UNUSED_API_KEY,
+            api_base=UNUSED_API_BASE,
+            limiter_for=no_limiter,
+        )
+
+    monkeypatch.setattr(cli_record, "recording_session", scripted_session)
+    monkeypatch.setattr(
+        cli_record, "get_settings", lambda: SimpleNamespace(has_nvidia_key=True)
+    )
+    return llm
+
+
+def _record_argv(store: Store, tasks: str) -> list[str]:
+    return [
+        "--domain", "airline",
+        "--tasks", tasks,
+        "--agent-model", AGENT_MODEL,
+        "--user-model", USER_MODEL,
+        "--runs-dir", str(store.root),
+        "--ledger", str(store.root / "ledger.sqlite"),
+    ]
+
+
+def test_record_records_the_requested_tasks(runner, store, monkeypatch):
+    llm = _scripted_record(monkeypatch, store)
+
+    result = runner.invoke(_app(record), [*_record_argv(store, "0-1"), "--json"])
+
+    assert result.exit_code == 0, result.stdout
+    summary = _json_on_stdout(result)
+    assert summary["recorded"] == 2
+    assert summary["aborted_infra"] == 0
+    assert summary["calls"] == llm.calls
+    assert len(store.reader.get_steps("airline-0-t0")) > 0
+
+
+def test_record_resumes_and_pays_for_nothing_twice(runner, store, monkeypatch):
+    _scripted_record(monkeypatch, store)
+    runner.invoke(_app(record), _record_argv(store, "0"))
+
+    llm = _scripted_record(monkeypatch, store)
+    result = runner.invoke(_app(record), [*_record_argv(store, "0"), "--json"])
+
+    assert result.exit_code == 0
+    assert _json_on_stdout(result)["recorded"] == 1
+    assert llm.calls == 0, "a resumed run must cost nothing"
+
+
+def test_record_prints_a_line_per_run_without_json(runner, store, monkeypatch):
+    _scripted_record(monkeypatch, store)
+
+    result = runner.invoke(_app(record), _record_argv(store, "0-1"))
+
+    assert result.exit_code == 0
+    assert "2 runs, 2 outstanding" in result.stdout
+    assert "airline-0-t0" in result.stdout
+    assert "recorded 2" in result.stdout
 
 
 def test_record_help_documents_the_documented_invocation(runner):
