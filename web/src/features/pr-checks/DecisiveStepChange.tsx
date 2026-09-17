@@ -58,6 +58,19 @@ interface DecisiveStepChangeProps {
 export function DecisiveStepChange({ check }: DecisiveStepChangeProps) {
   const moved =
     check.decisive_step_base !== check.decisive_step_head && check.decisive_step_head !== null
+  const neither = check.decisive_step_base === null && check.decisive_step_head === null
+
+  // Nothing was decisive on either ref: one line, not half a page of chrome
+  // explaining the absence of a result.
+  if (neither) {
+    return (
+      <Panel variant="elevated" bodyClassName="flex flex-col gap-1">
+        <InstrumentLabel>decisive_step</InstrumentLabel>
+        <p className="text-h3 text-ink">No step was decisive on either ref.</p>
+      </Panel>
+    )
+  }
+
   return (
     <Panel variant="elevated" bodyClassName="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -87,11 +100,7 @@ export function DecisiveStepChange({ check }: DecisiveStepChangeProps) {
       </div>
 
       <p className="max-w-prose text-small text-pretty text-ink-muted">{verdict(check)}</p>
-      <p className="max-w-prose text-[12px] text-pretty text-ink-muted">
-        The effect of reverting that step, and its interval, are computed by the gate and appear in
-        the comment below. This endpoint does not return them as fields, so they are not restated
-        here as if they were.
-      </p>
+      <InstrumentLabel>effect not returned here · see the comment below</InstrumentLabel>
     </Panel>
   )
 }
