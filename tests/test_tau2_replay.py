@@ -9,6 +9,7 @@ every step reproducing the recorded outcome.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from typing import ClassVar
 
 import pytest
 from agent_bisect.adapters.tau2_replay import (
@@ -884,7 +885,7 @@ class _ResampleDiffering:
     bug only shows when the new answer is different.
     """
 
-    name = "resample-differing"
+    name: ClassVar[str] = "resample-differing"
 
     def apply(self, step, payload):
         return LIVE

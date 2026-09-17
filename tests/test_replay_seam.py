@@ -12,6 +12,7 @@ item and P5 samples N arms.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from typing import ClassVar
 
 import pytest
 from agent_bisect.adapters.tau2_replay import _completion_patched, _dispatcher_installed
@@ -165,7 +166,7 @@ class _Sink:
 
 
 class _AlwaysLive:
-    name = "always-live"
+    name: ClassVar[str] = "always-live"
 
     def apply(self, step, payload):
         from agent_bisect.core.replay import LIVE
