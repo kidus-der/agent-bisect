@@ -14,7 +14,10 @@ import type { SeriesPoint } from './callsSeries'
 
 const MARGIN = { top: 10, right: 58, bottom: 22, left: 40 } as const
 const Y_TICKS = 3
-const X_TICKS = 4
+/** Room each clock label needs before its neighbour starts touching it. */
+const X_TICK_PITCH_PX = 88
+const MAX_X_TICKS = 5
+const MIN_X_TICKS = 2
 const LINE_WIDTH = 2
 const AREA_OPACITY = 0.18
 const TIP_RADIUS = 3.5
@@ -24,8 +27,13 @@ const BADGE_CHAR_WIDTH = 7.2
 const BADGE_PADDING = 10
 const MS_PER_SECOND = 1000
 
+/** Hours and minutes only: the window is tens of minutes, and seconds collide. */
 function formatClock(date: Date): string {
-  return date.toLocaleTimeString('en-GB', { hour12: false })
+  return date.toLocaleTimeString('en-GB', { hour12: false, hour: '2-digit', minute: '2-digit' })
+}
+
+function xTickCount(innerWidth: number): number {
+  return Math.max(MIN_X_TICKS, Math.min(MAX_X_TICKS, Math.floor(innerWidth / X_TICK_PITCH_PX)))
 }
 
 interface PlotProps {
@@ -85,12 +93,12 @@ function Plot({ width, height, points, colour, domainMax, formatValue, gradientI
             {formatValue(tick)}
           </text>
         ))}
-        {x.ticks(X_TICKS).map((tick, index) => (
+        {x.ticks(xTickCount(innerWidth)).map((tick, index, ticks) => (
           <text
             key={tick.valueOf()}
             x={x(tick)}
             y={innerHeight + 16}
-            textAnchor={index === 0 ? 'start' : 'middle'}
+            textAnchor={index === 0 ? 'start' : index === ticks.length - 1 ? 'end' : 'middle'}
             fill="var(--chart-label)"
             fontSize={11}
             fontFamily="var(--font-mono)"
