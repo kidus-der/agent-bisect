@@ -23,15 +23,31 @@ function DeltaBar({ value, scale }: { readonly value: number; readonly scale: nu
   const worse = value < WORSE_THRESHOLD
   const magnitude = scale > 0 ? Math.min(1, Math.abs(value) / scale) : 0
   return (
-    <span aria-hidden="true" className="relative inline-block h-3 w-24 align-middle">
-      <span className="absolute inset-y-0 left-1/2 w-px bg-line-strong" />
+    <span aria-hidden="true" className="relative inline-block h-4 w-28 align-middle">
       <span
         className={cn(
-          'absolute top-1/2 h-2 -translate-y-1/2 rounded-step',
-          worse ? 'right-1/2 bg-fail' : 'left-1/2 bg-pass',
+          'absolute top-1/2 h-2.5 -translate-y-1/2',
+          worse ? 'right-1/2 rounded-l-step bg-fail' : 'left-1/2 rounded-r-step bg-pass',
         )}
         style={{ width: `${(magnitude / 2) * 100}%` }}
       />
+      {/* The zero line sits above the bar, so a bar that reaches it still shows
+          where it ends: worse runs left of the line, better runs right. */}
+      <span className="absolute inset-y-0 left-1/2 z-10 w-px bg-ink-muted" />
+    </span>
+  )
+}
+
+/** The axis, stated once: what the zero line is and which way is which. */
+function DeltaAxisLegend({ scale }: { readonly scale: number }) {
+  return (
+    <span className="flex items-center gap-2 text-[12px] text-ink-muted">
+      <span className="num">−{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
+      <span aria-hidden="true" className="relative inline-block h-3 w-28">
+        <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line-strong" />
+        <span className="absolute inset-y-0 left-1/2 w-px bg-ink-muted" />
+      </span>
+      <span className="num">+{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
     </span>
   )
 }
@@ -106,8 +122,11 @@ export function ScenarioTable({ scenarios }: ScenarioTableProps) {
         <InstrumentLabel>scenarios</InstrumentLabel>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 className="text-h3 text-ink">Every scenario in the suite</h3>
-          <span className="num text-small text-ink-muted">
-            {worse} of {scenarios.length} worse on head
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <DeltaAxisLegend scale={deltaScale(scenarios)} />
+            <span className="num text-small text-ink-muted">
+              {worse} of {scenarios.length} worse on head
+            </span>
           </span>
         </div>
       </header>
