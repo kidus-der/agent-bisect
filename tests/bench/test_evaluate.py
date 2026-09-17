@@ -8,11 +8,17 @@ from agent_bisect.bench.evaluate import (
     build_report,
     score_outcomes,
 )
-from agent_bisect.bench.manifest import DatasetItem
+from agent_bisect.bench.faults import FaultType
+from agent_bisect.bench.manifest import DatasetItem, Split
+from agent_bisect.bench.strata import PositionBucket
 
 
-def _item(index: int, *, task: str, planted: int = 5, fault="wrong_value",
-          position="middle", split="test") -> DatasetItem:
+def _item(
+    index: int, *, task: str, planted: int = 5,
+    fault: FaultType = "wrong_value",
+    position: PositionBucket = "middle",
+    split: Split = "test",
+) -> DatasetItem:
     return DatasetItem(
         item_id=f"item-{index}",
         domain="airline",

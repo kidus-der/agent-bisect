@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from agent_bisect.attribution.judge_view import JudgeVerdict, RankedStep
+from agent_bisect.attribution.judge_view import (
+    JudgeInput,
+    JudgeStepView,
+    JudgeVerdict,
+    Protocol,
+    RankedStep,
+)
 from agent_bisect.attribution.search import RerunOutcome, RerunRequest
 from agent_bisect.bench.baselines import (
     EVAL_METHODS,
@@ -27,7 +33,9 @@ def _step(idx: int, actor: str = "tool") -> Step:
 STEPS = tuple(_step(idx, "tool" if idx % 2 else "agent") for idx in range(10))
 
 
-def _verdict(steps: list[int], protocol="all_at_once", calls=1) -> JudgeVerdict:
+def _verdict(
+    steps: list[int], protocol: Protocol = "all_at_once", calls: int = 1
+) -> JudgeVerdict:
     return JudgeVerdict(
         item_id="item-1",
         protocol=protocol,
@@ -69,6 +77,18 @@ class StubBackend:
         self.all_at_once = all_at_once
         self.step_by_step = step_by_step
         self.asked: list[str] = []
+
+    def ask(self, *, system: str, user: str, item_id: str, protocol: Protocol):
+        """Never reached: the two tests using this backend patch the protocols."""
+        raise AssertionError("the protocol functions are patched; ask must not be called")
+
+
+def _judge_input() -> JudgeInput:
+    return JudgeInput(
+        item_id="item-1", run_id="run-1", domain="airline",
+        task_description="t", policy="p",
+        steps=(JudgeStepView(0, "agent", None, None, "hello"),),
+    )
 
 
 def _outcomes(executor, judgement, **overrides):
@@ -296,7 +316,9 @@ def test_judge_item_runs_both_protocols_once_each(monkeypatch):
     )
 
     # Act
-    judgement = judge_item(object(), StubBackend(_verdict([5]), _verdict([7], "step_by_step")))
+    judgement = judge_item(
+        _judge_input(), StubBackend(_verdict([5]), _verdict([7], "step_by_step"))
+    )
 
     # Assert
     assert calls == ["all", "sbs"]
@@ -315,7 +337,9 @@ def test_judge_item_can_skip_the_expensive_protocol(monkeypatch):
     )
 
     # Act
-    judgement = judge_item(object(), StubBackend(_verdict([5]), _verdict([7])), step_by_step=False)
+    judgement = judge_item(
+        _judge_input(), StubBackend(_verdict([5]), _verdict([7])), step_by_step=False
+    )
 
     # Assert
     assert judgement.step_by_step is None

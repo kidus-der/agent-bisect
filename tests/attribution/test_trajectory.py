@@ -33,7 +33,7 @@ def _manifest(run_id: str = "run-1") -> RunManifest:
     )
 
 
-def _llm_payload(content: str, tool_calls=None) -> dict:
+def _llm_payload(content: str | None, tool_calls=None) -> dict:
     message: dict = {"role": "assistant", "content": content}
     if tool_calls:
         message["tool_calls"] = tool_calls

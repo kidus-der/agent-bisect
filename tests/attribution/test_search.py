@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from agent_bisect.attribution.interventions import TruthfulToolResult
 from agent_bisect.attribution.judge_view import JudgeVerdict, RankedStep
 from agent_bisect.attribution.search import (
     BlameConfig,
@@ -93,6 +94,7 @@ def test_a_tool_step_gets_the_truthful_tool_result():
     intervention = choose_intervention(_step(3, "tool"))
 
     # Assert
+    assert isinstance(intervention, TruthfulToolResult)
     assert intervention.name == "truthful_tool_result"
     assert intervention.target_step == 3
 
@@ -202,6 +204,7 @@ def test_the_control_is_shared_and_forked_at_the_earliest_tested_step():
     # Assert
     control_steps = {r.fork_step for r in executor.requests if r.arm == "control"}
     assert control_steps == {1}
+    assert result.estimate is not None
     assert result.estimate.control_fork_step == 1
 
 
@@ -226,6 +229,7 @@ def test_the_no_control_ablation_runs_no_control_arm_at_all():
 
     # Assert
     assert all(request.arm == "treated" for request in executor.requests)
+    assert result.estimate is not None
     assert result.estimate.control_reruns == 0
 
 

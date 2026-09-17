@@ -14,11 +14,11 @@ from agent_bisect.attribution.blame_store import (
     save_blame,
 )
 from agent_bisect.attribution.estimate import ArmResult, RunEstimate, StepEffect
-from agent_bisect.attribution.judge_view import JudgeVerdict, RankedStep
+from agent_bisect.attribution.judge_view import JudgeVerdict, Protocol, RankedStep
 from agent_bisect.attribution.search import BlameConfig, BlameResult, RerunRecord
 
 
-def _verdict(protocol="all_at_once") -> JudgeVerdict:
+def _verdict(protocol: Protocol = "all_at_once") -> JudgeVerdict:
     return JudgeVerdict(
         item_id="item-1",
         protocol=protocol,

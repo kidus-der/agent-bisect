@@ -19,7 +19,7 @@ from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
 from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, USER_MODEL
 from agent_bisect.adapters.tau2_task import task_text
 from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
-from agent_bisect.attribution.estimate import SequentialConfig
+from agent_bisect.attribution.estimate import ControlMode, SequentialConfig
 from agent_bisect.attribution.interventions import ReplaceToolResult
 from agent_bisect.attribution.search import RerunRequest
 from agent_bisect.bench.baselines import BaselineConfig
@@ -212,7 +212,10 @@ def _item(planted, item_id: str = "item-1") -> DatasetItem:
     )
 
 
-def _run_pipeline(planted, judge: FakeJudge, *, seed: int = 3, control_mode="per_step"):
+def _run_pipeline(
+    planted, judge: FakeJudge, *, seed: int = 3,
+    control_mode: ControlMode = "per_step",
+):
     store = planted["store"]
     executor = Tau2ForkExecutor(
         store=store.blobs,

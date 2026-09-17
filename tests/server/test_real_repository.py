@@ -613,7 +613,9 @@ def test_live_snapshot_reads_multiple_phase_status_files(one_run_dir):
 # --- Blame results (P5's `runs/blame/<run_id>.json` convention) -----------
 
 
-def _blame_result(*, run_id: str = "real-run-1", step: int = 5, estimate: bool = True) -> BlameResult:
+def _blame_result(
+    *, run_id: str = "real-run-1", step: int = 5, estimate: bool = True
+) -> BlameResult:
     """Field names mirror `schemas_runs` exactly (see `blame_store.py`'s
     docstring), so the repository under test should need no reshaping."""
     verdict = JudgeVerdict(
@@ -662,7 +664,15 @@ def _blame_result(*, run_id: str = "real-run-1", step: int = 5, estimate: bool =
         estimate=run_estimate,
         reruns=(
             RerunRecord(f"{run_id}-t{step}-abc", "treated", step, 11, True, 12, 9),
-            RerunRecord(f"{run_id}-c{step}-def", "control", max(step - 2, 0), 12, False, 12, 9),
+            RerunRecord(
+                f"{run_id}-c{max(step - 2, 0)}-def",
+                "control",
+                max(step - 2, 0),
+                12,
+                False,
+                12,
+                9,
+            ),
         )
         if estimate
         else (),
@@ -737,6 +747,7 @@ def test_reruns_reads_the_stored_rerun_matrix(one_run_dir):
     page = repo.reruns("real-run-1")
 
     assert [row.rerun_id for row in page.reruns] == ["real-run-1-t5-abc", "real-run-1-c3-def"]
+    # (control fork step for `step=5` is `max(5-2, 0) == 3`, matching the id above)
     assert page.reruns[0].arm == "treated"
 
 
