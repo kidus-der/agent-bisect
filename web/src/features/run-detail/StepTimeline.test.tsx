@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -141,6 +141,61 @@ describe('StepTimeline playhead', () => {
     expect(screen.getByText('not tested · no effect estimated')).toBeInTheDocument()
     await user.keyboard('{ArrowRight}{ArrowRight}')
     expect(screen.getByText('effect +0.88 [+0.47, +0.97]')).toBeInTheDocument()
+  })
+
+  it('does not re-commit the playhead while the pointer stays on the same step', () => {
+    // Arrange: jsdom reports a zero rect, so any pointer x resolves to step 1.
+    const onPlayheadChange = vi.fn()
+    render(
+      <StepTimeline
+        steps={STEPS}
+        states={['ran', 'ran', 'ran', 'pending']}
+        cells={CELLS}
+        blamedStep={3}
+        playhead={1}
+        onPlayheadChange={onPlayheadChange}
+        rewind={null}
+        onRewind={() => undefined}
+        onResetRewind={() => undefined}
+        canRewind
+        rerunCount={8}
+        intervention={null}
+      />,
+    )
+    const slider = screen.getByRole('slider', { name: 'Step playhead' })
+
+    // Act: pressing on the step the playhead already occupies.
+    fireEvent.pointerDown(slider, { pointerId: 1, clientX: 0 })
+
+    // Assert: a drag must not push identical state on every frame.
+    expect(onPlayheadChange).not.toHaveBeenCalled()
+  })
+
+  it('commits the playhead when the pointer lands on a different step', () => {
+    const onPlayheadChange = vi.fn()
+    render(
+      <StepTimeline
+        steps={STEPS}
+        states={['ran', 'ran', 'ran', 'pending']}
+        cells={CELLS}
+        blamedStep={3}
+        playhead={4}
+        onPlayheadChange={onPlayheadChange}
+        rewind={null}
+        onRewind={() => undefined}
+        onResetRewind={() => undefined}
+        canRewind
+        rerunCount={8}
+        intervention={null}
+      />,
+    )
+
+    fireEvent.pointerDown(screen.getByRole('slider', { name: 'Step playhead' }), {
+      pointerId: 1,
+      clientX: 0,
+    })
+
+    expect(onPlayheadChange).toHaveBeenCalledExactlyOnceWith(1)
   })
 
   it('offers a rewind control that names the step it would rewind to', async () => {
