@@ -44,6 +44,15 @@ const PAYLOAD: OverviewPayload = {
 }
 
 describe('isOverviewPayload', () => {
+  test('accepts a payload whose featured run is not indexed', () => {
+    // Real mode: P5 has results, the hero run is simply not in the tape index.
+    // Rejecting it would blank a page of measured figures over one missing card.
+    expect(isOverviewPayload({ ...PAYLOAD, hero_run: null })).toBe(true)
+  })
+
+  test('still rejects a featured run of the wrong shape', () => {
+    expect(isOverviewPayload({ ...PAYLOAD, hero_run: { run_id: 42 } })).toBe(false)
+  })
   test('accepts the payload the API contract describes', () => {
     expect(isOverviewPayload(PAYLOAD)).toBe(true)
   })

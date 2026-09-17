@@ -83,7 +83,11 @@ export function isOverviewPayload(value: unknown): value is OverviewPayload {
     typeof candidate.kpis?.runs_recorded === 'number' &&
     Array.isArray(candidate.recall_at_m) &&
     Array.isArray(candidate.cost_vs_accuracy) &&
-    typeof candidate.hero_run?.run_id === 'string'
+    typeof candidate.recall_provenance?.measured_to_m === 'number' &&
+    // The featured run may legitimately be absent — P5 has results but the run
+    // is not in the tape index. Absent is a shape this page knows how to draw;
+    // present-but-malformed is not.
+    (candidate.hero_run === null || typeof candidate.hero_run?.run_id === 'string')
   )
 }
 
