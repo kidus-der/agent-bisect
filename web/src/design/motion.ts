@@ -35,8 +35,23 @@ export const STAGGER_SECONDS = {
   list: 0.03,
 } as const
 
+/**
+ * How long a chart above the fold waits before it starts entering.
+ *
+ * The page itself fades and lifts in on a spring when the route changes, and a
+ * chart that draws itself during that move is two animations fighting over the
+ * same pixels — the chart reads as already settled by the time the page lands.
+ * Waiting for the page to arrive first makes the entrance its own event.
+ */
+export const ENTRANCE_LEAD_IN_SECONDS = 0.28
+
 export function springTransition(name: SpringName, reduced: boolean): Transition {
   return reduced ? INSTANT : { type: 'spring', ...springs[name] }
+}
+
+/** A named spring, delayed — instant and undelayed under reduced motion. */
+export function delayedSpring(name: SpringName, reduced: boolean, delay: number): Transition {
+  return reduced ? INSTANT : { ...springTransition(name, reduced), delay }
 }
 
 /** The transition for a named spring, or an instant change under reduced motion. */

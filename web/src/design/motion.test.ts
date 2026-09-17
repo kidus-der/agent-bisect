@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
-import { INSTANT, layoutIds, springTransition, springs, staggerVariants } from './motion'
+import {
+  INSTANT,
+  delayedSpring,
+  layoutIds,
+  springTransition,
+  springs,
+  staggerVariants,
+} from './motion'
 
 describe('motion presets', () => {
   test('match direction.md §4', () => {
@@ -35,5 +42,16 @@ describe('motion presets', () => {
   test('shared-layout ids are stable per run', () => {
     expect(layoutIds.runIdChip('run-041')).toBe('run-run-041-id')
     expect(layoutIds.runBlameStripe('a')).not.toBe(layoutIds.runBlameStripe('b'))
+  })
+})
+
+describe('delayedSpring', () => {
+  test('carries the delay on the named spring', () => {
+    expect(delayedSpring('settle', false, 0.4)).toMatchObject({ type: 'spring', delay: 0.4 })
+  })
+
+  test('drops the delay entirely under reduced motion', () => {
+    // Arrange / Act / Assert — a delayed instant change is still a wait.
+    expect(delayedSpring('settle', true, 0.4)).toEqual(INSTANT)
   })
 })
