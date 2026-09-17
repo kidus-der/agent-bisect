@@ -14,8 +14,9 @@ for nothing twice.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TextIO
 
 import typer
 
@@ -30,7 +31,7 @@ from agent_bisect.adapters.tau2_batch import (
     tasks_from_range,
     with_task,
 )
-from agent_bisect.cli_io import own_stdout
+from agent_bisect.cli_io import own_stdout, say
 from agent_bisect.core.budget import DEFAULT_LEDGER_PATH, BudgetLedger
 from agent_bisect.core.config import get_settings
 from agent_bisect.core.store import BlobStore
@@ -44,14 +45,24 @@ DEFAULT_PHASE = "P1"
 DEFAULT_RUNS_DIR = Path("runs")
 
 
-def _report(checkpoint: Checkpoint) -> None:
-    status = checkpoint.error or (
-        "pass" if checkpoint.passed else f"reward={checkpoint.reward}"
-    )
-    typer.echo(
-        f"  {checkpoint.run_id}: {status} "
-        f"({checkpoint.steps} steps, {checkpoint.termination_reason})"
-    )
+def _reporter(stream: TextIO) -> Callable[[Checkpoint], None]:
+    """A progress callback writing to the command's own stdout.
+
+    Not `typer.echo`: inside `own_stdout()` that would resolve to the
+    redirected stream and the batch would run silently.
+    """
+
+    def report(checkpoint: Checkpoint) -> None:
+        status = checkpoint.error or (
+            "pass" if checkpoint.passed else f"reward={checkpoint.reward}"
+        )
+        say(
+            stream,
+            f"  {checkpoint.run_id}: {status} "
+            f"({checkpoint.steps} steps, {checkpoint.termination_reason})",
+        )
+
+    return report
 
 
 def record(
@@ -68,6 +79,9 @@ def record(
     concurrency: int = typer.Option(1, help="Runs recorded at once."),
     phase: str = typer.Option(DEFAULT_PHASE, help="Ledger phase for these calls."),
     max_calls: int = typer.Option(DEFAULT_CALL_CAP, help="Hard ledger cap for this batch."),
+    ledger_path: Annotated[
+        Path, typer.Option("--ledger", help="Call ledger to reserve against.")
+    ] = DEFAULT_LEDGER_PATH,
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Record tau2 runs, resuming from whatever is already on disk."""
@@ -92,8 +106,8 @@ def record(
     if not json_output:
         typer.echo(f"{len(items)} runs, {len(outstanding)} outstanding")
 
-    ledger = BudgetLedger(DEFAULT_LEDGER_PATH, max_calls=max_calls)
-    with own_stdout(), recording_session(ledger=ledger, phase=phase):
+    ledger = BudgetLedger(ledger_path, max_calls=max_calls)
+    with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
         checkpoints = record_batch(
             items,
             spec_for=lambda item: _spec_for(template, item),
@@ -102,7 +116,7 @@ def record(
             reader=reader,
             root=runs_dir,
             concurrency=concurrency,
-            on_done=None if json_output else _report,
+            on_done=None if json_output else _reporter(stdout),
         )
 
     summary = {**summarise(checkpoints), "calls": ledger.total_calls()}
