@@ -1,0 +1,136 @@
+name: "Bisect gate"
+description: >-
+  Runs `bisect gate` comparing base and head, and (with comment: true)
+  posts or updates one sticky PR comment with the result. Demo mode makes
+  no network call and needs no secret; live mode is not exercised yet
+  (docs/decisions/0019-gate-rule.md) and, when it is, must never receive a
+  secret on a pull_request run from a fork -- GitHub withholds repository
+  secrets from fork PRs by default, and this action does nothing to
+  override that.
+
+inputs:
+  base:
+    description: "The ref to compare against."
+    required: true
+  head:
+    description: "The ref under test."
+    required: true
+  suite:
+    description: "Which suite to run."
+    default: "demo"
+  runs:
+    description: "Runs per scenario, per side."
+    default: "4"
+  mode:
+    description: "'demo' (scripted, no secret) or 'live' (real models, needs NVIDIA_API_KEY)."
+    default: "demo"
+  comment:
+    description: "Whether to post/update the sticky PR comment."
+    default: "true"
+  nvidia-api-key:
+    description: "Only read when mode is 'live'. Never logged."
+    required: false
+    default: ""
+  github-token:
+    description: "Token used to post the PR comment."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  exit-code:
+    description: "0 clean, 1 regression, 2 error."
+    value: ${{ steps.run-gate.outputs.exit-code }}
+  out-dir:
+    description: "Where the gate's evidence (result.json, comment.md, runs) landed."
+    value: ${{ steps.run-gate.outputs.out-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      with:
+        enable-cache: true
+
+    - name: Cache vendored tau2-bench
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: vendor/tau2-bench
+        # Keyed on the pin, not on a hash of the script: a re-pin is the
+        # only event that should ever invalidate this cache.
+        key: tau2-bench-${{ hashFiles('scripts/setup_tau2.sh') }}
+
+    - name: Vendor tau2-bench
+      shell: bash
+      run: scripts/setup_tau2.sh
+
+    - name: Install dependencies
+      shell: bash
+      run: uv sync --frozen
+
+    - name: Reject live mode outside an explicit opt-in
+      if: ${{ inputs.mode == 'live' && inputs.nvidia-api-key == '' }}
+      shell: bash
+      run: |
+        echo "mode: live requires nvidia-api-key; refusing to run without one." >&2
+        exit 2
+
+    - name: Run bisect gate
+      id: run-gate
+      shell: bash
+      # Every caller-controlled value used here is an input, read through
+      # env: — never interpolated into the script text — so a ref or
+      # branch name containing shell metacharacters cannot inject anything.
+      env:
+        GATE_BASE: ${{ inputs.base }}
+        GATE_HEAD: ${{ inputs.head }}
+        GATE_SUITE: ${{ inputs.suite }}
+        GATE_RUNS: ${{ inputs.runs }}
+        NVIDIA_API_KEY: ${{ inputs.mode == 'live' && inputs.nvidia-api-key || '' }}
+      run: |
+        set +e
+        out_dir="runs/gate/${{ github.run_id }}-${{ github.run_attempt }}"
+        uv run bisect gate \
+          --base "$GATE_BASE" --head "$GATE_HEAD" \
+          --suite "$GATE_SUITE" --runs "$GATE_RUNS" --out "$out_dir"
+        code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "out-dir=$out_dir" >> "$GITHUB_OUTPUT"
+        exit 0  # the workflow decides pass/fail from exit-code, after posting the comment
+
+    - name: Post or update the sticky PR comment
+      if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        COMMENT_FILE: ${{ steps.run-gate.outputs.out-dir }}/comment.md
+      run: |
+        marker="<!-- bisect-gate-comment -->"
+        body="$marker
+        $(cat "$COMMENT_FILE")"
+        existing="$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+          --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n1)"
+        if [ -n "$existing" ]; then
+          gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$existing" \
+            -f body="$body" >/dev/null
+        else
+          gh api --method POST "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            -f body="$body" >/dev/null
+        fi
+
+    - name: Upload gate evidence
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: bisect-gate-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ steps.run-gate.outputs.out-dir }}
+        if-no-files-found: warn
+
+    - name: Fail the check on regression or error
+      shell: bash
+      run: |
+        code="${{ steps.run-gate.outputs.exit-code }}"
+        if [ "$code" != "0" ]; then
+          echo "bisect gate exited $code" >&2
+          exit "$code"
+        fi
