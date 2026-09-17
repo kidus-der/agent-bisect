@@ -14,7 +14,7 @@ import typer
 from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, AIRLINE_READS, USER_MODEL
 from agent_bisect.cli_record import record
 from agent_bisect.cli_replay import DIVERGENCE_EXIT_CODE, UNKNOWN_RUN_EXIT_CODE, replay
-from tests.tau2_offline import Store, quiet_tau2
+from tests.tau2_offline import Store, quiet_tau2, ref, reward_of
 from tests.tau2_offline import record as record_scenario
 from typer.testing import CliRunner
 
@@ -88,7 +88,7 @@ def test_replay_json_reports_the_counts(runner, store):
     assert payload["identical"] is True
     assert payload["steps"] == recorded.steps
     assert payload["live_llm_calls"] == 0
-    assert payload["reward"] == recorded.outcome.reward
+    assert payload["reward"] == reward_of(recorded)
 
 
 def test_replay_exits_4_on_an_unknown_run(runner, store):
@@ -138,7 +138,7 @@ def _tamper(store: Store, run_id: str) -> None:
     from agent_bisect.core.tape import canonical_request_hash
 
     target = next(step for step in store.reader.get_steps(run_id) if step.actor == "agent")
-    request = store.blobs.get_json(target.request_ref)
+    request = store.blobs.get_json(ref(target.request_ref))
     messages = [dict(message) for message in request["messages"]]
     messages[0]["content"] = (messages[0]["content"] or "") + " tampered"
     mutated = {**request, "messages": messages}

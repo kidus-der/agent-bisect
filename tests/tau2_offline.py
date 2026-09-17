@@ -23,6 +23,20 @@ UNUSED_API_KEY = "unused-in-offline-tests"
 UNUSED_API_BASE = "https://integrate.api.nvidia.com/v1"
 
 
+def reward_of(result: Any) -> float:
+    """`result.outcome.reward`, with the "there is an outcome" check the
+    type checker needs stated once rather than at every call site."""
+    assert result.outcome is not None, "the run has no outcome to read a reward from"
+    return result.outcome.reward
+
+
+def ref(digest: str | None) -> str:
+    """A blob ref that must be present. Every recorded step of the kind
+    being read has one; a missing one is a bug, not a branch."""
+    assert digest is not None, "the step has no blob reference"
+    return digest
+
+
 def quiet_tau2() -> None:
     """Silence tau2's own loguru sink for the duration of a test module.
 

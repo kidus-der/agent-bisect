@@ -26,7 +26,7 @@ from agent_bisect.adapters.tau2_scenarios import (
 from agent_bisect.adapters.tau2_snapshot import Tau2Snapshotter
 from agent_bisect.core.llm import RecordingError
 from agent_bisect.core.tape import canonical_request_hash
-from tests.tau2_offline import Store, quiet_tau2, record, scripted_session, spec_for
+from tests.tau2_offline import Store, quiet_tau2, record, reward_of, scripted_session, spec_for
 
 pytestmark = pytest.mark.usefixtures("_no_real_key")
 
@@ -131,7 +131,7 @@ def test_records_an_outcome_with_the_tau2_reward_and_breakdown(store):
     outcome = store.reader.get_outcome("r1")
 
     assert outcome is not None
-    assert outcome.reward == recorded.outcome.reward
+    assert outcome.reward == reward_of(recorded)
     assert outcome.passed == (outcome.reward == 1.0)
     assert outcome.termination_reason == "user_stop"
     assert "reward_basis" in store.blobs.get_json(outcome.breakdown_ref)

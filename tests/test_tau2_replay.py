@@ -23,9 +23,9 @@ from agent_bisect.adapters.tau2_scenarios import (
     SCENARIOS,
 )
 from agent_bisect.core.replay import LIVE, DivergenceError, NoOpIntervention, TapeExhaustedError
-from agent_bisect.core.runner import ForkSpec, run_fork
+from agent_bisect.core.runner import ForkSpec, PrefixMode, run_fork
 from agent_bisect.core.tape import Step, TapeWriter
-from tests.tau2_offline import Store, quiet_tau2, record, scripted_session, spec_for
+from tests.tau2_offline import Store, quiet_tau2, record, ref, reward_of, scripted_session, spec_for
 
 pytestmark = pytest.mark.usefixtures("_no_real_key")
 
@@ -58,7 +58,7 @@ def test_replay_is_step_identical_with_the_same_reward(scenario, tmp_path):
 
     assert result.steps == recorded.steps
     assert result.outcome is not None
-    assert result.outcome.reward == recorded.outcome.reward
+    assert result.outcome.reward == reward_of(recorded)
     assert result.termination_reason == recorded.termination_reason
 
 
@@ -149,7 +149,7 @@ def _mutate_step(store: Store, run_id: str, mutate) -> None:
 
     steps = store.reader.get_steps(run_id)
     target = next(step for step in steps if step.actor == "agent")
-    request = store.blobs.get_json(target.request_ref)
+    request = store.blobs.get_json(ref(target.request_ref))
     mutated = mutate(request)
     new_ref = store.blobs.put_json(mutated)
     updated = target.model_copy(
@@ -226,7 +226,7 @@ def test_a_volatile_field_on_the_replayed_request_does_not_diverge(store, volati
     _recorded(AIRLINE_READS, store)
     steps = store.reader.get_steps("r1")
     first = steps[0]
-    recorded_request = store.blobs.get_json(first.request_ref)
+    recorded_request = store.blobs.get_json(ref(first.request_ref))
     replayer = Tau2Replayer(
         environment=object(), steps=steps, store=store.blobs, sink=_Sink(fork_step_reached=False)
     )
@@ -244,7 +244,7 @@ def test_a_volatile_field_on_the_replayed_request_does_not_diverge(store, volati
         **{**kwargs, **volatile},
     )
 
-    assert served.to_dict() == store.blobs.get_json(first.response_ref)
+    assert served.to_dict() == store.blobs.get_json(ref(first.response_ref))
 
 
 def test_a_tool_whose_result_drifted_raises_divergence(store):
@@ -253,7 +253,7 @@ def test_a_tool_whose_result_drifted_raises_divergence(store):
     _recorded(AIRLINE_READS, store)
     steps = store.reader.get_steps("r1")
     target = next(step for step in steps if step.actor == "tool")
-    drifted = {**store.blobs.get_json(target.tool_result_ref), "content": "something else"}
+    drifted = {**store.blobs.get_json(ref(target.tool_result_ref)), "content": "something else"}
     drifted_ref = store.blobs.put_json(drifted)
     _replace_step(store, target.model_copy(update={"tool_result_ref": drifted_ref}))
 
@@ -278,7 +278,14 @@ def _replace_step(store: Store, step: Step) -> None:
 # ---- (d) forking at every step with the identity intervention ----
 
 
-def _fork(store: Store, scenario, *, fork_step: int, prefix_tools="snapshot", run_id=None):
+def _fork(
+    store: Store,
+    scenario,
+    *,
+    fork_step: int,
+    prefix_tools: PrefixMode = "snapshot",
+    run_id: str | None = None,
+):
     """Fork run `r1` at `fork_step`, with the scripted model live after it."""
     run_id = run_id or f"fork-{prefix_tools}-{fork_step}"
     with scripted_session(scenario, store.root):
@@ -319,7 +326,7 @@ def test_forking_at_every_step_reproduces_the_recorded_outcome(scenario, tmp_pat
 
     for fork_step in range(recorded.steps):
         outcome, driver = _fork(store, scenario, fork_step=fork_step)
-        assert outcome.reward == recorded.outcome.reward, f"fork at {fork_step}"
+        assert outcome.reward == reward_of(recorded), f"fork at {fork_step}"
         assert driver.result is not None
         assert driver.result.termination_reason == recorded.termination_reason
 
@@ -397,7 +404,7 @@ def test_both_prefix_modes_agree_on_deterministic_tau2(store, prefix_tools):
         store, AIRLINE_WRITES, fork_step=3, prefix_tools=prefix_tools, run_id=f"f-{prefix_tools}"
     )
 
-    assert outcome.reward == recorded.outcome.reward
+    assert outcome.reward == reward_of(recorded)
 
 
 def test_the_snapshot_prefix_never_executes_the_tool(store):
@@ -420,7 +427,7 @@ def test_the_snapshot_prefix_never_executes_the_tool(store):
 
     message = replayer.get_response(_must_not_run, _tool_call_of(booked))
 
-    assert message.content == store.blobs.get_json(booked.tool_result_ref)["content"]
+    assert message.content == store.blobs.get_json(ref(booked.tool_result_ref))["content"]
     assert Tau2Snapshotter(environment).state_hash() == booked.state_hash
 
 
@@ -432,7 +439,10 @@ def _tool_call_of(step: Step):
     from tau2.data_model.message import ToolCall
 
     return ToolCall(
-        id="replayed", name=step.tool_name, arguments=step.tool_args or {}, requestor="assistant"
+        id="replayed",
+        name=ref(step.tool_name),
+        arguments=step.tool_args or {},
+        requestor="assistant",
     )
 
 
@@ -465,7 +475,8 @@ def test_an_intervention_can_replace_the_response_at_the_fork_step(store):
 
     assert replaced.applied == 1
     assert driver.result is not None
-    served = store.blobs.get_json(store.reader.get_steps(driver.result.run_id)[0].response_ref)
+    first = store.reader.get_steps(driver.result.run_id)[0]
+    served = store.blobs.get_json(ref(first.response_ref))
     assert served["choices"][0]["message"]["content"] == "this is not what the model said"
 
 
@@ -524,7 +535,7 @@ def _fork_with(store: Store, scenario, *, fork_step: int, intervention):
 def test_a_rehydrated_response_round_trips_to_the_recorded_payload(store):
     _recorded(AIRLINE_READS, store)
     step = next(s for s in store.reader.get_steps("r1") if s.actor == "agent")
-    payload = store.blobs.get_json(step.response_ref)
+    payload = store.blobs.get_json(ref(step.response_ref))
 
     assert rehydrate_response(payload).to_dict() == payload
 
@@ -570,7 +581,7 @@ def test_a_retail_run_replays_step_identically(store):
 
     assert result.steps == recorded.steps
     assert result.outcome is not None
-    assert result.outcome.reward == recorded.outcome.reward
+    assert result.outcome.reward == reward_of(recorded)
 
 
 def test_tape_writer_is_unused_by_a_plain_replay(store, monkeypatch):
