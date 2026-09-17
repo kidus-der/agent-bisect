@@ -65,6 +65,10 @@ SANITY_TASKS = 2
 JUDGE_CALLS = 5
 JUDGE_PROMPT_CHARS = 12_000  # ~3k tokens at ~4 chars/token
 TOOLCHECK_MAX_CALLS = 5
+#: τ² termination reasons that mean "infrastructure", not "the agent failed".
+#: Protocol 0004 section 3: these are re-run, never scored. max_steps,
+#: too_many_errors, agent_error and user_error are the agent's doing and count.
+INFRA_TERMINATIONS = frozenset({"infrastructure_error"})
 
 AGENT_CANDIDATES = (
     "deepseek-ai/deepseek-v4-flash-0731",
@@ -130,8 +134,9 @@ def load_checkpoint(model: str, task_id: str) -> TaskProbeResult | None:
 def save_checkpoint(result: TaskProbeResult, simulation_json: str | None) -> None:
     """Write a finished task's checkpoint, or an infra failure's error file.
 
-    An attempt that died on infrastructure (429/5xx past our retry budget,
-    a timeout, a crash in our code) must NOT land at `<task_id>.json`:
+    An attempt that died on infrastructure — 429/5xx past our retry budget,
+    a timeout, a crash in our code, or τ² itself reporting
+    INFRASTRUCTURE_ERROR — must NOT land at `<task_id>.json`:
     that path is what `load_checkpoint` treats as "this task is done", so
     the task would never be retried and would be scored as a failure —
     exactly what protocol 0004 §3 forbids. It goes to `<task_id>.error.json`
@@ -141,7 +146,7 @@ def save_checkpoint(result: TaskProbeResult, simulation_json: str | None) -> Non
     path = checkpoint_path(result.model, result.task_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {**asdict(result), "invalid_reasons": list(result.invalid_reasons)}
-    if result.error is not None:
+    if result.error is not None or result.termination_reason in INFRA_TERMINATIONS:
         path.with_suffix(".error.json").write_text(
             redact(json.dumps(payload, indent=2, sort_keys=True))
         )
