@@ -122,6 +122,9 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
               y={12}
               fontSize={11}
               fill={chartColours.label}
+              stroke={chartColours.background}
+              strokeWidth={3}
+              paintOrder="stroke"
               className="num"
             >
               m={PREREGISTERED_M} pre-registered

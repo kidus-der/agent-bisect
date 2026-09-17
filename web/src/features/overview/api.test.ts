@@ -7,6 +7,7 @@ const PAYLOAD: OverviewPayload = {
     bisect: { value: 0.9651, ci_low: 0.9024, ci_high: 0.9881 },
     best_judge: { value: 0.8721, ci_low: 0.7853, ci_high: 0.9271 },
     best_judge_method: 'judge_step_by_step',
+    gap: { value: 0.1512, ci_low: 0.0581, ci_high: 0.2442 },
   },
   kpis: {
     runs_recorded: 266,
@@ -41,6 +42,11 @@ describe('isOverviewPayload', () => {
 
   test('rejects a different endpoint’s payload served by mistake', () => {
     expect(isOverviewPayload({ data_source: 'fixture', simulated: true })).toBe(false)
+  })
+
+  test('rejects a headline with no interval for the gap', () => {
+    const { gap: _gap, ...headline } = PAYLOAD.headline
+    expect(isOverviewPayload({ ...PAYLOAD, headline })).toBe(false)
   })
 
   test('rejects a payload missing the pieces the page draws', () => {

@@ -59,7 +59,7 @@ export function RunsStrip() {
                 params={{ runId: run.run_id }}
                 className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-step py-2.5 hover:text-ink"
               >
-                <span className="num min-w-0 flex-1 truncate font-medium text-ink">
+                <span className="min-w-0 flex-1 truncate num font-medium text-ink">
                   {run.run_id}
                 </span>
                 <span className="hidden truncate text-small text-ink-muted sm:block sm:flex-1">

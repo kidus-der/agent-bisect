@@ -188,8 +188,12 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
           </span>
         </h1>
         <p className="max-w-prose text-pretty text-ink-muted">
-          Share of failures whose decisive step the method names correctly. Each bar carries its own
-          95% interval; no interval is reported for the gap itself, so none is shown.
+          Share of failures whose decisive step the method names correctly, on the same failures for
+          both. The gap&rsquo;s 95% interval is{' '}
+          <span className="num whitespace-nowrap text-ink">
+            {formatPoints(gap.low)} to {formatPoints(gap.high)}
+          </span>
+          {gap.beatsZero ? ', which clears zero.' : ', which does not clear zero.'}
           {simulated ? ' These numbers are simulated — the API is serving fixtures.' : ''}
         </p>
       </header>

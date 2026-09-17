@@ -52,8 +52,7 @@ function span(x: number, side: LabelSide, width: number, offset: number): [numbe
  */
 function collides(left: number, right: number, y: number, placed: readonly Placed[]): boolean {
   return placed.some(
-    (entry) =>
-      Math.abs(entry.y - y) < ROW_HEIGHT_PX && left < entry.right && entry.left < right,
+    (entry) => Math.abs(entry.y - y) < ROW_HEIGHT_PX && left < entry.right && entry.left < right,
   )
 }
 
@@ -79,11 +78,21 @@ export function placeLabels(
     while (collides(left, right, anchor.y + dy, placed)) dy += ROW_HEIGHT_PX
 
     placed.push({ left, right, y: anchor.y + dy })
-    results.set(anchor.id, { id: anchor.id, dx: side === 'start' ? offset : -offset, dy, anchor: side })
+    results.set(anchor.id, {
+      id: anchor.id,
+      dx: side === 'start' ? offset : -offset,
+      dy,
+      anchor: side,
+    })
   }
 
   return anchors.map(
     (anchor) =>
-      results.get(anchor.id) ?? { id: anchor.id, dx: offset, dy: BASELINE_NUDGE_PX, anchor: 'start' },
+      results.get(anchor.id) ?? {
+        id: anchor.id,
+        dx: offset,
+        dy: BASELINE_NUDGE_PX,
+        anchor: 'start',
+      },
   )
 }

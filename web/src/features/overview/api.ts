@@ -78,6 +78,7 @@ export function isOverviewPayload(value: unknown): value is OverviewPayload {
   return (
     typeof candidate.headline?.bisect?.value === 'number' &&
     typeof candidate.headline.best_judge?.value === 'number' &&
+    typeof candidate.headline.gap?.ci_low === 'number' &&
     typeof candidate.kpis?.runs_recorded === 'number' &&
     Array.isArray(candidate.recall_at_m) &&
     Array.isArray(candidate.cost_vs_accuracy) &&

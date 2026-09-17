@@ -26,12 +26,14 @@ export interface HeadlineGap {
   /** Bisect minus the best judge, as a proportion. */
   readonly points: number
   /**
-   * `/api/overview` reports a CI per method but none for their difference, and
-   * the two methods are scored on the same dataset, so an independent
-   * difference-of-proportions interval would be the wrong estimator. The UI
-   * says the interval is unavailable rather than inventing one.
+   * The server's paired bootstrap interval for the difference — the right
+   * estimator here, because both methods are scored on the same failures.
+   * Never derived in the UI from the two per-method intervals.
    */
-  readonly interval: null
+  readonly low: number
+  readonly high: number
+  /** True when the interval clears zero, which is the claim being made. */
+  readonly beatsZero: boolean
 }
 
 export function formatPercent(value: number): string {
@@ -69,5 +71,6 @@ export function headlineBars(headline: HeadlineResult): readonly [HeadlineBar, H
 }
 
 export function headlineGap(headline: HeadlineResult): HeadlineGap {
-  return { points: headline.bisect.value - headline.best_judge.value, interval: null }
+  const { value, ci_low: low, ci_high: high } = headline.gap
+  return { points: value, low, high, beatsZero: low > 0 }
 }

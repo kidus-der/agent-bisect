@@ -3,7 +3,11 @@
  * rewind player consumes. Every field is either measured or null — the player
  * is told what is missing rather than being handed a plausible number.
  */
-import type { RewindIntervention, RewindSpec, RewindVerdict } from '@/components/rewind/rewindFrames'
+import type {
+  RewindIntervention,
+  RewindSpec,
+  RewindVerdict,
+} from '@/components/rewind/rewindFrames'
 import type { InterventionDiff, RunEstimate } from '@/features/run-detail/api'
 
 import type { RunSummary } from './api'
@@ -33,10 +37,7 @@ export function interventionSummary(diff: InterventionDiff | null): RewindInterv
 }
 
 /** The measured effect at the blamed step. Null when the step was never tested. */
-export function verdictForStep(
-  estimate: RunEstimate | null,
-  step: number,
-): RewindVerdict | null {
+export function verdictForStep(estimate: RunEstimate | null, step: number): RewindVerdict | null {
   const effect = estimate?.step_effects.find((entry) => entry.step === step)
   if (!effect) return null
   return { step, effect: effect.effect, low: effect.ci_low, high: effect.ci_high }

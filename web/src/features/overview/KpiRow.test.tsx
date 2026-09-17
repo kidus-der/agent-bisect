@@ -21,7 +21,12 @@ describe('KpiRow', () => {
 
   test('labels each number so it is not a bare figure', () => {
     render(<KpiRow kpis={KPIS} />)
-    for (const label of ['runs recorded', 'failures diagnosed', 'calls spent', 'cost per diagnosis'])
+    for (const label of [
+      'runs recorded',
+      'failures diagnosed',
+      'calls spent',
+      'cost per diagnosis',
+    ])
       expect(screen.getByText(label)).toBeInTheDocument()
   })
 

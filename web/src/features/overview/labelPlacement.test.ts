@@ -23,7 +23,10 @@ describe('placeLabels', () => {
 
   test('two points at the same cost keep separate labels', () => {
     // The real collision this exists for: Bisect and no-control cost the same.
-    const placed = placeLabels([anchor('bisect', 400, 20), anchor('no_control', 402, 120)], PLOT_WIDTH)
+    const placed = placeLabels(
+      [anchor('bisect', 400, 20), anchor('no_control', 402, 120)],
+      PLOT_WIDTH,
+    )
     expect(placed.every((entry) => entry.anchor === 'start')).toBe(true)
     expect(placed.map((entry) => entry.dy)).toEqual([4, 4])
   })
@@ -39,9 +42,7 @@ describe('placeLabels', () => {
     // across it, at almost the same accuracy.
     const anchors = [anchor('bisect', 470, 30, 6), anchor('rerun_live', 535, 44, 11)]
     const placed = placeLabels(anchors, PLOT_WIDTH)
-    const rows = placed.map(
-      (entry, index) => (anchors[index]?.y ?? 0) + entry.dy,
-    )
+    const rows = placed.map((entry, index) => (anchors[index]?.y ?? 0) + entry.dy)
     expect(placed.map((entry) => entry.anchor)).toEqual(['start', 'end'])
     expect(Math.abs((rows[0] ?? 0) - (rows[1] ?? 0))).toBeGreaterThanOrEqual(18)
   })

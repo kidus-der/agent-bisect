@@ -205,11 +205,15 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
                 stroke={colour}
                 strokeWidth={2}
               />
-              {/* Direct labels: no legend to cross-reference. */}
+              {/* Direct labels: no legend to cross-reference. A halo in the panel
+                  fill keeps one readable where it crosses a neighbour's whisker. */}
               <text
                 x={cx + (label?.dx ?? 0)}
                 y={cy + (label?.dy ?? 0)}
                 textAnchor={label?.anchor ?? 'start'}
+                stroke={chartColours.background}
+                strokeWidth={3}
+                paintOrder="stroke"
                 fontSize={12}
                 fontWeight={isHeadline ? 650 : 500}
                 fill={isHeadline ? colour : chartColours.foreground}

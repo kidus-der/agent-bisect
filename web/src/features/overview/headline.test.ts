@@ -7,6 +7,7 @@ const HEADLINE: HeadlineResult = {
   bisect: { value: 0.9651, ci_low: 0.9024, ci_high: 0.9881 },
   best_judge: { value: 0.8721, ci_low: 0.7853, ci_high: 0.9271 },
   best_judge_method: 'judge_step_by_step',
+  gap: { value: 0.1512, ci_low: 0.0581, ci_high: 0.2442 },
 }
 
 describe('formatPercent', () => {
@@ -42,19 +43,20 @@ describe('headlineBars', () => {
 })
 
 describe('headlineGap', () => {
-  test('reports the gap in percentage points', () => {
-    expect(headlineGap(HEADLINE).points).toBeCloseTo(0.093, 6)
+  test('reports the server\u2019s paired estimate, not a difference of the two bars', () => {
+    const gap = headlineGap(HEADLINE)
+    expect(gap.points).toBeCloseTo(0.1512, 6)
+    expect(gap).toMatchObject({ low: 0.0581, high: 0.2442 })
+    // Subtracting the two point estimates would give 0.093; the paired bootstrap does not.
+    expect(gap.points).not.toBeCloseTo(HEADLINE.bisect.value - HEADLINE.best_judge.value, 3)
   })
 
-  test('reports that the interval for the gap itself is not measured here', () => {
-    // /api/overview carries a CI per method but none for their difference, and a
-    // difference-of-proportions interval would be the wrong estimator for two
-    // methods scored on the same dataset. Better absent than invented.
-    expect(headlineGap(HEADLINE).interval).toBeNull()
-  })
-
-  test('stays signed when the judge is ahead', () => {
-    const flipped: HeadlineResult = { ...HEADLINE, bisect: HEADLINE.best_judge, best_judge: HEADLINE.bisect }
-    expect(headlineGap(flipped).points).toBeLessThan(0)
+  test('says whether the interval clears zero', () => {
+    expect(headlineGap(HEADLINE).beatsZero).toBe(true)
+    const straddling: HeadlineResult = {
+      ...HEADLINE,
+      gap: { value: 0.02, ci_low: -0.04, ci_high: 0.08 },
+    }
+    expect(headlineGap(straddling).beatsZero).toBe(false)
   })
 })
