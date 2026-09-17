@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, X } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, memo } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -129,7 +129,7 @@ interface DotMatrixProps {
 }
 
 /** Every individual re-run behind the estimate, grouped by arm and step. */
-export function DotMatrix({ rows, runId, selectedStep, onSelectStep }: DotMatrixProps) {
+function DotMatrixImpl({ rows, runId, selectedStep, onSelectStep }: DotMatrixProps) {
   // TanStack Virtual returns fresh functions each render; the compiler must not memoise them.
   'use no memo'
   const groups = groupReruns(rows)
@@ -183,3 +183,9 @@ export function DotMatrix({ rows, runId, selectedStep, onSelectStep }: DotMatrix
     </div>
   )
 }
+
+/**
+ * Memoised: a rewind tick re-renders the page several times a second, and none
+ * of this panel's inputs change while the tape is replaying.
+ */
+export const DotMatrix = memo(DotMatrixImpl)

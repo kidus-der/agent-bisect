@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, memo } from 'react'
 
 import { formatEffect } from '@/lib/format'
 
@@ -18,7 +18,7 @@ interface BlameHeatStripeProps {
 }
 
 /** The blame stripe, aligned cell-for-cell under the tape. Untested steps are hatched. */
-export function BlameHeatStripe({
+function BlameHeatStripeImpl({
   cells,
   geometry,
   blamedStep,
@@ -84,3 +84,9 @@ export function BlameHeatStripe({
     </svg>
   )
 }
+
+/**
+ * Memoised: a rewind tick re-renders the page several times a second, and none
+ * of this panel's inputs change while the tape is replaying.
+ */
+export const BlameHeatStripe = memo(BlameHeatStripeImpl)

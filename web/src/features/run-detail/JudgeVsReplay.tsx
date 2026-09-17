@@ -1,5 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
-import { useState } from 'react'
+import { useState, memo } from 'react'
 
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
@@ -83,7 +83,7 @@ interface JudgeVsReplayProps {
 }
 
 /** The judge's guess beside the measured effect, with the disagreement drawn. */
-export function JudgeVsReplay({
+function JudgeVsReplayImpl({
   judge,
   effects,
   blamedStep,
@@ -225,3 +225,9 @@ export function JudgeVsReplay({
     </div>
   )
 }
+
+/**
+ * Memoised: a rewind tick re-renders the page several times a second, and none
+ * of this panel's inputs change while the tape is replaying.
+ */
+export const JudgeVsReplay = memo(JudgeVsReplayImpl)

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, memo } from 'react'
 
 import type { HeatCell } from './blame'
 import { heatBucket } from './heatScale'
@@ -21,7 +21,7 @@ interface TimelineMinimapProps {
  * The whole tape at a glance for runs too long to fit. Dragging it pans the
  * tape, which is how touch users move around a 60-step run.
  */
-export function TimelineMinimap({
+function TimelineMinimapImpl({
   cells,
   blamedStep,
   playhead,
@@ -96,3 +96,9 @@ export function TimelineMinimap({
     </div>
   )
 }
+
+/**
+ * Memoised: a rewind tick re-renders the page several times a second, and none
+ * of this panel's inputs change while the tape is replaying.
+ */
+export const TimelineMinimap = memo(TimelineMinimapImpl)

@@ -15,7 +15,7 @@ import {
   type StepView,
 } from './api'
 import { StateDiffTree } from './StateDiffTree'
-import type { ReactNode } from 'react'
+import { type ReactNode, memo } from 'react'
 
 interface StepInspectorProps {
   readonly runId: string
@@ -78,7 +78,7 @@ function Messages({ messages }: { readonly messages: readonly Record<string, str
 }
 
 /** Messages, tool call and tool result, the intervention and the DB-state diff for one step. */
-export function StepInspector({ runId, step, stepIdx }: StepInspectorProps) {
+function StepInspectorImpl({ runId, step, stepIdx }: StepInspectorProps) {
   const payload = useStepQuery(runId, stepIdx)
   const intervention = useInterventionDiffQuery(runId, stepIdx)
   const stateDiff = useStateDiffQuery(runId, stepIdx)
@@ -165,3 +165,9 @@ export function StepInspector({ runId, step, stepIdx }: StepInspectorProps) {
     </div>
   )
 }
+
+/**
+ * Memoised: a rewind tick re-renders the page several times a second, and none
+ * of this panel's inputs change while the tape is replaying.
+ */
+export const StepInspector = memo(StepInspectorImpl)

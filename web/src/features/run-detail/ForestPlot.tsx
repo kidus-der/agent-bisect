@@ -1,6 +1,6 @@
 import { scaleLinear } from '@visx/scale'
 import { motion, useReducedMotion } from 'motion/react'
-import { useId, useMemo } from 'react'
+import { useId, useMemo, memo } from 'react'
 import useMeasure from 'react-use-measure'
 
 import { STAGGER_SECONDS, springTransition } from '@/design/motion'
@@ -183,7 +183,7 @@ interface ForestPlotProps {
  * One row per tested step: a square estimate inside its 95% interval, against a
  * solid zero line and the dashed delta the blame rule uses.
  */
-export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: ForestPlotProps) {
+function ForestPlotImpl({ rows, domain, delta, selectedStep, onSelectStep }: ForestPlotProps) {
   const reduced = useReducedMotion() ?? false
   const gradientId = useId()
   const [plotRef, plotBounds] = useMeasure({ debounce: 0 })
@@ -277,3 +277,9 @@ export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: 
     </div>
   )
 }
+
+/**
+ * Memoised: a rewind tick re-renders the page several times a second, and none
+ * of this panel's inputs change while the tape is replaying.
+ */
+export const ForestPlot = memo(ForestPlotImpl)

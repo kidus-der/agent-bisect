@@ -44,7 +44,12 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
   const setPlayhead = setSelected
   const { rewind, start, reset } = useRewindSequence(nSteps, reduced)
 
-  const rerunsView = useMemo(() => unwrapReruns(reruns), [reruns])
+  const rerunsView = useMemo(
+    () => unwrapReruns(reruns),
+    // The query result object is rebuilt each render; its data is not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrower deps on purpose
+    [reruns.data, reruns.isPending, reruns.isError, reruns.error],
+  )
   const rerunRows = rerunsView.rows
   const treatedAtPlayhead = useMemo(
     () => rerunRows.filter((row) => row.arm === 'treated' && row.step === playhead),
@@ -60,6 +65,23 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
     start(playhead, treatedAtPlayhead.length === 0 ? null : passed)
   }, [playhead, start, treatedAtPlayhead])
 
+  // Derived above the early returns so the hooks are unconditional and a drag
+  // does not recompute the heat cells, the forest rows and the domain per frame.
+  const estimate = detail?.estimate ?? null
+  const bisected = estimate != null
+  const blamedStep = estimate?.blamed_step ?? null
+  const config = estimate?.config ?? null
+  const delta = deltaFor(estimate)
+  const cells = useMemo(() => heatCells(nSteps, effects), [nSteps, effects])
+  const rows = useMemo(() => forestRows(effects, delta, blamedStep), [effects, delta, blamedStep])
+  const domain = useMemo(() => effectDomain(effects, delta), [effects, delta])
+  const verdict = useMemo(() => blameVerdict(estimate), [estimate])
+  const outcome = detail?.outcome ?? null
+  const states = useMemo(
+    () => tapeStepStates({ nSteps, playhead, outcome, blamedStep, rewind }),
+    [nSteps, playhead, outcome, blamedStep, rewind],
+  )
+
   if (run.isPending) return <RunDetailSkeleton />
   if (run.isError) {
     if (run.error.code === 'not_found') return <RunNotFound runId={runId} />
@@ -74,27 +96,9 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
   }
   if (!detail) return <RunNotFound runId={runId} />
 
-  // `!= null` on purpose: a payload that omits `estimate` must not crash the page.
-  const bisected = detail.estimate != null
-  const blamedStep = detail.estimate?.blamed_step ?? null
-  // The threshold and shortlist size this run was actually decided with.
-  const config = detail.estimate?.config ?? null
-  const delta = deltaFor(detail.estimate)
-
-  const verdict = blameVerdict(detail.estimate)
-  const cells = heatCells(nSteps, effects)
-  const rows = forestRows(effects, delta, blamedStep)
-  const domain = effectDomain(effects, delta)
   const summary = interventionSummary(
     intervention.data ? availableOrNull(intervention.data.data) : null,
   )
-  const states = tapeStepStates({
-    nSteps,
-    playhead,
-    outcome: detail.outcome,
-    blamedStep,
-    rewind,
-  })
 
   return (
     <div className="flex flex-col gap-5">
