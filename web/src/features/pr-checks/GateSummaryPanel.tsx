@@ -168,7 +168,7 @@ export function GateSummaryPanel({ checks }: GateSummaryPanelProps) {
         </div>
         <p className="max-w-prose text-[12px] text-pretty text-ink-muted">
           {summary.decisiveCount} of {summary.deltas.length} changes have an interval that excludes
-          zero. The rest are inside the noise of a {RUNS_PER_REF}-run suite, however their point
+          zero. The rest are inside the noise of a {RUNS_PER_REF}-run suite, whatever their point
           estimate reads.
         </p>
       </div>
