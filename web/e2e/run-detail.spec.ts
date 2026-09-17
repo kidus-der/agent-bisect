@@ -141,6 +141,21 @@ test('a dot in the matrix opens the re-run it stands for', async ({ page }) => {
   await expect(page.getByText(/Only the intervention at step 7 differs/)).toBeVisible()
 })
 
+test('a control re-run never claims an intervention was applied', async ({ page }) => {
+  // The control arm is defined by nothing being replaced; the page must say so.
+  await page.addInitScript(([key, value]) => window.localStorage.setItem(key, value), [
+    THEME_KEY,
+    'dark',
+  ] as const)
+  await page.goto(`/runs/${BRIEF_RUN}/reruns/${BRIEF_RUN}-c-0`)
+
+  await expect(page.getByRole('heading', { level: 1, name: /-c-0$/ })).toBeVisible()
+  await expect(page.getByText('fork · control · nothing replaced').first()).toBeVisible()
+  await expect(page.getByText('fork · intervention applied here')).toHaveCount(0)
+  await expect(page.getByText(/replaced nothing at step 1/)).toBeVisible()
+  await expect(page.getByText(/only by its seed/)).toBeVisible()
+})
+
 test('the judge panel compares both protocols with the measured effect', async ({ page }) => {
   await openRun(page, BRIEF_RUN)
 

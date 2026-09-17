@@ -2214,6 +2214,116 @@
     },
     "success": true
   },
+  "/api/runs/brief-12-step/reruns/brief-12-step-c-0/steps": {
+    "data": [
+      {
+        "actor": "user",
+        "from_tape": true,
+        "state_changed": false,
+        "step_idx": 1,
+        "text": "confirms the requested change",
+        "tool_name": null
+      },
+      {
+        "actor": "agent",
+        "from_tape": true,
+        "state_changed": false,
+        "step_idx": 2,
+        "text": "calls a tool to check the current state",
+        "tool_name": null
+      },
+      {
+        "actor": "tool",
+        "from_tape": true,
+        "state_changed": true,
+        "step_idx": 3,
+        "text": "update_reservation_baggages returned",
+        "tool_name": "update_reservation_baggages"
+      },
+      {
+        "actor": "agent",
+        "from_tape": true,
+        "state_changed": false,
+        "step_idx": 4,
+        "text": "summarizes what it found so far",
+        "tool_name": null
+      },
+      {
+        "actor": "user",
+        "from_tape": true,
+        "state_changed": false,
+        "step_idx": 5,
+        "text": "asks about the reservation status",
+        "tool_name": null
+      },
+      {
+        "actor": "agent",
+        "from_tape": true,
+        "state_changed": false,
+        "step_idx": 6,
+        "text": "calls a tool to check the current state",
+        "tool_name": null
+      },
+      {
+        "actor": "tool",
+        "from_tape": true,
+        "state_changed": true,
+        "step_idx": 7,
+        "text": "book_reservation returned",
+        "tool_name": "book_reservation"
+      },
+      {
+        "actor": "agent",
+        "from_tape": false,
+        "state_changed": false,
+        "step_idx": 8,
+        "text": "explains the next step to the user",
+        "tool_name": null
+      },
+      {
+        "actor": "user",
+        "from_tape": false,
+        "state_changed": false,
+        "step_idx": 9,
+        "text": "pushes back on the proposed fix",
+        "tool_name": null
+      },
+      {
+        "actor": "agent",
+        "from_tape": false,
+        "state_changed": false,
+        "step_idx": 10,
+        "text": "summarizes what it found so far",
+        "tool_name": null
+      },
+      {
+        "actor": "tool",
+        "from_tape": false,
+        "state_changed": true,
+        "step_idx": 11,
+        "text": "book_reservation returned",
+        "tool_name": "book_reservation"
+      },
+      {
+        "actor": "agent",
+        "from_tape": false,
+        "state_changed": false,
+        "step_idx": 12,
+        "text": "calls a tool to check the current state",
+        "tool_name": null
+      }
+    ],
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  },
   "/api/runs/brief-12-step/reruns/brief-12-step-t7-0/steps": {
     "data": [
       {
