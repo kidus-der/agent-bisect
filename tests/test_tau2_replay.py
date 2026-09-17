@@ -8,8 +8,11 @@ every step reproducing the recorded outcome.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 from agent_bisect.adapters.tau2_replay import (
+    ForkSeedError,
     NoLiveCallError,
     Tau2ForkDriver,
     Tau2Replayer,
@@ -288,6 +291,7 @@ def _fork(
     fork_step: int,
     prefix_tools: PrefixMode = "snapshot",
     run_id: str | None = None,
+    environment_hook=None,
 ):
     """Fork run `r1` at `fork_step`, with the scripted model live after it."""
     run_id = run_id or f"fork-{prefix_tools}-{fork_step}"
@@ -306,6 +310,7 @@ def _fork(
             reader=store.reader,
             tape=store.tape,
             live_completion=router_completion,
+            environment_hook=environment_hook,
         )
         outcome = run_fork(
             driver,
@@ -677,3 +682,103 @@ def test_a_fork_reports_how_many_responses_were_served_unguarded(store):
 
     assert driver.result is not None
     assert driver.result.unguarded_llm_calls == 0
+
+
+# ---- seams the later phases need ----
+
+
+def test_replay_can_serve_the_prefix_tools_from_the_snapshot(store):
+    """A P3 dataset item's recorded tool result IS the planted mutation, so
+    re-executing the tool and asserting the recording comes back is false
+    by construction. Snapshot mode still checks every request hash, still
+    restores and hash-checks the world, and still consumes the whole tape."""
+    recorded, _ = _recorded(AIRLINE_READS, store)
+
+    result = replay_run(
+        "r1", store=store.blobs, reader=store.reader, tool_mode="snapshot"
+    )
+
+    assert result.steps == recorded.steps
+    assert result.outcome is not None
+    assert result.outcome.reward == reward_of(recorded)
+    assert result.live_llm_calls == 0
+
+
+def test_replay_verifies_the_tools_by_default(store):
+    """The P2 gate's mode: re-execute and assert. A drifted recording must
+    still be caught when nobody asked for snapshot mode."""
+    _recorded(AIRLINE_READS, store)
+    step = next(s for s in store.reader.get_steps("r1") if s.actor == "tool")
+    drifted = {**store.blobs.get_json(ref(step.tool_result_ref)), "content": "drifted"}
+    _replace_step(store, step.model_copy(update={"tool_result_ref": store.blobs.put_json(drifted)}))
+
+    with pytest.raises(DivergenceError):
+        replay_run("r1", store=store.blobs, reader=store.reader)
+
+
+def test_a_fork_can_install_a_component_before_the_recorder_wraps_the_tools(store):
+    """A planted fault is a standing component on the environment, and it
+    has to be installed before the recorder and the replayer wrap
+    get_response -- otherwise the tape records the true answer while the
+    agent saw the corrupted one."""
+    seen: list[str] = []
+
+    @contextmanager
+    def hook(environment):
+        seen.append(type(environment).__name__)
+        yield
+
+    _recorded(AIRLINE_READS, store)
+
+    _outcome, driver = _fork(
+        store, AIRLINE_READS, fork_step=3, run_id="fork-hooked", environment_hook=hook
+    )
+
+    assert seen, "the hook was never entered"
+    assert driver.result is not None
+
+
+def test_a_fork_without_a_hook_still_runs(store):
+    _recorded(AIRLINE_READS, store)
+
+    outcome, _driver = _fork(store, AIRLINE_READS, fork_step=3, run_id="fork-unhooked")
+
+    assert outcome.reward == 1.0 or outcome.reward == 0.0
+
+
+def test_a_fork_refuses_a_seed_that_would_diverge_its_own_prefix(store):
+    """tau2 puts the run seed into every model request, so it is part of
+    the canonical request hash: re-pinning it makes the fork diverge on
+    its own first prefix step. Refuse loudly rather than produce a
+    recording that cannot be replayed."""
+    _recorded(AIRLINE_READS, store)
+    parent_seed = store.reader.get_manifest("r1").seed
+    spec = ForkSpec(
+        parent_run_id="r1", run_id="fork-reseeded", fork_step=2, seed=(parent_seed or 0) + 1
+    )
+    driver = Tau2ForkDriver(
+        spec, store=store.blobs, reader=store.reader, tape=store.tape, live_completion=_must_not_run
+    )
+
+    with pytest.raises(ForkSeedError, match="request hash"):
+        run_fork(driver, spec, NoOpIntervention())
+
+
+def test_a_fork_accepts_the_parents_own_seed(store):
+    _recorded(AIRLINE_READS, store)
+    parent_seed = store.reader.get_manifest("r1").seed
+    spec = ForkSpec(parent_run_id="r1", run_id="fork-same-seed", fork_step=2, seed=parent_seed)
+
+    with scripted_session(AIRLINE_READS, store.root):
+        import tau2.utils.llm_utils as llm_utils
+
+        driver = Tau2ForkDriver(
+            spec,
+            store=store.blobs,
+            reader=store.reader,
+            tape=store.tape,
+            live_completion=llm_utils.completion,
+        )
+        outcome = run_fork(driver, spec, NoOpIntervention())
+
+    assert outcome is not None
