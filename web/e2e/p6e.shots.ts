@@ -25,6 +25,8 @@ const PAGES = [
 const CHART_SETTLE_MS = 1600
 /** Entrances are IntersectionObserver-driven, so the page is walked, not jumped. */
 const SCROLL_STEP_MS = 320
+/** Room under the fold so the last panel is not clipped by a rounding error. */
+const VIEWPORT_SLACK_PX = 40
 /** Enough SSE frames for the Live page to look like it is running. */
 const STREAM_FRAMES = 4
 
@@ -45,6 +47,20 @@ async function walkPage(page: Page): Promise<void> {
   await page.waitForTimeout(CHART_SETTLE_MS)
 }
 
+/**
+ * `fullPage: true` stitches the image by resizing the viewport under the running
+ * page, and visx's ParentSize re-measures mid-stitch — every chart came out at
+ * roughly a third of its real width, so three rounds of review were reading an
+ * image the browser never rendered (p6d measured it). Growing the viewport to
+ * the document first, letting the charts settle at that size and then taking an
+ * ordinary screenshot captures what is actually on screen.
+ */
+async function fitViewportToPage(page: Page, width: number): Promise<void> {
+  const height = await page.evaluate(() => document.documentElement.scrollHeight)
+  await page.setViewportSize({ width, height: height + VIEWPORT_SLACK_PX })
+  await page.waitForTimeout(CHART_SETTLE_MS)
+}
+
 async function capture(page: Page, target: (typeof PAGES)[number]): Promise<void> {
   await page.goto(target.path)
   await page.getByRole('heading', { name: target.ready }).first().waitFor()
@@ -60,10 +76,8 @@ for (const theme of THEMES) {
         await mockP6eApi(page, { streamFrames: STREAM_FRAMES })
         await applyTheme(page, theme)
         await capture(page, target)
-        await page.screenshot({
-          path: `${OUT_DIR}${target.name}-${theme}-${viewport.name}.png`,
-          fullPage: true,
-        })
+        await fitViewportToPage(page, viewport.width)
+        await page.screenshot({ path: `${OUT_DIR}${target.name}-${theme}-${viewport.name}.png` })
       })
     }
   }
