@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { PageHeader } from '@/pages/PageHeader'
 
 import { GATE_COMMAND, type PrCheckSummary, usePrChecksQuery } from './api'
+import { GateSummaryPanel } from './GateSummaryPanel'
 
 /** The list endpoint has no run count; the suite is 24 scenarios x 4 runs. */
 const RUNS_PER_REF = 96
@@ -197,33 +198,36 @@ function CheckList({ checks }: { readonly checks: readonly PrCheckSummary[] }) {
   }
   const regressions = checks.filter((check) => check.is_regression).length
   return (
-    <Panel variant="card" bodyClassName="flex flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="flex flex-col gap-1">
-          <InstrumentLabel>gate_results</InstrumentLabel>
-          <h2 className="text-h2 text-ink">Every gated pull request</h2>
-        </div>
-        <div className="flex items-baseline gap-6">
-          <span className="flex items-baseline gap-2">
-            <span className="num text-stat text-fail">{regressions}</span>
-            <InstrumentLabel>flagged</InstrumentLabel>
-          </span>
-          <span className="flex items-baseline gap-2">
-            <span className="num text-stat text-ink">{checks.length - regressions}</span>
-            <InstrumentLabel>clean</InstrumentLabel>
-          </span>
-        </div>
-      </header>
-      <DataTable
-        columns={COLUMNS}
-        rows={checks}
-        getRowId={(row) => row.check_id}
-        caption="Gated pull requests: base and head pass rate on the same scenario suite, with the change and its 95% interval."
-        maxHeight={TABLE_MAX_HEIGHT}
-        rowHeight={rowHeight}
-        initialSort={{ columnId: 'delta', direction: 'asc' }}
-      />
-    </Panel>
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <Panel variant="card" bodyClassName="flex flex-col gap-4">
+        <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <div className="flex flex-col gap-1">
+            <InstrumentLabel>gate_results</InstrumentLabel>
+            <h2 className="text-h2 text-ink">Every gated pull request</h2>
+          </div>
+          <div className="flex items-baseline gap-6">
+            <span className="flex items-baseline gap-2">
+              <span className="num text-stat text-fail">{regressions}</span>
+              <InstrumentLabel>flagged</InstrumentLabel>
+            </span>
+            <span className="flex items-baseline gap-2">
+              <span className="num text-stat text-ink">{checks.length - regressions}</span>
+              <InstrumentLabel>clean</InstrumentLabel>
+            </span>
+          </div>
+        </header>
+        <DataTable
+          columns={COLUMNS}
+          rows={checks}
+          getRowId={(row) => row.check_id}
+          caption="Gated pull requests: base and head pass rate on the same scenario suite, with the change and its 95% interval."
+          maxHeight={TABLE_MAX_HEIGHT}
+          rowHeight={rowHeight}
+          initialSort={{ columnId: 'delta', direction: 'asc' }}
+        />
+      </Panel>
+      <GateSummaryPanel checks={checks} />
+    </div>
   )
 }
 
