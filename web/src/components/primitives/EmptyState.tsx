@@ -25,7 +25,8 @@ function EmptyTape() {
       {Array.from({ length: EMPTY_TAPE_CELLS }, (_, index) => (
         <span
           key={index}
-          className="h-7 w-5 rounded-step border border-dashed border-line-strong sm:w-6"
+          // From-tape slate: an unrecorded cell is still a tape cell, and it must show in light.
+          className="h-7 w-5 rounded-step border border-dashed border-tape/70 sm:w-6"
         />
       ))}
     </div>
