@@ -44,11 +44,28 @@ export function buildPositionSeries(rows: readonly PositionAccuracy[]): readonly
   })
 }
 
-/** Lowest drawn value across every band, so the y-axis is not forced to zero. */
-export function positionDomainMin(series: readonly PositionSeries[]): number {
-  const lows = series.flatMap((entry) =>
-    entry.points.map((point) => point.interval?.low ?? point.accuracy),
+/**
+ * The drawn range, taken from the CI envelope with a 10% pad on each side. A
+ * fixed floor left ~85% of the plot empty when every band sat in a few points
+ * of each other.
+ */
+const ENVELOPE_PAD = 0.1
+
+export interface PositionDomain {
+  readonly min: number
+  readonly max: number
+}
+
+export function positionDomain(series: readonly PositionSeries[]): PositionDomain {
+  const bounds = series.flatMap((entry) =>
+    entry.points.flatMap((point) => [
+      point.interval?.low ?? point.accuracy,
+      point.interval?.high ?? point.accuracy,
+    ]),
   )
-  if (lows.length === 0) return 0
-  return Math.max(0, Math.floor(Math.min(...lows) * 20) / 20)
+  if (bounds.length === 0) return { min: 0, max: 1 }
+  const low = Math.min(...bounds)
+  const high = Math.max(...bounds)
+  const pad = Math.max((high - low) * ENVELOPE_PAD, 0.01)
+  return { min: Math.max(0, low - pad), max: Math.min(1, high + pad) }
 }

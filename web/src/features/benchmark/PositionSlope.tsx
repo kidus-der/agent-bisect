@@ -17,7 +17,7 @@ import {
   type PositionPoint,
   type PositionSeries,
   buildPositionSeries,
-  positionDomainMin,
+  positionDomain,
 } from './positionSeries'
 
 const MIN_PLOT_HEIGHT = 160
@@ -28,7 +28,6 @@ const BAND_OPACITY = 0.16
 const LINE_WIDTH = 2
 const LABEL_MIN_GAP = 16
 const WHISKER_CAP = 4
-const MAX_RATE = 1
 
 type XScale = ReturnType<typeof scalePoint<PositionBucket>>
 type YScale = ReturnType<typeof scaleLinear<number>>
@@ -142,8 +141,11 @@ function Plot({ width, height, series }: PlotProps) {
     range: [0, innerWidth],
     padding: 0.18,
   })
+  // The CI envelope with a 10% pad, not a fixed 80-100 window: with every band
+  // inside a few points of the others, a fixed floor left the plot mostly empty.
+  const drawn = positionDomain(series)
   const y = scaleLinear<number>({
-    domain: [positionDomainMin(series), MAX_RATE],
+    domain: [drawn.min, drawn.max],
     range: [innerHeight, 0],
     nice: true,
   })
