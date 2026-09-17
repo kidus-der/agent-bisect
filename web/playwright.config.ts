@@ -2,7 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 const HOST = '127.0.0.1'
 // A dedicated port so e2e never collides with a running `npm run dev` (5173).
-const E2E_PORT = 5183
+// Agents sharing this checkout run suites at the same time: BISECT_E2E_PORT gives each its own server.
+const E2E_PORT = Number(process.env.BISECT_E2E_PORT ?? 5183)
 const BASE_URL = `http://${HOST}:${E2E_PORT}`
 
 export default defineConfig({
