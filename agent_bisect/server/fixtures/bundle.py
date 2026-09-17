@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agent_bisect.server.fixtures.benchmark_builder import build_benchmark
+from agent_bisect.server.fixtures.benchmark_builder import build_benchmark, build_paired_gap_ci
 from agent_bisect.server.fixtures.catalog import BRIEF_RUN_ID
 from agent_bisect.server.fixtures.dataset import build_all_plans, build_dataset_entries
 from agent_bisect.server.fixtures.judge import build_judge_panel
@@ -66,7 +66,7 @@ def _recall_at_m(plans: tuple[RunPlan, ...], judge_by_run: dict[str, JudgePanel 
 
 
 def _build_overview(
-    plans, judge_by_run, run_summaries, benchmark, hero_run_id: str
+    plans, judge_by_run, run_summaries, benchmark, hero_run_id: str, seed: int
 ) -> OverviewPayload:
     methods_by_name = {m.method: m for m in benchmark.methods}
     bisect = methods_by_name["bisect"]
@@ -75,6 +75,7 @@ def _build_overview(
         methods_by_name["judge_step_by_step"],
     ]
     best_judge = max(judge_methods, key=lambda m: m.accuracy.value)
+    gap = build_paired_gap_ci(plans, judge_by_run, "bisect", best_judge.method, seed)
     # A recording run hasn't failed -- it just hasn't finished -- so it's
     # excluded from "failures" the same way its `outcome` is masked at
     # serialization (fixtures.serialize).
@@ -88,6 +89,7 @@ def _build_overview(
             bisect=bisect.accuracy,
             best_judge=best_judge.accuracy,
             best_judge_method=best_judge.method,
+            gap=gap,
         ),
         kpis=Kpis(
             runs_recorded=len(plans),
@@ -117,7 +119,7 @@ def build_bundle(seed: int) -> FixtureBundle:
     benchmark = build_benchmark(plans, judge_by_run)
     dataset_entries = build_dataset_entries(plans)
     pr_checks = build_pr_checks(seed)
-    overview = _build_overview(plans, judge_by_run, run_summaries, benchmark, BRIEF_RUN_ID)
+    overview = _build_overview(plans, judge_by_run, run_summaries, benchmark, BRIEF_RUN_ID, seed)
 
     return FixtureBundle(
         seed=seed,

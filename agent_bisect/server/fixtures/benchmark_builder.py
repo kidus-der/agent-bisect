@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+import numpy as np
+
 from agent_bisect.attribution.estimate import (
     SequentialConfig,
     estimate_run,
@@ -20,6 +22,7 @@ from agent_bisect.attribution.estimate import (
 )
 from agent_bisect.attribution.fakes import FakeRunSpec, ScriptedSampler
 from agent_bisect.server.fixtures.run_builder import CALLS_PER_RERUN, COST_PER_CALL_USD, RunPlan
+from agent_bisect.server.fixtures.synth import seeded_rng
 from agent_bisect.server.schemas_benchmark import (
     AblationArm,
     BenchmarkSummary,
@@ -132,6 +135,56 @@ def build_methods(
             )
         )
     return tuple(results)
+
+
+_N_GAP_BOOTSTRAP = 2000
+_GAP_CI_PERCENTILES = (2.5, 97.5)  # a 95% percentile bootstrap interval
+
+
+def build_paired_gap_ci(
+    plans: tuple[RunPlan, ...],
+    judge_by_run: dict[str, JudgePanel | None],
+    method_a: Method,
+    method_b: Method,
+    seed: int,
+    n_bootstrap: int = _N_GAP_BOOTSTRAP,
+) -> CiValue:
+    """A paired percentile-bootstrap CI for `method_a`'s accuracy minus
+    `method_b`'s, over the same labelled runs.
+
+    `method_a` and `method_b` are scored on the identical dataset -- a
+    Newcombe/independent-proportions interval (`newcombe_diff_interval`,
+    used elsewhere in this module for the flaky-world ablation's two
+    *separate* samples) would be the wrong estimator here: it ignores the
+    correlation between the two methods' per-run correctness and produces
+    too wide (or just wrong) an interval. Resampling *runs* with
+    replacement and recomputing both methods' accuracy on the same
+    resampled set keeps that pairing intact.
+    """
+    labelled = _labelled(plans)
+    n = len(labelled)
+    if n == 0:
+        return CiValue(value=0.0, ci_low=0.0, ci_high=0.0)
+
+    correct_a = np.array(
+        [int(_guess(plan, method_a, judge_by_run) == plan.planted_step) for plan in labelled]
+    )
+    correct_b = np.array(
+        [int(_guess(plan, method_b, judge_by_run) == plan.planted_step) for plan in labelled]
+    )
+    observed_gap = float(correct_a.mean() - correct_b.mean())
+
+    rng = seeded_rng(seed, "overview_gap_ci", method_a, method_b)
+    resample_indices = rng.integers(0, n, size=(n_bootstrap, n))
+    bootstrap_gaps = correct_a[resample_indices].mean(axis=1) - correct_b[resample_indices].mean(
+        axis=1
+    )
+    ci_low, ci_high = np.percentile(bootstrap_gaps, _GAP_CI_PERCENTILES)
+    return CiValue(
+        value=round(observed_gap, 4),
+        ci_low=round(float(ci_low), 4),
+        ci_high=round(float(ci_high), 4),
+    )
 
 
 def build_heatmap(

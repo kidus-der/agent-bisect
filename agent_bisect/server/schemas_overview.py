@@ -9,13 +9,16 @@ from agent_bisect.server.schemas_runs import RunSummary
 
 
 class HeadlineResult(BaseModel):
-    """Bisect vs. the best judge, each with its own 95% CI."""
+    """Bisect vs. the best judge, each with its own 95% CI, plus the gap
+    between them with its own paired-bootstrap CI (never a Newcombe interval
+    over the two accuracies -- they're measured on the same dataset)."""
 
     model_config = ConfigDict(frozen=True)
 
     bisect: CiValue
     best_judge: CiValue
     best_judge_method: Method
+    gap: CiValue
 
 
 class Kpis(BaseModel):
