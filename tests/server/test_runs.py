@@ -64,6 +64,20 @@ def test_brief_run_detail_matches_worked_example(client):
     assert body["estimate"]["blamed_step"] == 7
 
 
+def test_run_estimate_carries_the_actual_estimator_config(client):
+    """The Run detail page must not hard-code delta client-side -- the
+    blame result carries the real SequentialConfig used to produce it."""
+    body = client.get("/api/runs/brief-12-step").json()["data"]
+    config = body["estimate"]["config"]
+    assert config["delta"] == 0.10
+    assert config["batch"] == 4
+    assert config["max_n"] == 16
+    assert config["conf"] == 0.95
+    assert config["efficacy_boundary"] == "obf"
+    assert config["control_mode"] == "shared"
+    assert config["shortlist_m"] == 5
+
+
 def test_brief_run_step_payload_shows_nm1vx1(client):
     body = client.get("/api/runs/brief-12-step/steps/7").json()["data"]
     assert body["tool_result"]["reservation_id"] == "NM1VX1"

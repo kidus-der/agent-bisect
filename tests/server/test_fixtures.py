@@ -105,6 +105,19 @@ def test_brief_run_matches_worked_example():
     assert plan.planted_step == 7
 
 
+def test_run_plan_carries_the_real_sequential_config_used_for_its_estimate():
+    """`RunEstimateView.config` (served over the API) must come from the
+    actual `SequentialConfig` instance passed to `estimate_run`, not a
+    separately typed-in copy of its default values."""
+    from agent_bisect.attribution.estimate import SequentialConfig
+
+    bundle = build_bundle(SEED)
+    plan = bundle.plan_by_id("brief-12-step")
+    assert plan.estimator_config == SequentialConfig()
+    assert plan.estimator_config is not None
+    assert plan.estimator_config.efficacy_boundary == "obf"
+
+
 def test_no_clear_run_truly_never_clears_delta():
     bundle = build_bundle(SEED)
     plan = bundle.plan_by_id("run-edge-no-clear")
