@@ -3,8 +3,8 @@
  * each with its own 95% interval, and the gap between them at display size.
  * No estimate is drawn without its interval (direction.md §8).
  */
-import { motion, useReducedMotion } from 'motion/react'
-import { useCallback } from 'react'
+import { motion, useInView, useReducedMotion } from 'motion/react'
+import { useCallback, useRef } from 'react'
 
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { springTransition, useNumberTicker } from '@/design/motion'
@@ -16,6 +16,9 @@ import { type HeadlineBar, type HeadlineRole, headlineBars, headlineGap } from '
 
 const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
 const BAR_DELAY_SECONDS = 0.09
+/** The interval lands after its bar has settled, never with it. */
+const WHISKER_DELAY_SECONDS = 0.22
+const IN_VIEW_AMOUNT = 0.3
 const PERCENT_PRECISION = 4
 
 /** Colour roles are fixed: cyan measures, violet is the judge. Amber is blame only. */
@@ -55,6 +58,7 @@ interface WhiskerProps {
   readonly bar: HeadlineBar
   readonly reduced: boolean
   readonly delay: number
+  readonly revealed: boolean
 }
 
 const WHISKER_CAP_HALF = 6
@@ -67,7 +71,7 @@ const WHISKER_HALO_PX = 3.5
  * wide in the panel's ground colour as a halo, once thin in ink on top. That
  * reads on the role fill and on the empty track, in both themes.
  */
-function Whisker({ bar, reduced, delay }: WhiskerProps) {
+function Whisker({ bar, reduced, delay, revealed }: WhiskerProps) {
   const transition = { ...springTransition('settle', reduced), delay: reduced ? 0 : delay }
   const marks = (
     <>
@@ -87,7 +91,7 @@ function Whisker({ bar, reduced, delay }: WhiskerProps) {
     <motion.svg
       aria-hidden="true"
       initial={reduced ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
+      animate={{ opacity: revealed || reduced ? 1 : 0 }}
       transition={transition}
       className="pointer-events-none absolute inset-0 size-full"
       preserveAspectRatio="none"
@@ -114,9 +118,11 @@ function Whisker({ bar, reduced, delay }: WhiskerProps) {
 interface BarRowProps {
   readonly bar: HeadlineBar
   readonly index: number
+  /** Held at zero until the hero is actually on screen. */
+  readonly revealed: boolean
 }
 
-function BarRow({ bar, index }: BarRowProps) {
+function BarRow({ bar, index, revealed }: BarRowProps) {
   const reduced = useReducedMotion() ?? false
   const delay = reduced ? 0 : index * BAR_DELAY_SECONDS
   return (
@@ -132,12 +138,18 @@ function BarRow({ bar, index }: BarRowProps) {
       >
         <motion.span
           initial={reduced ? false : { scaleX: 0 }}
-          animate={{ scaleX: 1 }}
+          animate={{ scaleX: revealed || reduced ? 1 : 0 }}
           transition={{ ...springTransition('settle', reduced), delay }}
           style={{ width: percent(bar.value) }}
           className={cn('absolute inset-y-0 left-0 origin-left', ROLE_FILL[bar.role])}
         />
-        <Whisker bar={bar} reduced={reduced} delay={delay} />
+        {/* The interval arrives after the bar it measures (§7.2). */}
+        <Whisker
+          bar={bar}
+          reduced={reduced}
+          delay={delay + WHISKER_DELAY_SECONDS}
+          revealed={revealed}
+        />
       </div>
       <p className="w-fit bg-ground pr-2 num text-small text-ink-muted">
         95% CI {formatPercent(bar.low)} – {formatPercent(bar.high)}
@@ -173,6 +185,10 @@ interface HeadlineBarsProps {
 
 export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsProps) {
   const reduced = useReducedMotion() ?? false
+  const heroRef = useRef<HTMLElement | null>(null)
+  // Once, on first view: the bars must not have finished drawing behind the
+  // page's own enter animation.
+  const revealed = useInView(heroRef, { amount: IN_VIEW_AMOUNT, once: true })
   const bars = headlineBars(headline)
   const gap = headlineGap(headline)
   const gapFormat = useCallback((current: number) => formatPoints(current), [])
@@ -180,6 +196,7 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
 
   return (
     <section
+      ref={heroRef}
       aria-labelledby="headline-result"
       className="relative flex flex-col gap-6 border border-dashed border-line-strong bg-ground blueprint-dots p-5 sm:p-6 lg:p-8"
     >
@@ -219,7 +236,7 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
 
       <div className="flex flex-col gap-6">
         {bars.map((bar, index) => (
-          <BarRow key={bar.id} bar={bar} index={index} />
+          <BarRow key={bar.id} bar={bar} index={index} revealed={revealed} />
         ))}
       </div>
 
