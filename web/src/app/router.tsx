@@ -64,6 +64,12 @@ const prChecksRoute = createRoute({
   component: lazyRouteComponent(() => import('@/pages/PrChecksPage'), 'PrChecksPage'),
   errorComponent: RouteError,
 })
+const prCheckDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pr-checks/$checkId',
+  component: lazyRouteComponent(() => import('@/pages/PrCheckDetailPage'), 'PrCheckDetailPage'),
+  errorComponent: RouteError,
+})
 const galleryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/gallery',
@@ -79,6 +85,7 @@ const routeTree = rootRoute.addChildren([
   benchmarkRoute,
   liveRoute,
   prChecksRoute,
+  prCheckDetailRoute,
   galleryRoute,
 ])
 
