@@ -59,8 +59,8 @@ describe('validateRunsSearch', () => {
     })
   })
 
-  test('caps a very long query so the URL cannot be used as a payload', () => {
-    expect(validateRunsSearch({ q: 'x'.repeat(500) }).q).toHaveLength(120)
+  test('caps a long query at the length the route accepts, so it is never a 422', () => {
+    expect(validateRunsSearch({ q: 'x'.repeat(500) }).q).toHaveLength(100)
   })
 
   test('treats a blank filter as absent', () => {
@@ -111,7 +111,7 @@ describe('nextSort', () => {
 })
 
 describe('serverFilters and the query string', () => {
-  test('sends only parameters /api/runs accepts, with the sign-prefixed sort', () => {
+  test('sends every filter to the server, with the sign-prefixed sort', () => {
     const search: RunsSearch = {
       ...DEFAULT_RUNS_SEARCH,
       q: 'refund',
@@ -124,9 +124,25 @@ describe('serverFilters and the query string', () => {
     expect(query).toContain('sort=-cost_usd')
     expect(query).toContain('domain=airline')
     expect(query).toContain('page=2')
-    // Free text and fault type are not query parameters on this endpoint.
-    expect(query).not.toContain('refund')
-    expect(query).not.toContain('wrong_value')
+    expect(query).toContain('q=refund')
+    expect(query).toContain('fault_type=wrong_value')
+  })
+
+  test('omits a filter that was never chosen', () => {
+    const query = runsQueryString(serverFilters(DEFAULT_RUNS_SEARCH), 1)
+    expect(query).not.toContain('q=')
+    expect(query).not.toContain('fault_type=')
+  })
+
+  test('selects unplanted runs with the server\u2019s own sentinel', () => {
+    const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, fault: 'none' }
+    expect(runsQueryString(serverFilters(search), 1)).toContain('fault_type=none')
+  })
+
+  test('never sends a query longer than the route accepts', () => {
+    const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, q: 'x'.repeat(500) }
+    const value = new URLSearchParams(runsQueryString(serverFilters(search), 1)).get('q')
+    expect(value).toHaveLength(100)
   })
 })
 

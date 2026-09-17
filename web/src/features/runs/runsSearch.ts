@@ -5,8 +5,9 @@
  * the API.
  */
 import {
-  FAULT_TYPES,
-  type FaultType,
+  FAULT_FILTERS,
+  type FaultFilter,
+  QUERY_MAX_CHARS,
   type RunOutcome,
   type RunStatus,
   SORTABLE_RUN_FIELDS,
@@ -17,13 +18,13 @@ import {
 export type SortDirection = 'asc' | 'desc'
 
 export interface RunsSearch {
-  /** Free text over run id and task id, narrowed client-side. */
+  /** Free text; the server matches run id, task id, model and tool names. */
   readonly q: string
   readonly domain: string | null
   readonly outcome: RunOutcome | null
   readonly status: RunStatus | null
   readonly model: string | null
-  readonly fault: FaultType | null
+  readonly fault: FaultFilter | null
   readonly sort: SortableRunField
   readonly dir: SortDirection
 }
@@ -41,7 +42,8 @@ export const DEFAULT_RUNS_SEARCH: RunsSearch = {
 
 const OUTCOMES: readonly RunOutcome[] = ['pass', 'fail']
 const STATUSES: readonly RunStatus[] = ['recording', 'complete']
-const MAX_TEXT_CHARS = 120
+/** The route rejects a longer `q` with a 422, so it is capped before it is sent. */
+const MAX_TEXT_CHARS = QUERY_MAX_CHARS
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.slice(0, MAX_TEXT_CHARS) : ''
@@ -69,7 +71,7 @@ export function validateRunsSearch(input: Record<string, unknown>): RunsSearch {
     outcome: oneOf(input.outcome, OUTCOMES),
     status: oneOf(input.status, STATUSES),
     model: nullableText(input.model),
-    fault: oneOf(input.fault, FAULT_TYPES),
+    fault: oneOf(input.fault, FAULT_FILTERS),
     sort: oneOf(input.sort, SORTABLE_RUN_FIELDS) ?? DEFAULT_RUNS_SEARCH.sort,
     dir: oneOf<SortDirection>(input.dir, ['asc', 'desc']) ?? DEFAULT_RUNS_SEARCH.dir,
   }
@@ -102,6 +104,8 @@ export function normaliseRunsSearch(input: Record<string, unknown>): RunsSearchI
 
 export function serverFilters(search: RunsSearch): ServerRunFilters {
   return {
+    q: search.q.trim(),
+    fault: search.fault,
     domain: search.domain,
     outcome: search.outcome,
     status: search.status,

@@ -1,12 +1,10 @@
 /**
  * `/api/runs` — the run list, paged.
  *
- * What the server can filter and sort is fixed by the API contract: `domain`,
- * `outcome`, `status` and `model` as filters, and `run_id`, `n_steps`,
- * `cost_usd`, `calls`, `outcome`, `domain` as sort keys. Free text and fault
- * type are not query parameters, so the table narrows those over the rows it
- * has loaded and says so in the result count rather than pretending the server
- * did it.
+ * Every filter this page offers is the server's: `q`, `fault_type`, `domain`,
+ * `outcome`, `status` and `model`, sorted by one of `run_sorting`'s fields.
+ * `meta.total` is the count after all of them, so the result line and the
+ * pagination both describe the whole corpus, not just the rows loaded so far.
  */
 import {
   type UseInfiniteQueryResult,
@@ -52,7 +50,18 @@ export const FAULT_TYPES = [
   'tool_error',
 ] as const satisfies readonly FaultType[]
 
+/** `none` selects runs with no planted fault; the server rejects anything else. */
+export const NO_FAULT = 'none'
+export type FaultFilter = FaultType | typeof NO_FAULT
+export const FAULT_FILTERS = [...FAULT_TYPES, NO_FAULT] as const satisfies readonly FaultFilter[]
+
+/** `Q_MAX_LENGTH` on the route: a longer query is a 422, so it never gets sent. */
+export const QUERY_MAX_CHARS = 100
+
 export interface ServerRunFilters {
+  /** Free text over run id, task id, model and tool names. */
+  readonly q: string
+  readonly fault: FaultFilter | null
   readonly domain: string | null
   readonly outcome: RunOutcome | null
   readonly status: RunStatus | null
@@ -67,6 +76,8 @@ export function runsQueryString(filters: ServerRunFilters, page: number): string
     page: String(page),
     limit: String(RUNS_PAGE_SIZE),
   })
+  if (filters.q) params.set('q', filters.q.slice(0, QUERY_MAX_CHARS))
+  if (filters.fault) params.set('fault_type', filters.fault)
   if (filters.domain) params.set('domain', filters.domain)
   if (filters.outcome) params.set('outcome', filters.outcome)
   if (filters.status) params.set('status', filters.status)
