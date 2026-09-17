@@ -10,6 +10,12 @@ import type { ScenarioRow } from './api'
 
 const TABLE_MAX_HEIGHT = 380
 const WORSE_THRESHOLD = -0.0001
+/**
+ * One width for the bars and for the key above them. They are not stacked in the
+ * same column, so the key has to be recognisable as a key rather than an axis —
+ * sharing the track width is what lets a reader match the two by eye.
+ */
+const TRACK_WIDTH = 'w-40'
 
 function delta(row: ScenarioRow): number {
   return row.head_pass_rate - row.base_pass_rate
@@ -25,7 +31,7 @@ function DeltaBar({ value, scale }: { readonly value: number; readonly scale: nu
   const worse = value < WORSE_THRESHOLD
   const bar = deltaBarGeometry(value, scale)
   return (
-    <span aria-hidden="true" className="relative inline-block h-4 w-28 align-middle">
+    <span aria-hidden="true" className={cn('relative inline-block h-4 align-middle', TRACK_WIDTH)}>
       {/* Anchored on the axis midpoint the header declares: the side says the
           sign, the length says the size. */}
       <span
@@ -40,12 +46,13 @@ function DeltaBar({ value, scale }: { readonly value: number; readonly scale: nu
   )
 }
 
-/** The axis, stated once: what the zero line is and which way is which. */
+/** The key to the bars: where the zero line is, and what a full-length bar means. */
 function DeltaAxisLegend({ scale }: { readonly scale: number }) {
   return (
     <span className="flex items-center gap-2 text-[12px] text-ink-muted">
+      <InstrumentLabel>scale</InstrumentLabel>
       <span className="num">−{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
-      <span aria-hidden="true" className="relative inline-block h-3 w-28">
+      <span aria-hidden="true" className={cn('relative inline-block h-3', TRACK_WIDTH)}>
         <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line-strong" />
         <span className="absolute inset-y-0 left-1/2 w-px bg-ink-muted" />
       </span>
