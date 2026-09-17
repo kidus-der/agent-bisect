@@ -26,15 +26,32 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from agent_bisect.attribution.blame_store import load_blame
+from agent_bisect.attribution.blame_store import list_blamed_runs, load_blame
 from agent_bisect.attribution.estimate import wilson_interval
+from agent_bisect.bench.manifest import (
+    ManifestNotFrozenError,
+    ManifestTamperedError,
+    load_frozen,
+)
 from agent_bisect.core.limits import load_limiter_settings
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step
 from agent_bisect.server.repository import DataNotAvailable, RunFilter
 from agent_bisect.server.run_filtering import RunSearchRow, filter_runs
 from agent_bisect.server.run_sorting import sort_runs
-from agent_bisect.server.schemas_benchmark import BenchmarkSummary, CiValue, DatasetPage
+from agent_bisect.server.schemas_benchmark import (
+    COST_BUCKET_WIDTH_CALLS,
+    BenchmarkSummary,
+    CiValue,
+    CostBucket,
+    DatasetEntry,
+    DatasetPage,
+    FlakyAblation,
+    HeatmapCell,
+    MethodResult,
+    PositionAccuracy,
+    SankeyFlow,
+)
 from agent_bisect.server.schemas_live import (
     BudgetStatus,
     CallsPoint,
@@ -43,7 +60,14 @@ from agent_bisect.server.schemas_live import (
     RateLimitStatus,
 )
 from agent_bisect.server.schemas_meta import MetaPayload, SearchHit, SearchResults
-from agent_bisect.server.schemas_overview import OverviewPayload
+from agent_bisect.server.schemas_overview import (
+    CostAccuracyPoint,
+    HeadlineResult,
+    Kpis,
+    OverviewPayload,
+    RecallPoint,
+    RecallProvenance,
+)
 from agent_bisect.server.schemas_pr import PrCheckDetail, PrCheckSummary, ScenarioRow
 from agent_bisect.server.schemas_runs import (
     BlameCell,
@@ -93,11 +117,16 @@ def _ro_connect(path: Path) -> sqlite3.Connection | None:
 class RealRepository:
     """Serves what real recordings on disk can answer; everything else is `DataNotAvailable`."""
 
-    def __init__(self, runs_dir: Path = Path("runs")) -> None:
+    def __init__(self, runs_dir: Path = Path("runs"), data_dir: Path = Path("data")) -> None:
         self._runs_dir = runs_dir
         self._index_path = runs_dir / "index.sqlite"
         self._ledger_path = runs_dir / "ledger.sqlite"
         self._blobs_dir = runs_dir / "blobs"
+        #: `data/manifest.json` (p3-inject's frozen dataset, `bench.manifest`)
+        #: and `data/results/p5_{summary,items}.json` (p5-blame's committed,
+        #: payload-free evaluation output, `bench.results`).
+        self._manifest_path = data_dir / "manifest.json"
+        self._results_dir = data_dir / "results"
 
     def data_source(self) -> str:
         return "real"
@@ -141,7 +170,145 @@ class RealRepository:
         return SearchResults(query=query, hits=tuple(hits[:25]))
 
     def overview(self) -> OverviewPayload:
-        raise DataNotAvailable("no evaluation has been run yet (bench/evaluate.py output)")
+        summary = self._load_p5_summary()
+        if summary is None:
+            raise DataNotAvailable("no evaluation has been run yet (bench/evaluate.py output)")
+        items = self._load_p5_items() or []
+        try:
+            methods_by_name = {row["method"]: row for row in summary["methods"]}
+            gap_doc = summary["gap"]
+            if gap_doc is None:
+                raise DataNotAvailable(
+                    "no headline gap yet: bisect or both judge baselines haven't been scored"
+                )
+            comparator = gap_doc["comparator"]
+            bisect_row = methods_by_name["bisect"]
+            best_judge_row = methods_by_name[comparator]
+            recall_doc = summary.get("recall") or {}
+            recall_at_m = tuple(
+                RecallPoint(m=int(m), recall=value)
+                for m, value in sorted(
+                    recall_doc.get("bisect", {}).items(), key=lambda kv: int(kv[0])
+                )
+            )
+            hero = self._hero_run_summary(items)
+            if hero is None:
+                raise DataNotAvailable(
+                    "no diagnosed run to feature (data/results/p5_items.json is empty)"
+                )
+            return OverviewPayload(
+                headline=HeadlineResult(
+                    bisect=CiValue.model_validate(bisect_row["accuracy"]),
+                    best_judge=CiValue.model_validate(best_judge_row["accuracy"]),
+                    best_judge_method=comparator,
+                    gap=CiValue.model_validate(gap_doc),
+                ),
+                kpis=self._overview_kpis(),
+                recall_at_m=recall_at_m,
+                recall_provenance=RecallProvenance.model_validate(summary["recall_provenance"]),
+                cost_vs_accuracy=tuple(
+                    self._cost_accuracy_point(row) for row in summary["methods"]
+                ),
+                hero_run=hero,
+            )
+        except (KeyError, ValidationError) as exc:
+            raise DataNotAvailable(f"data/results/p5_summary.json is malformed: {exc}") from exc
+
+    def _load_p5_summary(self) -> dict[str, Any] | None:
+        """`data/results/p5_summary.json` (`bench.results.write_results`'s
+        committed, payload-free evaluation summary), or `None` if P5 has
+        never been run."""
+        path = self._results_dir / "p5_summary.json"
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _load_p5_items(self) -> list[dict[str, Any]] | None:
+        """`data/results/p5_items.json` -- one payload-free row per
+        `(item, method)`, including each row's real call count."""
+        path = self._results_dir / "p5_items.json"
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
+    def _cost_accuracy_point(row: dict[str, Any]) -> CostAccuracyPoint:
+        return CostAccuracyPoint(
+            method=row["method"],
+            # `None`, never a fabricated number -- see `MethodResult.mean_cost_usd`.
+            mean_cost_usd=None,
+            mean_calls=row["mean_calls"],
+            accuracy=row["accuracy"]["value"],
+        )
+
+    def _overview_kpis(self) -> Kpis:
+        runs_recorded = 0
+        conn = _ro_connect(self._index_path)
+        if conn is not None:
+            try:
+                runs_recorded = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+            finally:
+                conn.close()
+        failures_diagnosed = len(list_blamed_runs(self._runs_dir))
+        calls_spent = 0
+        ledger_conn = self._ledger_conn()
+        if ledger_conn is not None:
+            try:
+                calls_spent = ledger_conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0]
+            finally:
+                ledger_conn.close()
+        return Kpis(
+            runs_recorded=runs_recorded,
+            failures_diagnosed=failures_diagnosed,
+            calls_spent=calls_spent,
+            # `None`, never a fabricated number -- see `MethodResult.mean_cost_usd`.
+            cost_per_diagnosis_usd=None,
+            cost_per_diagnosis_calls=(
+                round(calls_spent / failures_diagnosed, 2) if failures_diagnosed else None
+            ),
+        )
+
+    def _hero_run_summary(self, items: list[dict[str, Any]]) -> RunSummary | None:
+        """The Overview page's one featured run: Bisect's earliest-`item_id`
+        exact diagnosis, or -- if none was exact -- its earliest attempt.
+        `None` only when `p5_items.json` has no Bisect row at all."""
+        bisect_rows = sorted(
+            (row for row in items if row.get("method") == "bisect"),
+            key=lambda row: row["item_id"],
+        )
+        if not bisect_rows:
+            return None
+        chosen = next((row for row in bisect_rows if row.get("verdict") == "exact"), None)
+        chosen = chosen or bisect_rows[0]
+        return self._run_summary_by_id(chosen["run_id"])
+
+    def _run_summary_by_id(self, run_id: str) -> RunSummary | None:
+        conn = _ro_connect(self._index_path)
+        if conn is None:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT manifest_json FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            manifest = RunManifest.model_validate_json(row[0])
+            outcome_row = conn.execute(
+                "SELECT outcome_json FROM outcomes WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            outcome = Outcome.model_validate_json(outcome_row[0]) if outcome_row else None
+            steps = self._steps_for(conn, run_id)
+        finally:
+            conn.close()
+        calls = self._calls_per_run_or_empty().get(run_id)
+        blame = self._load_blame_doc(run_id)
+        return self._run_summary(manifest, outcome, steps, calls, blame)
 
     def _all_manifests(self, conn: sqlite3.Connection) -> list[tuple[RunManifest, Outcome | None]]:
         rows = conn.execute("SELECT run_id, manifest_json FROM runs").fetchall()
@@ -432,10 +599,86 @@ class RealRepository:
         raise DataNotAvailable("no re-run step trace has been recorded for any run yet")
 
     def benchmark(self) -> BenchmarkSummary:
-        raise DataNotAvailable("no benchmark evaluation has been run yet (bench/evaluate.py)")
+        summary = self._load_p5_summary()
+        if summary is None:
+            raise DataNotAvailable("no benchmark evaluation has been run yet (bench/evaluate.py)")
+        items = self._load_p5_items() or []
+        try:
+            flaky_doc = summary.get("flaky_ablation")
+            return BenchmarkSummary(
+                methods=tuple(self._method_result(row) for row in summary["methods"]),
+                heatmap=tuple(HeatmapCell.model_validate(row) for row in summary["heatmap"]),
+                by_position=tuple(
+                    PositionAccuracy.model_validate(row) for row in summary["by_position"]
+                ),
+                sankey=tuple(SankeyFlow.model_validate(row) for row in summary["sankey"]),
+                # `None` when no flaky-world run exists -- see schemas_benchmark.py.
+                flaky_ablation=FlakyAblation.model_validate(flaky_doc)
+                if flaky_doc is not None
+                else None,
+                cost_histogram=self._cost_histogram(items),
+            )
+        except (KeyError, ValidationError) as exc:
+            raise DataNotAvailable(f"data/results/p5_summary.json is malformed: {exc}") from exc
+
+    @staticmethod
+    def _method_result(row: dict[str, Any]) -> MethodResult:
+        return MethodResult(
+            method=row["method"],
+            accuracy=CiValue.model_validate(row["accuracy"]),
+            # `None`, never a fabricated number -- `bench.evaluate.build_report`
+            # never puts a cost in dollars into a method row either; this
+            # project's real spend is `mean_calls`.
+            mean_cost_usd=None,
+            mean_calls=row["mean_calls"],
+        )
+
+    @staticmethod
+    def _cost_histogram(items: list[dict[str, Any]]) -> tuple[CostBucket, ...]:
+        """Bucketed from `p5_items.json`'s Bisect rows: `p5_summary.json`
+        deliberately excludes the cost curve
+        (`bench.results.SUMMARY_KEYS`), so the histogram is built from the
+        one committed file that has a real per-item call count."""
+        buckets: dict[int, int] = {}
+        for row in items:
+            if row.get("method") != "bisect":
+                continue
+            bucket = row["total_calls"] // COST_BUCKET_WIDTH_CALLS
+            buckets[bucket] = buckets.get(bucket, 0) + 1
+        return tuple(
+            CostBucket(
+                calls_low=bucket * COST_BUCKET_WIDTH_CALLS,
+                calls_high=(bucket + 1) * COST_BUCKET_WIDTH_CALLS,
+                count=count,
+            )
+            for bucket, count in sorted(buckets.items())
+        )
 
     def dataset(self, page: int, limit: int) -> tuple[DatasetPage, int]:
-        raise DataNotAvailable("no planted-fault dataset has been built yet (bench/inject.py)")
+        try:
+            manifest = load_frozen(self._manifest_path)
+        except (ManifestNotFrozenError, ManifestTamperedError) as exc:
+            raise DataNotAvailable(str(exc)) from exc
+        entries = tuple(
+            DatasetEntry(
+                run_id=item.run_id,
+                domain=item.domain,
+                task_id=item.task_id,
+                fault_type=item.fault_type,
+                planted_step=item.planted_step,
+                position_bucket=item.position_bucket,
+                split=item.split,
+                base_pass_rate=item.base_pass_rate,
+                faulted_pass_rate=item.faulted_pass_rate,
+            )
+            for item in manifest.items
+            # A frozen non-flaky manifest always assigns one; skip defensively
+            # rather than fabricate a split for an item that somehow has none.
+            if item.split is not None
+        )
+        total = len(entries)
+        start = (page - 1) * limit
+        return DatasetPage(entries=entries[start : start + limit]), total
 
     def _ledger_conn(self) -> sqlite3.Connection | None:
         return _ro_connect(self._ledger_path)
