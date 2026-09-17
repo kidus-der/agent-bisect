@@ -56,8 +56,7 @@ export function useBenchmarkMethodsQuery(): UseQueryResult<
 > {
   return useQuery<ApiResult<BenchmarkSummary | NotAvailable>, ApiError>({
     queryKey: overviewKeys.benchmark,
-    queryFn: ({ signal }) =>
-      apiFetch<BenchmarkSummary | NotAvailable>(BENCHMARK_PATH, { signal }),
+    queryFn: ({ signal }) => apiFetch<BenchmarkSummary | NotAvailable>(BENCHMARK_PATH, { signal }),
   })
 }
 
@@ -66,6 +65,24 @@ export function accuracyIntervals(
   methods: readonly MethodResult[] | null,
 ): ReadonlyMap<MethodName, CiValue> {
   return new Map((methods ?? []).map((entry) => [entry.method, entry.accuracy]))
+}
+
+/**
+ * The envelope only promises *a* payload. This checks it is the one this page
+ * knows how to draw, so a shape change upstream becomes a stated error rather
+ * than a blank screen.
+ */
+export function isOverviewPayload(value: unknown): value is OverviewPayload {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<OverviewPayload>
+  return (
+    typeof candidate.headline?.bisect?.value === 'number' &&
+    typeof candidate.headline.best_judge?.value === 'number' &&
+    typeof candidate.kpis?.runs_recorded === 'number' &&
+    Array.isArray(candidate.recall_at_m) &&
+    Array.isArray(candidate.cost_vs_accuracy) &&
+    typeof candidate.hero_run?.run_id === 'string'
+  )
 }
 
 /** Human labels for the five methods the benchmark compares. */

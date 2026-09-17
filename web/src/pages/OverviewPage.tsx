@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { availableOrNull } from '@/api/client'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
@@ -11,13 +13,32 @@ import { RecallCurve } from '@/features/overview/RecallCurve'
 import { RunsStrip } from '@/features/overview/RunsStrip'
 import {
   accuracyIntervals,
+  isOverviewPayload,
   useBenchmarkMethodsQuery,
   useOverviewQuery,
 } from '@/features/overview/api'
 
+import { PageHeader } from './PageHeader'
 import { OverviewSkeleton } from './skeletons'
 
 const EVAL_COMMAND = 'bisect eval --split test'
+
+/**
+ * Every state except the result itself keeps the plain page title, so the page
+ * always has exactly one h1. Once there is a result, the h1 *is* that result.
+ */
+function TitledState({ children }: { readonly children: ReactNode }) {
+  return (
+    <>
+      <PageHeader
+        label="overview"
+        title="Overview"
+        description="The headline result: how often each method names the decisive step, each with its own interval."
+      />
+      {children}
+    </>
+  )
+}
 
 export function OverviewPage() {
   const overview = useOverviewQuery()
@@ -26,19 +47,17 @@ export function OverviewPage() {
 
   if (overview.isPending) {
     return (
-      <>
-        <title>Overview · Bisect</title>
+      <TitledState>
         <LoadingRegion subject="the headline result">
           <OverviewSkeleton />
         </LoadingRegion>
-      </>
+      </TitledState>
     )
   }
 
   if (overview.isError) {
     return (
-      <>
-        <title>Overview · Bisect</title>
+      <TitledState>
         <Panel variant="card">
           <ErrorState
             title="Cannot reach the Bisect server"
@@ -47,15 +66,30 @@ export function OverviewPage() {
             onRetry={() => void overview.refetch()}
           />
         </Panel>
-      </>
+      </TitledState>
     )
   }
 
-  const data = availableOrNull(overview.data.data)
-  if (!data) {
+  const payload = availableOrNull(overview.data.data)
+
+  if (payload !== null && !isOverviewPayload(payload)) {
     return (
-      <>
-        <title>Overview · Bisect</title>
+      <TitledState>
+        <Panel variant="card">
+          <ErrorState
+            title="The server answered with an unexpected shape"
+            message="/api/overview returned a payload this dashboard does not recognise. Rather than draw a number that might be the wrong one, it draws none — check that the server and this build are the same version."
+            code="unexpected_payload"
+            onRetry={() => void overview.refetch()}
+          />
+        </Panel>
+      </TitledState>
+    )
+  }
+
+  if (!payload) {
+    return (
+      <TitledState>
         <Panel variant="canvas">
           <EmptyState
             label="no evaluation yet"
@@ -64,12 +98,12 @@ export function OverviewPage() {
             command={EVAL_COMMAND}
           />
         </Panel>
-      </>
+      </TitledState>
     )
   }
 
   const methods = availableOrNull(benchmark.data?.data ?? null)?.methods ?? null
-  const scatterPoints = toScatterPoints(data.cost_vs_accuracy, accuracyIntervals(methods))
+  const scatterPoints = toScatterPoints(payload.cost_vs_accuracy, accuracyIntervals(methods))
 
   return (
     <>
@@ -77,18 +111,21 @@ export function OverviewPage() {
       <div className="flex flex-col gap-4 lg:gap-6">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-6">
           <HeadlineBars
-            headline={data.headline}
+            headline={payload.headline}
             simulated={overview.data.meta.simulated}
-            sampleSize={data.kpis.failures_diagnosed}
+            sampleSize={payload.kpis.failures_diagnosed}
           />
           {/* A single rail beside the hero: four equal rows, filling its height. */}
-          <KpiRow kpis={data.kpis} className="lg:h-full lg:auto-rows-fr lg:grid-cols-1 lg:gap-4" />
+          <KpiRow
+            kpis={payload.kpis}
+            className="lg:h-full lg:auto-rows-fr lg:grid-cols-1 lg:gap-4"
+          />
         </div>
 
-        <HeroRewind run={data.hero_run} />
+        <HeroRewind run={payload.hero_run} />
 
         <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-          <RecallCurve points={data.recall_at_m} />
+          <RecallCurve points={payload.recall_at_m} />
           <CostAccuracyScatter
             points={scatterPoints}
             intervalsUnavailable={!benchmark.isPending && methods === null}
