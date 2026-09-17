@@ -35,13 +35,14 @@ test('a filter narrows the list, lands in the URL and survives a reload', async 
   await page.reload()
   await expect(page.getByRole('radio', { name: '✕ Fail' })).toBeChecked()
   await expect(summary).toHaveText(narrowed ?? '')
-  for (const pill of await page.getByRole('cell').getByText('Pass').all())
-    await expect(pill).toBeHidden()
+  // The pill itself, not any cell containing the letters "pass".
+  await expect(page.locator('[data-outcome="pass"]')).toHaveCount(0)
 })
 
 test('a fault-type filter narrows further and clears again', async ({ page }) => {
   await page.goto('/runs')
   const request = page.waitForRequest((call) => call.url().includes('fault_type=stale_record'))
+  await page.getByRole('button', { name: /more filters/i }).click()
   await page.getByRole('button', { name: 'stale record' }).click()
   await request
   await expect(page).toHaveURL(/fault=stale_record/)
@@ -64,6 +65,7 @@ test('searching is done by the server and counts the whole matching set', async 
 test('fault type is a server filter, including runs with none planted', async ({ page }) => {
   await page.goto('/runs')
   const request = page.waitForRequest((call) => call.url().includes('fault_type=none'))
+  await page.getByRole('button', { name: /more filters/i }).click()
   await page.getByRole('button', { name: 'none planted' }).click()
   await request
   await expect(page).toHaveURL(/fault=none/)
@@ -124,7 +126,7 @@ test('a recording run is shown as recording, never as a failure', async ({ page 
   await page.getByText('Recording', { exact: true }).first().click()
   await expect(page).toHaveURL(/status=recording/)
   await expect(page.getByText('Recording').first()).toBeVisible()
-  await expect(page.getByRole('cell').getByText('Fail')).toHaveCount(0)
+  await expect(page.locator('[data-outcome="fail"]')).toHaveCount(0)
   // No outcome, no cost attribution: an em dash, never a zero-effect blame badge.
   await expect(page.getByRole('row').nth(1).getByText('—').first()).toBeVisible()
 })
