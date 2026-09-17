@@ -17,8 +17,12 @@ from gates.p0 import (  # type: ignore[reportMissingImports]  # noqa: E402
     evaluate_doctor,
     evaluate_models_doc,
     evaluate_rate_limit,
+    evidence_provenance,
+    format_evidence,
     format_report,
+    invariance_notes,
     load_probe_results,
+    probed_models,
     recheck_agent_from_checkpoints,
 )
 
@@ -52,6 +56,7 @@ def _row(task_id: str, *, passed: bool, tool_calls: int = 10, invalid: int = 0) 
 
 
 def _write_probe(tmp_path: Path, rows: list[dict], model: str = MODELS["agent"]) -> Path:
+    rows = [{**row, "model": model} for row in rows]
     directory = tmp_path / model.replace("/", "__")
     directory.mkdir(parents=True, exist_ok=True)
     for row in rows:
@@ -249,3 +254,74 @@ def test_report_states_the_verdict_and_every_criterion(passed, expected):
     assert expected in report
     assert "thing" in report and "because" in report
     assert "abc123" in report
+
+
+# ---- evidence provenance and the invariance note ----
+
+
+def test_provenance_names_the_files_that_produced_the_verdict():
+    """HEAD in a shared tree is whatever another agent pushed last."""
+    provenance = evidence_provenance()
+
+    assert "scripts/gates/p0.py" in provenance
+    assert "config/models.toml" in provenance
+    assert "docs/decisions/models.md" in provenance
+
+
+def test_the_evidence_file_records_the_provenance_not_just_head():
+    from gates.p0 import Criterion  # type: ignore[reportMissingImports]
+
+    report = format_evidence(
+        [Criterion("thing", True, "because")],
+        commit="deadbee",
+        calls_per_model={"m": 3},
+        provenance={"scripts/gates/p0.py": "abc1234 gate script"},
+        notes=["a note"],
+    )
+
+    assert "abc1234 gate script" in report
+    assert "scripts/gates/p0.py" in report
+    assert "a note" in report
+
+
+def test_probed_models_skips_the_user_sim_sanity_directory(tmp_path):
+    (tmp_path / "nvidia__nemotron-3-super-120b-a12b").mkdir()
+    (tmp_path / "nvidia__nemotron-3-super-120b-a12b#usersim-x").mkdir()
+
+    assert probed_models(tmp_path) == ["nvidia/nemotron-3-super-120b-a12b"]
+
+
+def test_a_complete_probe_says_no_task_could_have_changed_the_choice(tmp_path):
+    _write_probe(tmp_path, [_row(str(i), passed=i < 11) for i in range(20)])
+
+    notes = invariance_notes(tmp_path, n_tasks=20)
+
+    assert any("completed all" in note for note in notes)
+
+
+def test_an_unfinished_task_that_cannot_change_the_choice_is_called_invariant(tmp_path):
+    """One candidate inside the window, one far outside it with a task missing."""
+    _write_probe(tmp_path, [_row(str(i), passed=i < 11) for i in range(20)])
+    outsider = [
+        {**_row(str(i), passed=True), "model": "other/model"} for i in range(19)
+    ]
+    _write_probe(tmp_path, outsider, model="other/model")
+
+    notes = invariance_notes(tmp_path, n_tasks=20)
+
+    assert any("invariant" in note for note in notes)
+    assert any("NOT invariant" not in note for note in notes)
+
+
+def test_an_unfinished_task_that_could_flip_the_choice_is_reported_as_such(tmp_path):
+    """`zzz` at 11/20 is the exact target; at 12/20 it ties `aaa` and loses on order.
+
+    So the missing task genuinely decides the winner, and the gate has to say
+    so rather than presenting one scoring convention as settled.
+    """
+    _write_probe(tmp_path, [_row(str(i), passed=i < 12) for i in range(20)], model="aaa/model")
+    _write_probe(tmp_path, [_row(str(i), passed=i < 11) for i in range(19)], model="zzz/model")
+
+    notes = invariance_notes(tmp_path, n_tasks=20)
+
+    assert any("NOT invariant" in note for note in notes)
