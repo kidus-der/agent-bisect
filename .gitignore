@@ -18,7 +18,11 @@ node_modules/
 
 # bisect: runs, data (fixtures/manifests are tracked), vendored deps, builds
 runs/
-data/
+# `data/*` (not `data/`) is deliberate: a directory-only ignore prunes git's
+# traversal into it entirely, so a later `!data/fixtures/` can't resurrect
+# anything underneath -- see `git help gitignore`, "It is not possible to
+# re-include a file if a parent directory of that file is excluded."
+data/*
 !data/fixtures/
 !data/manifest*
 vendor/

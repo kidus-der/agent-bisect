@@ -1,0 +1,1 @@
+{"agent_model":"nvidia/llama-3.1-nemotron-70b-instruct","data_source":"fixture","generated_at":"2026-09-17T00:00:00Z","package_version":"0.1.0","simulated":true,"tau2_commit":"a1b2c3d4e5f6","user_model":"meta/llama-3.1-8b-instruct"}
