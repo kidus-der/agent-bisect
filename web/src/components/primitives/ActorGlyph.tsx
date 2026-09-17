@@ -1,8 +1,8 @@
-import { Bot, type LucideIcon, User, Wrench } from 'lucide-react'
+import { Bot, Gavel, type LucideIcon, User, Wrench } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-export type Actor = 'agent' | 'user' | 'tool'
+export type Actor = 'agent' | 'user' | 'tool' | 'evaluator'
 
 interface ActorGlyphProps {
   readonly actor: Actor
@@ -12,8 +12,18 @@ interface ActorGlyphProps {
   readonly className?: string
 }
 
-const ACTOR_ICONS: Readonly<Record<Actor, LucideIcon>> = { agent: Bot, user: User, tool: Wrench }
-const ACTOR_LABELS: Readonly<Record<Actor, string>> = { agent: 'Agent', user: 'User', tool: 'Tool' }
+const ACTOR_ICONS: Readonly<Record<Actor, LucideIcon>> = {
+  agent: Bot,
+  user: User,
+  tool: Wrench,
+  evaluator: Gavel,
+}
+const ACTOR_LABELS: Readonly<Record<Actor, string>> = {
+  agent: 'Agent',
+  user: 'User',
+  tool: 'Tool',
+  evaluator: 'Evaluator',
+}
 
 /** Who acted at a step. Shape carries the meaning; the glyph stays neutral. */
 export function ActorGlyph({ actor, size = 'md', showLabel = false, className }: ActorGlyphProps) {
