@@ -47,13 +47,20 @@ export function buildBlameFlow(rows: readonly SankeyFlow[], compact = false): Bl
     rows.some((row) => row.label === label && row.count > 0),
   )
 
+  // Counts live in the node label: a sink holding 3 of 86 failures is a 4px bar
+  // that can be neither read nor hovered, but its label always can be.
+  const faultTotal = (fault: FaultType): number =>
+    rows.reduce((sum, row) => sum + (row.fault_type === fault ? row.count : 0), 0)
+  const labelTotal = (label: BlameLabel): number =>
+    rows.reduce((sum, row) => sum + (row.label === label ? row.count : 0), 0)
+
   const faultNodes: readonly FlowNode[] = faults.map((fault) => ({
-    name: faultName[fault],
+    name: `${faultName[fault]} · ${faultTotal(fault)}`,
     category: 'source',
     role: FAULT_ROLE,
   }))
   const labelNodes: readonly FlowNode[] = labels.map((label) => ({
-    name: labelName[label],
+    name: `${labelName[label]} · ${labelTotal(label)}`,
     category: 'outcome',
     role: BLAME_LABEL_ROLES[label],
   }))
