@@ -14,6 +14,13 @@ export interface NeutralColors {
   readonly ground: Hex
   readonly surface: Hex
   readonly elevated: Hex
+  /**
+   * Secondary panels, which recede rather than lift. In light this is DARKER
+   * than `ground`: `elevated` sits between ground and white there, so a panel
+   * on it separates by 1.05:1 and reads as an invisible white box. In dark it
+   * is `elevated`'s own value, so nothing there changes.
+   */
+  readonly recessed: Hex
   /** Decorative hairline. Never the only carrier of meaning. */
   readonly line: Hex
   /** Decorative stronger hairline for control edges and blueprint ticks. */
@@ -88,6 +95,7 @@ const dark: ThemeTokens = {
     ground: '#0B0D12',
     surface: '#12151C',
     elevated: '#191D27',
+    recessed: '#191D27',
     line: '#242A37',
     lineStrong: '#343C4E',
     dot: '#2A3140',
@@ -116,6 +124,7 @@ const light: ThemeTokens = {
     ground: '#F5F6F8',
     surface: '#FFFFFF',
     elevated: '#FBFBFD',
+    recessed: '#E4E8EF',
     line: '#DEE2E9',
     lineStrong: '#C5CBD6',
     dot: '#D6DBE3',

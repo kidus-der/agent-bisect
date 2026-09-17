@@ -16,6 +16,7 @@
   --bx-ground: #0B0D12;
   --bx-surface: #12151C;
   --bx-elevated: #191D27;
+  --bx-recessed: #191D27;
   --bx-line: #242A37;
   --bx-line-strong: #343C4E;
   --bx-dot: #2A3140;
@@ -102,6 +103,7 @@
   --bx-ground: #F5F6F8;
   --bx-surface: #FFFFFF;
   --bx-elevated: #FBFBFD;
+  --bx-recessed: #E4E8EF;
   --bx-line: #DEE2E9;
   --bx-line-strong: #C5CBD6;
   --bx-dot: #D6DBE3;
@@ -190,6 +192,7 @@
   --color-ground: var(--bx-ground);
   --color-surface: var(--bx-surface);
   --color-elevated: var(--bx-elevated);
+  --color-recessed: var(--bx-recessed);
   --color-line: var(--bx-line);
   --color-line-strong: var(--bx-line-strong);
   --color-ink: var(--bx-text);

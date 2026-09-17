@@ -137,6 +137,7 @@ const BISECT_COLOR_UTILITIES: Declarations = [
   ['ground', '--bx-ground'],
   ['surface', '--bx-surface'],
   ['elevated', '--bx-elevated'],
+  ['recessed', '--bx-recessed'],
   ['line', '--bx-line'],
   ['line-strong', '--bx-line-strong'],
   ['ink', '--bx-text'],
