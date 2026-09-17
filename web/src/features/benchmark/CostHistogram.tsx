@@ -10,6 +10,7 @@ import { roleColour } from '@/components/chart-theme/chartTheme'
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
 import { springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 import type { CostBucket, MethodName, MethodResult } from './api'
 import { fillBinGaps, maxBinCount, totalBinCount } from './costBins'
@@ -19,7 +20,6 @@ const MIN_PLOT_HEIGHT = 170
 const MARGIN = { top: 28, right: 16, bottom: 34, left: 40 } as const
 const Y_TICKS = 4
 const BAR_INSET = 1.5
-const FAINT_MARKER_OPACITY = 0.3
 const LABEL_FLIP_FRACTION = 0.72
 
 interface PlotProps {
@@ -107,22 +107,11 @@ function Plot({ width, height, bins, methods, selected, entered }: PlotProps) {
           )
         })}
 
-        {/* Every method's mean is drawn; the chosen one is the one that is labelled. */}
-        {methods
-          .filter((method) => method.method !== selected)
-          .map((method) => (
-            <line
-              key={method.method}
-              x1={x(method.mean_calls)}
-              x2={x(method.mean_calls)}
-              y1={0}
-              y2={innerHeight}
-              stroke={roleColour(methodMeta(method.method).role)}
-              strokeOpacity={FAINT_MARKER_OPACITY}
-              strokeDasharray="3 3"
-            />
-          ))}
-
+        {/*
+          Only the chosen method's mean is drawn. The others used to sit here as
+          faint dashed rules with no label — an unexplained reference line in a
+          measurement tool is worse than none — and are listed under the chart.
+        */}
         {selectedResult ? (
           <MeanMarker
             x={x(selectedResult.mean_calls)}
@@ -235,8 +224,8 @@ export function CostHistogram({ histogram, methods }: CostHistogramProps) {
         </div>
       }
     >
-      <div ref={plotRef} className="h-full w-full min-w-0">
-        <ParentSize debounceTime={10}>
+      <div ref={plotRef} className="flex h-full w-full min-w-0 flex-col">
+        <ParentSize debounceTime={10} className="min-h-0 flex-1">
           {({ width, height }) => (
             <Plot
               width={width}
@@ -248,6 +237,23 @@ export function CostHistogram({ histogram, methods }: CostHistogramProps) {
             />
           )}
         </ParentSize>
+        <p className="shrink-0 pt-1 text-[12px] text-ink-muted">
+          mean calls ·{' '}
+          {ordered.map((method, index) => (
+            <span key={method.method}>
+              {index > 0 ? ' · ' : ''}
+              <span
+                className={cn(
+                  'num',
+                  method.method === selected ? 'font-semibold text-ink' : undefined,
+                )}
+              >
+                {methodMeta(method.method).shortLabel}{' '}
+                {formatNumber(Math.round(method.mean_calls), { decimals: 0 })}
+              </span>
+            </span>
+          ))}
+        </p>
       </div>
     </ChartFrame>
   )
