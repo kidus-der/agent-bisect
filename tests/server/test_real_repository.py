@@ -107,6 +107,71 @@ def test_list_runs_reads_real_recording(one_run_dir):
     assert all(cell.tested is False for cell in runs[0].blame_stripe)
 
 
+def test_list_runs_cost_and_calls_are_unknown_in_real_mode(one_run_dir):
+    """The ledger has no run_id column yet (P1b), so per-run cost/calls genuinely
+    aren't knowable -- `None`, never a fake `0`/`0.0` that would read as "free"."""
+    repo = RealRepository(runs_dir=one_run_dir)
+    runs, _ = repo.list_runs(RunFilter())
+    assert runs[0].cost_usd is None
+    assert runs[0].calls is None
+
+
+def test_sparkline_latency_and_tokens_are_none_when_the_step_never_recorded_them(tmp_path):
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    writer.start_run(
+        RunManifest(
+            run_id="no-telemetry-run",
+            domain="airline",
+            task_id="refund_after_cancellation",
+            agent_model="m",
+            user_model="u",
+            tau2_commit="c",
+            created_at=datetime.now(UTC),
+        )
+    )
+    writer.append_step(
+        Step(
+            run_id="no-telemetry-run",
+            step_idx=0,
+            actor="agent",
+            state_before="a",
+            state_after="a",
+            state_hash="h",
+            # latency_ms / tokens_in / tokens_out deliberately omitted (None).
+        )
+    )
+    writer.record_outcome(Outcome(run_id="no-telemetry-run", reward=1.0))
+
+    repo = RealRepository(runs_dir=runs_dir)
+    runs, _ = repo.list_runs(RunFilter())
+    point = runs[0].sparkline[0]
+    assert point.latency_ms is None
+    assert point.tokens is None
+
+
+def test_run_detail_reward_is_none_when_no_outcome_is_recorded_yet(tmp_path):
+    """A run mid-recording (no outcome row yet) has no honest reward to report."""
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    writer.start_run(
+        RunManifest(
+            run_id="in-progress-run",
+            domain="retail",
+            task_id="cancel_before_ship",
+            agent_model="m",
+            user_model="u",
+            tau2_commit="c",
+            created_at=datetime.now(UTC),
+        )
+    )
+    # No outcome row written -- the run is still being recorded.
+
+    repo = RealRepository(runs_dir=runs_dir)
+    detail = repo.run_detail("in-progress-run")
+    assert detail.reward is None
+
+
 def test_run_detail_reads_real_steps_and_state_change(one_run_dir):
     repo = RealRepository(runs_dir=one_run_dir)
     detail = repo.run_detail("real-run-1")
