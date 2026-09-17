@@ -66,96 +66,99 @@ step that never recorded telemetry, or a run with no outcome row yet.
 
 ## Example responses
 
+Example blocks below marked GENERATED are produced verbatim from a live
+fixture-mode server by `scripts/export_contract_examples.py` (arrays
+trimmed to 3 entries + a real count of the rest) — never hand-typed, and
+`tests/server/test_contract_doc.py` fails the build if they drift. Run
+that script and commit the result after anything that could shift a
+fixture-derived number.
+
 **`GET /api/health`**
+<!-- BEGIN GENERATED: health -->
 ```json
-{"success": true, "data": {"status": "ok"}, "error": null,
- "meta": {"simulated": true, "data_source": "fixture", "total": null, "page": null, "limit": null, "next_cursor": null}}
+{"status":"ok"}
 ```
+<!-- END GENERATED: health -->
 
 **`GET /api/meta`**
+<!-- BEGIN GENERATED: meta -->
 ```json
-{"success": true, "data": {"data_source": "fixture", "simulated": true, "package_version": "0.1.0",
- "tau2_commit": "a1b2c3d4e5f6", "agent_model": "nvidia/llama-3.1-nemotron-70b-instruct",
- "user_model": "meta/llama-3.1-8b-instruct", "generated_at": "2026-09-17T00:00:00Z"}, "error": null, "meta": {...}}
+{"agent_model":"nvidia/llama-3.1-nemotron-70b-instruct","data_source":"fixture","generated_at":"2026-09-17T00:00:00Z","package_version":"0.1.0","simulated":true,"tau2_commit":"a1b2c3d4e5f6","user_model":"meta/llama-3.1-8b-instruct"}
 ```
+<!-- END GENERATED: meta -->
 
 **`GET /api/overview`**
+<!-- BEGIN GENERATED: overview -->
 ```json
-{"data": {"headline": {"bisect": {"value": 0.9651, "ci_low": 0.9024, "ci_high": 0.9881},
- "best_judge": {"value": 0.8721, "ci_low": 0.7853, "ci_high": 0.9271}, "best_judge_method": "judge_step_by_step",
- "gap": {"value": 0.093, "ci_low": 0.0116, "ci_high": 0.1744}},
- "kpis": {"runs_recorded": 266, "failures_diagnosed": 86, "calls_spent": 86490, "cost_per_diagnosis_usd": 1.5209},
- "recall_at_m": [{"m": 1, "recall": 0.7674}, "..."], "cost_vs_accuracy": ["..."], "hero_run": {"...": "the brief-12-step run"}}}
+{"cost_vs_accuracy":[{"accuracy":0.9651,"mean_cost_usd":1.5607,"method":"bisect"},{"accuracy":0.7674,"mean_cost_usd":0.03,"method":"judge_all_at_once"},{"accuracy":0.814,"mean_cost_usd":0.5937,"method":"judge_step_by_step"},"... (2 more)"],"headline":{"best_judge":{"ci_high":0.8821,"ci_low":0.7189,"value":0.814},"best_judge_method":"judge_step_by_step","bisect":{"ci_high":0.9881,"ci_low":0.9024,"value":0.9651},"gap":{"ci_high":0.2442,"ci_low":0.0581,"value":0.1512}},"hero_run":{"blame_stripe":[{"effect":-0.0625,"step_idx":1,"tested":true},{"effect":0.125,"step_idx":2,"tested":true},{"effect":0.125,"step_idx":3,"tested":true},"... (9 more)"],"calls":470,"cost_usd":0.97,"decisive_step":7,"domain":"airline","fault_type":"wrong_value","model":"nvidia/llama-3.1-nemotron-70b-instruct","n_steps":12,"outcome":"fail","planted_step":7,"run_id":"brief-12-step","sparkline":[{"actor":"user","latency_ms":3013,"step_idx":1,"tokens":102},{"actor":"agent","latency_ms":1010,"step_idx":2,"tokens":449},{"actor":"tool","latency_ms":2743,"step_idx":3,"tokens":234},"... (9 more)"],"status":"complete","task_id":"refund_after_cancellation"},"kpis":{"calls_spent":86490,"cost_per_diagnosis_usd":1.5209,"failures_diagnosed":86,"runs_recorded":266},"recall_at_m":[{"m":1,"recall":0.7674},{"m":2,"recall":0.8023},{"m":3,"recall":0.8721},"... (7 more)"]}
 ```
+<!-- END GENERATED: overview -->
 `headline.gap` is `bisect.value - best_judge.value`, 95% **paired**
 percentile-bootstrap CI (`build_paired_gap_ci`, 2000 seeded resamples) —
 not a Newcombe interval, which would ignore that both methods score the
 same dataset.
 
 **`GET /api/runs?limit=1`**
+<!-- BEGIN GENERATED: runs-list -->
 ```json
-{"data": {"runs": [{"run_id": "brief-12-step", "domain": "airline", "task_id": "refund_after_cancellation",
- "model": "nvidia/llama-3.1-nemotron-70b-instruct", "status": "complete", "outcome": "fail", "n_steps": 12,
- "decisive_step": 7, "fault_type": "wrong_value", "planted_step": 7, "cost_usd": 0.97, "calls": 470,
- "sparkline": [{"step_idx": 1, "actor": "user", "latency_ms": 3013, "tokens": 102}, "..."],
- "blame_stripe": [{"step_idx": 1, "effect": null, "tested": false}, "..."]}]},
- "meta": {"total": 266, "page": 1, "limit": 1}}
+{"runs":[{"blame_stripe":[{"effect":-0.0625,"step_idx":1,"tested":true},{"effect":0.125,"step_idx":2,"tested":true},{"effect":0.125,"step_idx":3,"tested":true},"... (9 more)"],"calls":470,"cost_usd":0.97,"decisive_step":7,"domain":"airline","fault_type":"wrong_value","model":"nvidia/llama-3.1-nemotron-70b-instruct","n_steps":12,"outcome":"fail","planted_step":7,"run_id":"brief-12-step","sparkline":[{"actor":"user","latency_ms":3013,"step_idx":1,"tokens":102},{"actor":"agent","latency_ms":1010,"step_idx":2,"tokens":449},{"actor":"tool","latency_ms":2743,"step_idx":3,"tokens":234},"... (9 more)"],"status":"complete","task_id":"refund_after_cancellation"}]}
 ```
+<!-- END GENERATED: runs-list -->
 
-**`GET /api/runs/{run_id}`**
+**`GET /api/runs/{run_id}`** (`brief-12-step`, the brief's own worked example)
+<!-- BEGIN GENERATED: run-detail -->
 ```json
-{"data": {"run_id": "brief-12-step", "domain": "airline", "agent_model": "...", "seed": 7,
- "status": "complete", "outcome": "fail", "reward": 0.0,
- "steps": [{"step_idx": 1, "actor": "user", "tool_name": null, "text": "confirms the requested change",
-            "from_tape": true, "state_changed": false}, "..."],
- "estimate": {"blamed_step": 7, "step_effects": ["..."], "control_mode": "shared",
-  "config": {"delta": 0.1, "batch": 4, "max_n": 16, "conf": 0.95, "efficacy_boundary": "obf",
-             "control_mode": "shared", "shortlist_m": 3}}, "judge": {"...": "..."}}}
+{"agent_model":"nvidia/llama-3.1-nemotron-70b-instruct","created_at":"2026-08-01T09:00:00Z","domain":"airline","estimate":{"blamed_step":7,"config":{"batch":4,"conf":0.95,"control_mode":"shared","delta":0.1,"efficacy_boundary":"obf","max_n":16,"shortlist_m":3},"control_fork_step":1,"control_mode":"shared","control_reruns":16,"sampler_calls":47,"step_effects":[{"ci_high":0.1759,"ci_low":-0.3033,"control":{"n":16,"successes":2},"effect":-0.0625,"n_batches":4,"step":1,"stop_reason":"max_n","treated":{"n":16,"successes":1}},{"ci_high":0.386,"ci_low":-0.153,"control":{"n":16,"successes":2},"effect":0.125,"n_batches":4,"step":2,"stop_reason":"max_n","treated":{"n":16,"successes":4}},{"ci_high":0.386,"ci_low":-0.153,"control":{"n":16,"successes":2},"effect":0.125,"n_batches":4,"step":3,"stop_reason":"max_n","treated":{"n":16,"successes":4}},"... (9 more)"],"treated_reruns":184},"fault_type":"wrong_value","judge":{"all_at_once":[{"rank":1,"rationale":"[all-at-once] tool result at step 7 looks inconsistent with the reasoning that follows it","score":0.775,"step":7},{"rank":2,"rationale":"[all-at-once] tool result at step 3 looks inconsistent with the reasoning that follows it","score":0.0,"step":3},{"rank":3,"rationale":"[all-at-once] tool result at step 11 looks inconsistent with the reasoning that follows it","score":0.022,"step":11}],"step_by_step":[{"rank":1,"rationale":"[step-by-step] tool result at step 7 looks inconsistent with the reasoning that follows it","score":0.689,"step":7},{"rank":2,"rationale":"[step-by-step] tool result at step 3 looks inconsistent with the reasoning that follows it","score":0.0,"step":3},{"rank":3,"rationale":"[step-by-step] tool result at step 11 looks inconsistent with the reasoning that follows it","score":0.0,"step":11}]},"outcome":"fail","planted_step":7,"reward":0.0,"run_id":"brief-12-step","seed":7,"status":"complete","steps":[{"actor":"user","from_tape":true,"state_changed":false,"step_idx":1,"text":"confirms the requested change","tool_name":null},{"actor":"agent","from_tape":true,"state_changed":false,"step_idx":2,"text":"calls a tool to check the current state","tool_name":null},{"actor":"tool","from_tape":true,"state_changed":true,"step_idx":3,"text":"update_reservation_baggages returned","tool_name":"update_reservation_baggages"},"... (9 more)"],"task_id":"refund_after_cancellation","tau2_commit":"a1b2c3d4e5f6","user_model":"meta/llama-3.1-8b-instruct"}
 ```
+<!-- END GENERATED: run-detail -->
 `estimate.config` is the real `SequentialConfig` used (never hard-code delta
 client-side); `shortlist_m` is the pre-registered judge-shortlist size.
 
-**`GET /api/runs/{run_id}/steps/{step_idx}`**
+**`GET /api/runs/{run_id}/steps/{step_idx}`** (step 7)
+<!-- BEGIN GENERATED: step-payload -->
 ```json
-{"data": {"step_idx": 7, "messages": [{"role": "tool", "content": "book_reservation returned"}],
- "tool_args": {"id": "X0X2K6"},
- "tool_result": {"reservation_id": "NM1VX1", "status": "confirmed", "origin": "JFK"}}}
+{"messages":[{"content":"book_reservation returned","role":"tool"}],"step_idx":7,"tool_args":{"id":"X0X2K6"},"tool_result":{"origin":"JFK","reservation_id":"NM1VX1","status":"confirmed"}}
 ```
+<!-- END GENERATED: step-payload -->
 
 **`GET /api/runs/{run_id}/steps/7/intervention-diff`** (the brief's own example)
+<!-- BEGIN GENERATED: intervention-diff -->
 ```json
-{"data": {"step_idx": 7,
- "original_tool_result": {"reservation_id": "NM1VX1", "status": "confirmed", "origin": "JFK"},
- "replaced_tool_result": {"reservation_id": "ZFA04Y", "status": "confirmed", "origin": "JFK"}}}
+{"original_tool_result":{"origin":"JFK","reservation_id":"NM1VX1","status":"confirmed"},"replaced_tool_result":{"origin":"JFK","reservation_id":"ZFA04Y","status":"confirmed"},"step_idx":7}
 ```
+<!-- END GENERATED: intervention-diff -->
 
 **`GET /api/runs/{run_id}/steps/7/state-diff`**
+<!-- BEGIN GENERATED: state-diff -->
 ```json
-{"data": {"step_idx": 7, "entries": [{"path": "user.membership", "kind": "changed", "before": "21MM", "after": "U9JL"}]}}
+{"entries":[{"after":"U9JL","before":"21MM","kind":"changed","path":"user.membership"}],"step_idx":7}
 ```
+<!-- END GENERATED: state-diff -->
 
 **`GET /api/runs/{run_id}/reruns`**
+<!-- BEGIN GENERATED: reruns -->
 ```json
-{"data": {"reruns": [{"rerun_id": "brief-12-step-t1-0", "arm": "treated", "step": 1, "seed": 107,
- "passed": true, "n_steps": 12, "calls": 10}, "..."]}}
+{"reruns":[{"arm":"treated","calls":10,"n_steps":12,"passed":true,"rerun_id":"brief-12-step-t1-0","seed":107,"step":1},{"arm":"treated","calls":10,"n_steps":12,"passed":false,"rerun_id":"brief-12-step-t1-1","seed":108,"step":1},{"arm":"treated","calls":10,"n_steps":12,"passed":false,"rerun_id":"brief-12-step-t1-2","seed":109,"step":1},"... (197 more)"]}
 ```
+<!-- END GENERATED: reruns -->
 
 **`GET /api/benchmark`**
+<!-- BEGIN GENERATED: benchmark -->
 ```json
-{"data": {"methods": [{"method": "bisect", "accuracy": {"value": 0.9651, "ci_low": 0.9024, "ci_high": 0.9881},
- "mean_cost_usd": 1.5607, "mean_calls": 780.35}, {"method": "judge_all_at_once", "accuracy": {"value": 0.7674, "..."}},
- "..."], "heatmap": ["..."], "by_position": ["..."], "sankey": ["..."], "flaky_ablation": {"...": "..."},
- "cost_histogram": ["..."]}}
+{"by_position":[{"accuracy":0.9655,"method":"bisect","n":29,"position":"early"},{"accuracy":1.0,"method":"bisect","n":18,"position":"late"},{"accuracy":0.9487,"method":"bisect","n":39,"position":"middle"}],"cost_histogram":[{"calls_high":400,"calls_low":0,"count":13},{"calls_high":800,"calls_low":400,"count":34},{"calls_high":1200,"calls_low":800,"count":35},"... (2 more)"],"flaky_ablation":{"arms":[{"accuracy":{"ci_high":0.9881,"ci_low":0.9024,"value":0.9651},"name":"snapshot"},{"accuracy":{"ci_high":0.9183,"ci_low":0.7718,"value":0.8605},"name":"no_snapshot"}],"difference":{"ci_high":0.1963,"ci_low":0.0193,"value":0.1046}},"heatmap":[{"accuracy":0.9565,"fault_type":"missing_field","method":"bisect","n":23},{"accuracy":0.8261,"fault_type":"missing_field","method":"judge_all_at_once","n":23},{"accuracy":0.7391,"fault_type":"missing_field","method":"judge_step_by_step","n":23},"... (17 more)"],"methods":[{"accuracy":{"ci_high":0.9881,"ci_low":0.9024,"value":0.9651},"mean_calls":780.35,"mean_cost_usd":1.5607,"method":"bisect"},{"accuracy":{"ci_high":0.8441,"ci_low":0.6679,"value":0.7674},"mean_calls":1.0,"mean_cost_usd":0.03,"method":"judge_all_at_once"},{"accuracy":{"ci_high":0.8821,"ci_low":0.7189,"value":0.814},"mean_calls":19.79,"mean_cost_usd":0.5937,"method":"judge_step_by_step"},"... (2 more)"],"sankey":[{"count":22,"fault_type":"missing_field","label":"exact"},{"count":1,"fault_type":"missing_field","label":"none"},{"count":21,"fault_type":"stale_record","label":"exact"},"... (3 more)"]}
 ```
+<!-- END GENERATED: benchmark -->
 
 **`GET /api/dataset?limit=1`**
+<!-- BEGIN GENERATED: dataset -->
 ```json
-{"data": {"entries": [{"run_id": "run-edge-60-step", "domain": "airline", "fault_type": "stale_record",
- "planted_step": 55, "position_bucket": "late", "split": "dev", "base_pass_rate": 0.8812, "faulted_pass_rate": 0.0746}]},
- "meta": {"total": 86, "page": 1, "limit": 1}}
+{"entries":[{"base_pass_rate":0.8812,"domain":"airline","fault_type":"stale_record","faulted_pass_rate":0.0746,"planted_step":55,"position_bucket":"late","run_id":"run-edge-60-step","split":"dev","task_id":"seat_upgrade_request"}]}
 ```
+<!-- END GENERATED: dataset -->
 
-**`GET /api/live/snapshot`**
+**`GET /api/live/snapshot`** (illustrative — the live simulator is time-seeded,
+not reproducible from the committed fixtures, so this block is hand-written
+and not drift-checked)
 ```json
 {"data": {"calls_series": [{"ts": "2026-09-17T08:33:00+00:00", "model": "nvidia/llama-3.1-nemotron-70b-instruct",
  "calls_per_minute": 17.2}, "..."], "budget": {"used": 6421, "cap": 12000},
@@ -163,10 +166,11 @@ client-side); `shortlist_m` is the pre-registered judge-shortlist size.
 ```
 
 **`GET /api/pr-checks`**
+<!-- BEGIN GENERATED: pr-checks -->
 ```json
-{"data": [{"check_id": "pr-check-00", "pr_number": 1000, "title": "reschedule_flight_change",
- "is_regression": true, "base_pass_rate": 0.875, "head_pass_rate": 0.5833, "p_value": 0.023}, "..."]}
+[{"base_pass_rate":0.875,"check_id":"pr-check-00","head_pass_rate":0.5833,"is_regression":true,"p_value":0.023,"pr_number":1000,"title":"reschedule_flight_change"},{"base_pass_rate":0.9167,"check_id":"pr-check-01","head_pass_rate":0.625,"is_regression":true,"p_value":0.0162,"pr_number":1001,"title":"payment_method_swap"},{"base_pass_rate":0.9167,"check_id":"pr-check-02","head_pass_rate":0.5417,"is_regression":true,"p_value":0.0035,"pr_number":1002,"title":"certificate_reissue"},"... (3 more)"]
 ```
+<!-- END GENERATED: pr-checks -->
 
 **`not_available` example** (real mode, before any recording exists)
 ```json
