@@ -42,6 +42,7 @@ function Matrix({ faultTypes, methods, cellAt, ramp, domain, onHover }: MatrixPr
   return (
     <div
       aria-hidden="true"
+      data-slot="accuracy-matrix"
       onMouseLeave={() => onHover(null)}
       className="grid min-w-0 gap-1 [--label-width:5.5rem] sm:[--label-width:9rem]"
       style={{
