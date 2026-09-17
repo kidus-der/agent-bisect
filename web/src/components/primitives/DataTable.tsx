@@ -37,6 +37,12 @@ interface DataTableProps<Row> {
   readonly sort?: SortState | null
   readonly onSortChange?: (columnId: string) => void
   readonly onRowActivate?: (row: Row) => void
+  /**
+   * Fired when a row is pointed at or focused — before any click. Lets an owner
+   * warm whatever the row opens, so the destination can render in the same
+   * commit the row leaves (which is what a shared-layout morph needs).
+   */
+  readonly onRowIntent?: (row: Row) => void
   /** Set to scroll inside the table and virtualize rows. */
   readonly maxHeight?: number
   readonly rowHeight?: number
@@ -106,6 +112,7 @@ interface BodyRowProps<Row> {
   /** 1-based position in the full (sorted) table, header included; required when virtualized. */
   readonly rowIndex: number
   readonly onRowActivate?: (row: Row) => void
+  readonly onRowIntent?: (row: Row) => void
 }
 
 const ACTIVATION_KEYS = ['Enter', ' ']
@@ -123,7 +130,14 @@ function activationHandler<Row>(
   }
 }
 
-function BodyRow<Row>({ row, columns, rowHeight, rowIndex, onRowActivate }: BodyRowProps<Row>) {
+function BodyRow<Row>({
+  row,
+  columns,
+  rowHeight,
+  rowIndex,
+  onRowActivate,
+  onRowIntent,
+}: BodyRowProps<Row>) {
   const reduced = useReducedMotion() ?? false
   const interactive = onRowActivate !== undefined
   return (
@@ -132,6 +146,8 @@ function BodyRow<Row>({ row, columns, rowHeight, rowIndex, onRowActivate }: Body
       tabIndex={interactive ? 0 : undefined}
       onClick={onRowActivate ? () => onRowActivate(row) : undefined}
       onKeyDown={activationHandler(row, onRowActivate)}
+      onMouseEnter={onRowIntent ? () => onRowIntent(row) : undefined}
+      onFocus={onRowIntent ? () => onRowIntent(row) : undefined}
       // Transform only: a lift must not reflow the virtualized list.
       whileHover={interactive && !reduced ? { y: -HOVER_LIFT_PX } : undefined}
       whileTap={interactive && !reduced ? { y: 0, scale: PRESS_SCALE } : undefined}
@@ -165,6 +181,7 @@ interface CompactRowProps<Row> {
   readonly rowHeight: number
   readonly render: (row: Row) => ReactNode
   readonly onRowActivate?: (row: Row) => void
+  readonly onRowIntent?: (row: Row) => void
 }
 
 function CompactRow<Row>({
@@ -174,6 +191,7 @@ function CompactRow<Row>({
   rowHeight,
   render,
   onRowActivate,
+  onRowIntent,
 }: CompactRowProps<Row>) {
   const reduced = useReducedMotion() ?? false
   const interactive = onRowActivate !== undefined
@@ -184,6 +202,8 @@ function CompactRow<Row>({
       tabIndex={interactive ? 0 : undefined}
       onClick={onRowActivate ? () => onRowActivate(row) : undefined}
       onKeyDown={activationHandler(row, onRowActivate)}
+      onMouseEnter={onRowIntent ? () => onRowIntent(row) : undefined}
+      onFocus={onRowIntent ? () => onRowIntent(row) : undefined}
       whileTap={interactive && !reduced ? { scale: PRESS_SCALE } : undefined}
       transition={springTransition('settle', reduced)}
       style={{ minHeight: rowHeight }}
@@ -221,6 +241,7 @@ export function DataTable<Row>({
   sort: controlledSort,
   onSortChange,
   onRowActivate,
+  onRowIntent,
   maxHeight,
   rowHeight = DEFAULT_ROW_HEIGHT,
   renderCompactRow,
@@ -287,6 +308,7 @@ export function DataTable<Row>({
           rowHeight={compactRowHeight}
           render={renderCompactRow}
           onRowActivate={onRowActivate}
+          onRowIntent={onRowIntent}
         />
       ))}
     </ul>
@@ -313,6 +335,7 @@ export function DataTable<Row>({
             columns={columns}
             rowHeight={rowHeight}
             onRowActivate={onRowActivate}
+            onRowIntent={onRowIntent}
           />
         ))}
         <SpacerRow height={padBottom} span={columns.length} />

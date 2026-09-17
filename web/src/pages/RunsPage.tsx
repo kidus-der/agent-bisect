@@ -1,6 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { apiFetch } from '@/api/client'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { HeatLegend } from '@/components/primitives/HeatLegend'
 import { ErrorState } from '@/components/primitives/ErrorState'
@@ -11,6 +13,7 @@ import { RunsFilters } from '@/features/runs/RunsFilters'
 import { RunsTable } from '@/features/runs/RunsTable'
 import type { RunSummary, SortableRunField } from '@/features/runs/api'
 import { useRunsQuery } from '@/features/runs/api'
+import { runDetailKeys, runDetailPaths } from '@/features/run-detail/api'
 import type { RunFacets } from '@/features/runs/runRows'
 import {
   EMPTY_FACETS,
@@ -45,6 +48,7 @@ const RECORD_COMMAND = 'bisect record --domain airline --tasks 0-19'
 
 export function RunsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   // `strict: false` keeps the page from importing the route that lazy-loads it;
   // the URL is re-validated here anyway, because it is external input.
   const rawSearch = useSearch({ strict: false })
@@ -69,6 +73,19 @@ export function RunsPage() {
   const onOpen = useCallback(
     (run: RunSummary) => void navigate({ to: '/runs/$runId', params: { runId: run.run_id } }),
     [navigate],
+  )
+  /**
+   * Warm the detail on hover or focus. Without it the header mounts ~200ms
+   * after the click, by which time the row it should morph from is gone — a
+   * shared-layout transition needs both in the same commit.
+   */
+  const onIntent = useCallback(
+    (run: RunSummary) =>
+      void queryClient.prefetchQuery({
+        queryKey: runDetailKeys.detail(run.run_id),
+        queryFn: ({ signal }) => apiFetch(runDetailPaths.detail(run.run_id), { signal }),
+      }),
+    [queryClient],
   )
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query
@@ -181,6 +198,7 @@ export function RunsPage() {
               search={search}
               onSortChange={onSortChange}
               onOpen={onOpen}
+              onIntent={onIntent}
               footer={
                 narrowed.total === null
                   ? `${narrowed.loaded} shown`
