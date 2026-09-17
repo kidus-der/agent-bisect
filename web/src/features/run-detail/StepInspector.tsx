@@ -43,9 +43,23 @@ function tabContent(query: TabQuery, subject: string, body: () => ReactNode): Re
   return body()
 }
 
+/**
+ * A step with a tool call and a sizeable payload (the common case for the
+ * step a run gets blamed on, which is what loads by default) renders taller
+ * than three stacked skeleton rows. Reserving that height up front is what
+ * keeps the panel below it from jumping once the payload arrives -- measured
+ * against `brief-12-step`'s step 7, the page's own default. `RunDetailStates`
+ * reuses this constant for the page-level skeleton's own inspector block, so
+ * the two never disagree about how much room the panel needs.
+ */
+export const INSPECTOR_SKELETON_MIN_HEIGHT = 'min-h-[35rem]'
+
 function InspectorSkeleton() {
   return (
-    <LoadingRegion subject="the step payload" className="flex flex-col gap-2">
+    <LoadingRegion
+      subject="the step payload"
+      className={cn('flex flex-col gap-2', INSPECTOR_SKELETON_MIN_HEIGHT)}
+    >
       <Skeleton className="h-9 w-full" />
       <Skeleton className="h-24 w-full rounded-chart" />
       <Skeleton className="h-24 w-full rounded-chart" />

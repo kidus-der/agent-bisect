@@ -4,6 +4,8 @@ import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 
+import { INSPECTOR_SKELETON_MIN_HEIGHT } from './StepInspector'
+
 const TAPE_CELLS = Array.from({ length: 12 }, (_, index) => index)
 const FOREST_ROWS = Array.from({ length: 5 }, (_, index) => index)
 
@@ -27,7 +29,7 @@ export function RunDetailSkeleton() {
         <Skeleton className="mt-3 h-3.5 w-full" />
       </Panel>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel variant="card" label="step inspector">
+        <Panel variant="card" label="step inspector" className={INSPECTOR_SKELETON_MIN_HEIGHT}>
           <Skeleton className="h-9 w-56" />
           <Skeleton className="mt-3 h-24 w-full rounded-chart" />
           <Skeleton className="mt-3 h-24 w-full rounded-chart" />
