@@ -1,3 +1,4 @@
+import { QueryClient } from '@tanstack/react-query'
 import { createMemoryHistory } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -6,12 +7,26 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { App } from './App'
 import { createAppRouter } from './router'
 
+const META_PATH = '/api/meta'
+
+/**
+ * The shell owns `/api/meta` only. Every page endpoint answers with a failed
+ * envelope, so these tests never depend on what a page draws with its own data.
+ */
 function mockMeta(simulated: boolean | 'offline'): void {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => {
+    vi.fn((input: RequestInfo | URL) => {
       if (simulated === 'offline') return Promise.reject(new TypeError('Failed to fetch'))
       const meta = { simulated, data_source: simulated ? 'fixture' : 'real' }
+      if (!String(input).startsWith(META_PATH)) {
+        const error = { code: 'not_mocked', message: 'Page data is not part of the shell tests.' }
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ success: false, data: null, error, meta }),
+        })
+      }
       const data = {
         ...meta,
         package_version: '0.1.0',
@@ -31,7 +46,8 @@ function mockMeta(simulated: boolean | 'offline'): void {
 
 function renderAt(path: string): void {
   const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }))
-  render(<App router={router} />)
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<App router={router} queryClient={queryClient} />)
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -52,13 +68,10 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main')
   })
 
-  test('flags simulated data from /api/meta, and shows the designed empty state', async () => {
+  test('flags simulated data from /api/meta', async () => {
     mockMeta(true)
     renderAt('/runs')
     expect(await screen.findByTestId('simulated-flag')).toHaveTextContent(/Simulated data/i)
-    expect(
-      await screen.findByText('bisect record --domain airline --tasks 0-19'),
-    ).toBeInTheDocument()
   })
 
   test('does not flag recorded data as simulated', async () => {
@@ -76,11 +89,13 @@ describe('AppShell', () => {
     expect(screen.getByText('API offline')).toBeInTheDocument()
   })
 
-  test('run detail takes its id from the route', async () => {
+  test('a child route keeps its parent destination current', async () => {
     mockMeta(true)
     renderAt('/runs/run-041')
-    expect(await screen.findByRole('heading', { level: 1, name: 'run-041' })).toBeInTheDocument()
-    expect(await screen.findByText('bisect blame run-041 --top 3 --n 8')).toBeInTheDocument()
+    const nav = (await screen.findAllByRole('navigation', { name: 'Primary' }))[0]
+    if (!nav) throw new Error('expected a primary nav')
+    expect(within(nav).getByRole('link', { name: 'Runs' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current')
   })
 
   test('unknown routes get the designed not-found state inside the shell', async () => {
