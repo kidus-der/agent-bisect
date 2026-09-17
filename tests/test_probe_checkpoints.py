@@ -18,13 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 # `scripts/` is a script directory, not an installed package, so it only joins
 # sys.path at runtime (above) -- a static checker cannot resolve it from here.
+from agent_bisect.adapters.tau2_probe import TaskProbeResult  # noqa: E402
+
 from probe_models import (  # type: ignore[reportMissingImports]  # noqa: E402
     checkpoint_path,
     load_checkpoint,
     save_checkpoint,
 )
-
-from agent_bisect.adapters.tau2_probe import TaskProbeResult  # noqa: E402
 
 MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
