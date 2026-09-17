@@ -1277,7 +1277,74 @@
         "type": "object"
       },
       "JobStatus": {
+        "description": "A long-running job's status. `state` and `progress`/`started_at`/\n`finished_at`/`error` must agree -- a job can't be \"queued\" with 77%\nprogress, or \"done\" without a `finished_at` -- enforced below rather\nthan left to whoever constructs one (the fixture simulator, or a\nparsed real-mode `runs/<phase>/status.json`) to get right by hand.\n\nEvery field past `state` is optional/nullable: fixture mode always\nfills what a real job of that kind plausibly would; real mode reports\nexactly what the job's own status file says, `None` for anything it\ndoesn't -- never invented.",
         "properties": {
+          "calls_spent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls Spent"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "items_done": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items Done"
+          },
+          "items_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items Total"
+          },
           "job_id": {
             "title": "Job Id",
             "type": "string"
@@ -1286,9 +1353,64 @@
             "title": "Kind",
             "type": "string"
           },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "last_checkpoint_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkpoint At"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
           "progress": {
             "title": "Progress",
             "type": "number"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
           },
           "state": {
             "enum": [
