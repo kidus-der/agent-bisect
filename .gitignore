@@ -36,8 +36,8 @@ web/playwright-report/
 web/test-results/
 web/coverage/
 
-# built dashboard — a release build is committed at the end of P6
-agent_bisect/server/static/
+# built dashboard: committed at the end of P6 (docs/gates/P6.md) so
+# `uv tool install .` needs no Node. Rebuild with `make web` before a release.
 
 # `runs/` above is any directory of that name; the dashboard feature folder is source.
 !web/src/features/runs/
