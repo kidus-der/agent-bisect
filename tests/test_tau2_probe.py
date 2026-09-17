@@ -157,7 +157,7 @@ def test_summary_reports_a_wilson_interval_around_the_pass_rate():
     summary = summarise_probe("m", results, n_tasks=20)
 
     assert summary.ci_low < 0.55 < summary.ci_high
-    assert 0.0 <= summary.ci_low and summary.ci_high <= 1.0
+    assert summary.ci_low >= 0.0 and summary.ci_high <= 1.0
 
 
 def test_summary_counts_termination_reasons():
