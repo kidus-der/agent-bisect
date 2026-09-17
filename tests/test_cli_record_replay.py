@@ -263,3 +263,90 @@ def _tamper(store: Store, run_id: str) -> None:
             (updated.model_dump_json(), run_id, target.step_idx),
         )
     connection.close()
+
+
+# ---- the dashboard's Live page reads a status file ----
+
+
+def test_record_publishes_a_done_status_the_dashboard_can_read(runner, store, monkeypatch):
+    from agent_bisect.server.schemas_live import JobStatus
+
+    _scripted_record(monkeypatch, store)
+
+    runner.invoke(_app(record), _record_argv(store, "0-1"))
+
+    status = json.loads((store.root / "p1" / "status.json").read_text())
+    assert JobStatus.model_validate(status).state == "done"
+    assert status["items_done"] == 2
+    assert status["items_total"] == 2
+    assert status["kind"] == "record"
+
+
+def test_record_publishes_progress_while_it_runs(runner, store, monkeypatch):
+    """The Live page polls the file, so it has to say "running" before the
+    batch finishes, not only afterwards."""
+    from agent_bisect.server.schemas_live import JobStatus
+
+    seen: list[dict] = []
+    _scripted_record(monkeypatch, store)
+    _watch_status(monkeypatch, store, seen)
+
+    runner.invoke(_app(record), _record_argv(store, "0-1"))
+
+    running = [s for s in seen if s["state"] == "running"]
+    assert running, [s["state"] for s in seen]
+    assert all(0 < JobStatus.model_validate(s).progress < 1 for s in running)
+
+
+def test_record_publishes_a_failed_status_when_the_batch_raises(runner, store, monkeypatch):
+    import agent_bisect.cli_record as cli_record
+    from agent_bisect.server.schemas_live import JobStatus
+
+    _scripted_record(monkeypatch, store)
+
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("the provider went away")
+
+    monkeypatch.setattr(cli_record, "record_batch", explode)
+
+    result = runner.invoke(_app(record), _record_argv(store, "0"))
+
+    status = json.loads((store.root / "p1" / "status.json").read_text())
+    assert result.exit_code != 0
+    assert JobStatus.model_validate(status).state == "failed"
+    assert "provider went away" in status["error"]
+
+
+def test_a_failed_status_never_carries_key_material(runner, store, monkeypatch):
+    import agent_bisect.cli_record as cli_record
+
+    key = "nvapi" + "-" + "S" * 64
+    _scripted_record(monkeypatch, store)
+    monkeypatch.setattr(
+        cli_record, "record_batch", _raiser(RuntimeError(f"upstream echoed {key}"))
+    )
+
+    runner.invoke(_app(record), _record_argv(store, "0"))
+
+    assert key not in (store.root / "p1" / "status.json").read_text()
+
+
+def _raiser(error: Exception):
+    def raise_it(*_args, **_kwargs):
+        raise error
+
+    return raise_it
+
+
+def _watch_status(monkeypatch, store: Store, seen: list[dict]) -> None:
+    """Record every status the command writes, in order."""
+    import agent_bisect.cli_record as cli_record
+    from agent_bisect.core import job_status
+
+    real = job_status.write_status
+
+    def spy(runs_dir, status, **kwargs):
+        seen.append(dict(status))
+        return real(runs_dir, status, **kwargs)
+
+    monkeypatch.setattr(cli_record, "write_status", spy)
