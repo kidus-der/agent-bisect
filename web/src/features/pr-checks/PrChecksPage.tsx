@@ -72,6 +72,7 @@ function CheckCard({ check, index }: { readonly check: PrCheckSummary; readonly 
           <span className="flex items-center gap-2">
             <span className="num text-[12px] text-ink-muted">#{check.pr_number}</span>
             <span
+              data-verdict={regressed ? 'regression' : 'clean'}
               className={cn(
                 'inline-flex items-center gap-1 rounded-pill border px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap',
                 regressed
