@@ -124,6 +124,7 @@ function FaultRow({
               ...springTransition('settle', reduced),
               delay: reduced ? 0 : (rowIndex * methods.length + columnIndex) * CELL_ENTER_STAGGER_S,
             }}
+            data-slot="matrix-cell"
             onMouseEnter={() => onHover(cell)}
             style={{ background: ramp[step] }}
             className={cn(
