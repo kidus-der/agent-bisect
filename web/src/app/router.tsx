@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 
 import type { RunsSearchInput } from '@/features/runs/runsSearch'
-import { validateRunsSearch } from '@/features/runs/runsSearch'
+import { normaliseRunsSearch } from '@/features/runs/runsSearch'
 
 import { AppShell } from './AppShell'
 import { RouteError, RouteNotFound, RoutePending } from './RouteError'
@@ -30,8 +30,9 @@ const runsRoute = createRoute({
   path: '/runs',
   component: lazyRouteComponent(() => import('@/pages/RunsPage'), 'RunsPage'),
   // Filters and sort live in the URL, so a narrowed view is a shareable link.
-  // Declared optional so a plain `<Link to="/runs">` stays a plain link.
-  validateSearch: (input: Record<string, unknown>): RunsSearchInput => validateRunsSearch(input),
+  // Only what was actually chosen is kept, so a plain `<Link to="/runs">` does
+  // not acquire a query string full of defaults.
+  validateSearch: (input: Record<string, unknown>): RunsSearchInput => normaliseRunsSearch(input),
   errorComponent: RouteError,
 })
 const runDetailRoute = createRoute({

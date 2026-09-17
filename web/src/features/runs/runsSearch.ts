@@ -91,6 +91,15 @@ export function toSearchParams(search: RunsSearch): RunsSearchInput {
   return params
 }
 
+/**
+ * What the route stores: parsed, then stripped back to what was actually
+ * chosen. The router writes this into the URL, so a link to `/runs` must not
+ * come back carrying eight default parameters.
+ */
+export function normaliseRunsSearch(input: Record<string, unknown>): RunsSearchInput {
+  return toSearchParams(validateRunsSearch(input))
+}
+
 export function serverFilters(search: RunsSearch): ServerRunFilters {
   return {
     domain: search.domain,

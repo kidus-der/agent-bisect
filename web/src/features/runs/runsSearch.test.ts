@@ -8,6 +8,7 @@ import {
   hasActiveFilters,
   nextSort,
   serverFilters,
+  normaliseRunsSearch,
   toSearchParams,
   validateRunsSearch,
 } from './runsSearch'
@@ -75,6 +76,22 @@ describe('toSearchParams', () => {
   test('round-trips a chosen view', () => {
     const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, domain: 'retail', outcome: 'fail' }
     expect(validateRunsSearch(toSearchParams(search))).toEqual(search)
+  })
+})
+
+describe('normaliseRunsSearch', () => {
+  test('a bare /runs link keeps a bare URL', () => {
+    expect(normaliseRunsSearch({})).toEqual({})
+  })
+
+  test('keeps what was chosen and drops what was not', () => {
+    expect(normaliseRunsSearch({ outcome: 'fail', dir: 'asc', nonsense: 1 })).toEqual({
+      outcome: 'fail',
+    })
+  })
+
+  test('drops a value the API would reject rather than passing it through', () => {
+    expect(normaliseRunsSearch({ outcome: 'maybe' })).toEqual({})
   })
 })
 
