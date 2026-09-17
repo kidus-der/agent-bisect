@@ -37,17 +37,19 @@ function Method({ config }: { readonly config: EstimatorConfig }) {
     ['control', config.control_mode],
   ]
   return (
+    // Below xl the rail is full width, where a two-column grid pushes each value
+    // 160px from its label; there it reads as a compact strip instead.
     <dl
       data-testid="estimator-config"
-      className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-line pt-3"
+      className="mt-1 flex flex-wrap gap-x-5 gap-y-1 border-t border-line pt-3 xl:grid xl:grid-cols-2 xl:gap-x-3"
     >
       {facts.map(([label, value]) => (
-        <div key={label} className="flex items-baseline justify-between gap-2">
+        <div key={label} className="flex items-baseline gap-1.5 xl:justify-between xl:gap-2">
           <dt className="text-[11px] text-ink-muted">{label}</dt>
           <dd className="num text-[11px] text-ink">{value}</dd>
         </div>
       ))}
-      <div className="col-span-2 flex items-baseline justify-between gap-2">
+      <div className="flex items-baseline gap-1.5 xl:col-span-2 xl:justify-between xl:gap-2">
         <dt className="text-[11px] text-ink-muted">boundary</dt>
         <dd className="num text-[11px] text-ink">
           <abbr title={BOUNDARY_TITLES[config.efficacy_boundary]} className="no-underline">
