@@ -5,6 +5,7 @@ import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
 import { Ring } from '@/components/charts/ring'
 import { RingChart } from '@/components/charts/ring-chart'
+import { springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
 import { formatPercent } from '@/lib/stats'
 
@@ -14,7 +15,6 @@ const RESIZE_DEBOUNCE_MS = 10
 const RING_STROKE = 12
 const RING_GAP = 5
 const INNER_RADIUS = 46
-const NO_MOTION = { duration: 0 } as const
 const TIGHT_HEADROOM = 0.25
 
 interface HeadroomRingProps {
@@ -61,7 +61,7 @@ export function HeadroomRing({ rateLimit }: HeadroomRingProps) {
                 strokeWidth={RING_STROKE}
                 ringGap={RING_GAP}
                 baseInnerRadius={INNER_RADIUS}
-                enterTransition={reduced ? NO_MOTION : undefined}
+                enterTransition={springTransition('drift', reduced)}
                 enterStaggerScale={reduced ? 0 : undefined}
               >
                 <Ring index={0} animate={!reduced} showGlow={false} />

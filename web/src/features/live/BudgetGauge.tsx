@@ -5,6 +5,7 @@ import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
 import { Gauge } from '@/components/charts/gauge'
 import { NotMeasuredState } from '@/components/primitives/NotMeasuredState'
+import { springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
 import { formatPercent } from '@/lib/stats'
 
@@ -14,7 +15,6 @@ import { REMAINING_MARK } from './marks'
 /** The arc gauge is drawn for a 21:16 box; anything else letterboxes or overflows. */
 const GAUGE_ASPECT = 21 / 16
 const RESIZE_DEBOUNCE_MS = 10
-const NO_MOTION = { duration: 0 } as const
 /** Notches are drawn one per unit, so a 12 000-call cap is rescaled to a readable count. */
 const NOTCH_COUNT = 60
 const WARN_FRACTION = 0.8
@@ -78,7 +78,7 @@ export function BudgetGauge({ budget }: BudgetGaugeProps) {
               inactiveFill={REMAINING_MARK}
               width={size.width}
               height={size.height}
-              enterTransition={reduced ? NO_MOTION : undefined}
+              enterTransition={springTransition('drift', reduced)}
               enterStaggerScale={reduced ? 0 : undefined}
             />
           )
