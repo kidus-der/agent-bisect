@@ -227,7 +227,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               </div>
               <div className="flex min-h-0">
                 {/* 8px pad + 34px heading + nine 40px rows + 8px pad: results never end mid-row. */}
-                <Command.List className="max-h-[min(410px,56vh)] min-w-0 flex-1 scroll-pb-10 overflow-y-auto p-2">
+                <Command.List className="max-h-[min(410px,38vh)] min-w-0 flex-1 scroll-pb-10 overflow-y-auto p-2 md:max-h-[min(410px,56vh)]">
                   <Command.Empty className="px-3 py-8 text-center text-small text-ink-muted">
                     Nothing matches. Try a run id, a page name or “copy”.
                   </Command.Empty>
@@ -307,6 +307,16 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 </Command.List>
                 <DetailPane item={selected} />
               </div>
+              {/* Under 768px there is no side pane, so a selected run previews under the list. */}
+              {selected?.runId ? (
+                <div
+                  aria-hidden="true"
+                  data-testid="palette-preview-compact"
+                  className="border-t border-line px-4 py-3 md:hidden"
+                >
+                  <RunPreview runId={selected.runId} />
+                </div>
+              ) : null}
               <div className="flex h-9 items-center gap-4 border-t border-line px-4 text-[12px] text-ink-muted">
                 <span className="inline-flex items-center gap-1.5">
                   <Kbd>↑</Kbd>
