@@ -975,3 +975,141 @@ def test_a_resampled_step_is_recorded_rather_than_vanishing(store):
     assert steps, "the fork recorded nothing"
     assert [step.step_idx for step in steps] == list(range(len(steps)))
     assert steps[0].from_tape is False, "the resampled step was recorded as read from tape"
+
+
+# ---- a live suffix that really is different ----
+
+
+def _divergent_session(store: Store, *, tool_calls_per_turn: int):
+    """A live model that answers nothing like the tape.
+
+    Different text and a different number of tool calls per turn, so a
+    replayer that kept hash-checking after the fork cannot agree by
+    accident -- which is how this class of bug hid: a scripted model is a
+    pure function of the history, so a resampled turn normally comes back
+    byte-identical and the run stays in lockstep by luck.
+    """
+    from agent_bisect.adapters.tau2 import recording_session
+    from agent_bisect.adapters.tau2_fake_llm import ScriptedLLM, ScriptedToolCall, ScriptedTurn
+    from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, STOP, USER_MODEL
+    from tests.tau2_offline import UNUSED_API_BASE, UNUSED_API_KEY, ledger_for, no_limiter
+
+    def turn(index: int) -> ScriptedTurn:
+        return ScriptedTurn(
+            tool_calls=tuple(
+                ScriptedToolCall(
+                    id=f"live-{index}-{n}", name="calculate", arguments={"expression": f"{n} + 1"}
+                )
+                for n in range(tool_calls_per_turn)
+            )
+        )
+
+    llm = ScriptedLLM(
+        {
+            # Tool-calling turns first, then text, so the user is asked
+            # (and stops) rather than the run hitting the step budget.
+            AGENT_MODEL: [turn(i) for i in range(12)] + [ScriptedTurn(content="Nothing alike.")],
+            USER_MODEL: [ScriptedTurn(content=STOP) for _ in range(14)],
+        },
+        vary_on_resample=True,
+    )
+    return llm, recording_session(
+        ledger=ledger_for(store.root),
+        phase="test",
+        completion_fn=llm.completion,
+        api_key=UNUSED_API_KEY,
+        api_base=UNUSED_API_BASE,
+        limiter_for=no_limiter,
+    )
+
+
+def _resample_fork(store: Store, *, fork_step: int, run_id: str, tool_calls_per_turn: int = 3):
+    from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
+
+    llm, session = _divergent_session(store, tool_calls_per_turn=tool_calls_per_turn)
+    spec = ForkSpec(parent_run_id="r1", run_id=run_id, fork_step=fork_step)
+    with session:
+        import tau2.utils.llm_utils as llm_utils
+
+        driver = Tau2ForkDriver(
+            spec,
+            store=store.blobs,
+            reader=store.reader,
+            tape=store.tape,
+            live_completion=llm_utils.completion,
+        )
+        run_fork(driver, spec, _ResampleDiffering())
+    return llm, driver
+
+
+def _first_llm_step_at_or_after(store: Store, run_id: str, minimum: int) -> int:
+    steps = store.reader.get_steps(run_id)
+    return next(s.step_idx for s in steps if s.actor in {"agent", "user"} and s.step_idx >= minimum)
+
+
+@pytest.mark.parametrize("where", ["step-0", "mid-run"])
+def test_resampling_hands_the_run_over_and_never_diverges(store, where):
+    """Whatever the live model says after the fork, the tape must not be
+    consulted again -- at step 0 or in the middle of a run."""
+    recorded, _ = _recorded(AIRLINE_READS, store)
+    fork_step = 0 if where == "step-0" else _first_llm_step_at_or_after(store, "r1", 3)
+
+    llm, driver = _resample_fork(store, fork_step=fork_step, run_id=f"fork-{where}")
+
+    assert driver.result is not None, "the fork did not finish"
+    assert llm.calls > 0, "nothing reached the live model"
+    assert driver.result.live_llm_calls > 0
+    # Exactly the LLM steps up to and including the fork step come off the
+    # tape -- the fork step itself is served and then resampled -- and not
+    # one request after it is matched against the recording.
+    served = [
+        step
+        for step in store.reader.get_steps("r1")
+        if step.actor in {"agent", "user", "evaluator"} and step.step_idx <= fork_step
+    ]
+    assert driver.result.tape_llm_calls == len(served)
+    assert recorded.steps > 0
+
+
+@pytest.mark.parametrize("where", ["step-0", "mid-run"])
+def test_every_step_after_the_fork_is_recorded_live_with_the_right_actor(store, where):
+    """The fork's own tape must show the suffix as live, with each step
+    attributed to the participant that actually produced it."""
+    from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, USER_MODEL
+
+    _recorded(AIRLINE_READS, store)
+    fork_step = 0 if where == "step-0" else _first_llm_step_at_or_after(store, "r1", 3)
+
+    _llm, driver = _resample_fork(store, fork_step=fork_step, run_id=f"fork-actor-{where}")
+
+    assert driver.result is not None
+    steps = store.reader.get_steps(driver.result.run_id)
+    assert [step.step_idx for step in steps] == list(range(len(steps)))
+    suffix = [step for step in steps if step.step_idx >= fork_step]
+    assert suffix, "the fork recorded no suffix"
+    assert all(step.from_tape is False for step in suffix)
+    for step in suffix:
+        if step.actor == "agent":
+            assert step.model == AGENT_MODEL, step.step_idx
+        elif step.actor == "user":
+            assert step.model == USER_MODEL, step.step_idx
+
+
+def test_the_live_suffix_may_call_a_different_number_of_tools(store):
+    """The recorded turn made one tool call; the resampled one makes
+    three. A replayer still matching against the tape would diverge on
+    the very next request."""
+    _recorded(AIRLINE_READS, store)
+    fork_step = _first_llm_step_at_or_after(store, "r1", 3)
+
+    _llm, driver = _resample_fork(
+        store, fork_step=fork_step, run_id="fork-many-tools", tool_calls_per_turn=3
+    )
+
+    assert driver.result is not None
+    tools = [
+        step
+        for step in store.reader.get_steps(driver.result.run_id)
+        if step.actor == "tool" and step.step_idx > fork_step
+    ]
+    assert any(step.tool_name == "calculate" for step in tools), "the live tool calls never ran"
