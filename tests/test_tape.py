@@ -146,6 +146,60 @@ def test_canonical_request_hash_changes_with_sampling_params():
     )
 
 
+def test_canonical_request_hash_changes_with_tool_choice():
+    """`tool_choice` steers sampling as much as `tools` does.
+
+    tau2 always sends `tool_choice="auto"` (`llm_utils.generate`), so this
+    never fires in practice -- but a replay whose `tool_choice` differed
+    from the recording would otherwise be served the recorded response
+    silently, which is exactly the "replay tools silently lie" failure the
+    hash exists to prevent.
+    """
+    base = {"model": "m", "messages": [], "tools": [{"name": "t"}]}
+
+    assert canonical_request_hash({**base, "tool_choice": "auto"}) != canonical_request_hash(
+        {**base, "tool_choice": "none"}
+    )
+
+
+def test_step_accepts_evaluator_actor():
+    """tau2's NL-assertion judge is an LLM call on the reward path (retail)."""
+    assert _step(actor="evaluator").actor == "evaluator"
+
+
+def test_step_rejects_unknown_actor():
+    with pytest.raises(ValidationError):
+        _step(actor="orchestrator")
+
+
+def test_step_records_the_hash_of_the_state_entering_the_step():
+    """`state_hash_before` makes a step self-contained for `restore(k)`.
+
+    Without it, verifying "the world entering step k is what was
+    recorded" means reaching for step k-1's `state_hash` -- which does not
+    exist for k=0.
+    """
+    step = _step(state_hash_before="e" * 64)
+
+    assert step.state_hash_before == "e" * 64
+
+
+def test_state_hash_before_defaults_to_none():
+    assert _step().state_hash_before is None
+
+
+def test_from_tape_defaults_to_false_and_round_trips(tmp_path):
+    """A forked run's prefix steps are marked as read from the parent's tape."""
+    tape = TapeWriter(tmp_path)
+    tape.start_run(_manifest(run_id="fork-1", parent_run_id="run-1", fork_step=3))
+    tape.append_step(_step(run_id="fork-1", step_idx=0, from_tape=True))
+    tape.append_step(_step(run_id="fork-1", step_idx=1))
+
+    steps = TapeReader(tmp_path).get_steps("fork-1")
+
+    assert [step.from_tape for step in steps] == [True, False]
+
+
 _request_dicts = st.fixed_dictionaries(
     {
         "model": st.text(min_size=1, max_size=10),
