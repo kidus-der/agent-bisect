@@ -55,8 +55,13 @@ def test_settings_repr_never_contains_key(isolated_env, monkeypatch):
     assert FAKE_KEY not in str(settings)
 
 
-def test_settings_loads_dotenv_file(isolated_env):
-    (isolated_env / ".env").write_text(f"NVIDIA_API_KEY={FAKE_KEY}\n")
+def test_settings_loads_dotenv_file(isolated_env, monkeypatch):
+    env_file = isolated_env / ".env"
+    env_file.write_text(f"NVIDIA_API_KEY={FAKE_KEY}\n")
+    # The autouse guard in conftest points BISECT_ENV_FILE at a path that does
+    # not exist, so a test that wants a dotenv loaded must name its own.
+    monkeypatch.setenv("BISECT_ENV_FILE", str(env_file))
+    get_settings.cache_clear()
 
     settings = get_settings()
 

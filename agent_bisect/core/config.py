@@ -17,11 +17,22 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import find_dotenv, load_dotenv
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
 
-DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+#: The ONLY host the NVIDIA key may ever be sent to.
+NVIDIA_ALLOWED_HOST = "integrate.api.nvidia.com"
+DEFAULT_NVIDIA_BASE_URL = f"https://{NVIDIA_ALLOWED_HOST}/v1"
+#: Offline development against a local server (e.g. mlx_lm.server). Kept as a
+#: separate setting precisely so it can never be handed the NVIDIA key; see
+#: docs/decisions/0001-preregistration.md ("local MLX models: development and
+#: tests only, never for reported numbers").
+DEFAULT_LOCAL_API_KEY = "local-dev-unused"
+#: An explicit dotenv path. Wins over discovery; a path that does not exist
+#: loads nothing. The test suite sets this so it cannot reach a real .env.
+ENV_FILE_VAR = "BISECT_ENV_FILE"
 DEFAULT_RUNS_DIR = "runs"
 DEFAULT_DATA_DIR = "data"
 
@@ -47,6 +58,8 @@ class Settings(BaseModel):
 
     nvidia_api_key: SecretStr | None
     nvidia_base_url: str = DEFAULT_NVIDIA_BASE_URL
+    local_base_url: str | None = None
+    local_api_key: SecretStr = SecretStr(DEFAULT_LOCAL_API_KEY)
     runs_dir: Path = Path(DEFAULT_RUNS_DIR)
     data_dir: Path = Path(DEFAULT_DATA_DIR)
 
@@ -55,15 +68,49 @@ class Settings(BaseModel):
         """Boolean-only presence check — never exposes the key value."""
         return self.nvidia_api_key is not None
 
+    @model_validator(mode="after")
+    def _key_only_goes_to_the_nvidia_host(self) -> Settings:
+        """Refuse to hold the NVIDIA key alongside a base URL that is not NVIDIA's.
+
+        `nvidia_base_url` comes straight from the environment. If it were
+        pointed anywhere else — a typo, a stale export, a hostile value —
+        every request would carry `Authorization: Bearer <key>` to that
+        host. Failing at construction means the key is never paired with an
+        endpoint that should not see it, and the error text never contains
+        the key itself.
+        """
+        if self.nvidia_api_key is None:
+            return self
+        parsed = urlparse(self.nvidia_base_url)
+        if parsed.scheme != "https" or parsed.hostname != NVIDIA_ALLOWED_HOST:
+            raise ValueError(
+                f"NVIDIA_API_KEY is set but NVIDIA_BASE_URL is {self.nvidia_base_url!r}; "
+                f"the key may only be sent to https://{NVIDIA_ALLOWED_HOST}. "
+                f"For a local endpoint use BISECT_LOCAL_BASE_URL and unset NVIDIA_API_KEY."
+            )
+        return self
+
 
 def _settings_from_env() -> Settings:
     raw_key = os.environ.get("NVIDIA_API_KEY", "").strip()
     return Settings(
         nvidia_api_key=SecretStr(raw_key) if raw_key else None,
         nvidia_base_url=os.environ.get("NVIDIA_BASE_URL", DEFAULT_NVIDIA_BASE_URL),
+        local_base_url=os.environ.get("BISECT_LOCAL_BASE_URL") or None,
+        local_api_key=SecretStr(
+            os.environ.get("BISECT_LOCAL_API_KEY", DEFAULT_LOCAL_API_KEY)
+        ),
         runs_dir=Path(os.environ.get("BISECT_RUNS_DIR", DEFAULT_RUNS_DIR)),
         data_dir=Path(os.environ.get("BISECT_DATA_DIR", DEFAULT_DATA_DIR)),
     )
+
+
+def _dotenv_path() -> str:
+    """`$BISECT_ENV_FILE` if set (even when absent), else discovery from the cwd."""
+    explicit = os.environ.get(ENV_FILE_VAR)
+    if explicit is not None:
+        return explicit
+    return find_dotenv(usecwd=True)
 
 
 @lru_cache(maxsize=1)
@@ -82,5 +129,5 @@ def get_settings() -> Settings:
 
     Call `get_settings.cache_clear()` in tests that mutate the environment.
     """
-    load_dotenv(dotenv_path=find_dotenv(usecwd=True), override=False)
+    load_dotenv(dotenv_path=_dotenv_path(), override=False)
     return _settings_from_env()
