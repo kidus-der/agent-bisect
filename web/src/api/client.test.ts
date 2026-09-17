@@ -71,6 +71,27 @@ describe('apiFetch', () => {
     expect(error.retryable).toBe(true)
   })
 
+  test('a request that outlives the timeout fails as a retryable timeout, not a generic network error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new DOMException('The operation timed out.', 'TimeoutError'))),
+    )
+    const error = await captureError(apiFetch('/overview'))
+    expect(error).toMatchObject({ kind: 'network', code: 'timeout' })
+    expect(error.message).toMatch(/did not answer within 8 s/)
+    expect(error.retryable).toBe(true)
+  })
+
+  test("every request carries an abort signal, merged with the caller's", async () => {
+    const fetchMock = mockFetch(jsonResponse({ success: true, data: {}, error: null, meta: META }))
+    const controller = new AbortController()
+    await apiFetch('/meta', { signal: controller.signal })
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+    expect(init?.signal).toBeInstanceOf(AbortSignal)
+    controller.abort()
+    expect(init?.signal?.aborted).toBe(true)
+  })
+
   test('maps a non-JSON 5xx (dev proxy with the API down) to a retryable http error', async () => {
     mockFetch({
       ok: false,
