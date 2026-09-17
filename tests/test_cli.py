@@ -35,7 +35,7 @@ def _isolate_settings_lookup(monkeypatch):
 
 
 def test_doctor_exits_zero_when_all_checks_pass(monkeypatch):
-    monkeypatch.setattr(cli, "run_doctor", lambda settings: ALL_PASSING)
+    monkeypatch.setattr(cli, "run_doctor", lambda settings, **kwargs: ALL_PASSING)
 
     result = runner.invoke(cli.app, ["doctor"])
 
@@ -44,7 +44,7 @@ def test_doctor_exits_zero_when_all_checks_pass(monkeypatch):
 
 
 def test_doctor_exits_nonzero_when_a_check_fails(monkeypatch):
-    monkeypatch.setattr(cli, "run_doctor", lambda settings: ONE_FAILING)
+    monkeypatch.setattr(cli, "run_doctor", lambda settings, **kwargs: ONE_FAILING)
 
     result = runner.invoke(cli.app, ["doctor"])
 
@@ -52,7 +52,7 @@ def test_doctor_exits_nonzero_when_a_check_fails(monkeypatch):
 
 
 def test_doctor_human_output_marks_pass_and_fail(monkeypatch):
-    monkeypatch.setattr(cli, "run_doctor", lambda settings: ONE_FAILING)
+    monkeypatch.setattr(cli, "run_doctor", lambda settings, **kwargs: ONE_FAILING)
 
     result = runner.invoke(cli.app, ["doctor"])
 
@@ -61,7 +61,7 @@ def test_doctor_human_output_marks_pass_and_fail(monkeypatch):
 
 
 def test_doctor_json_output_is_valid_json(monkeypatch):
-    monkeypatch.setattr(cli, "run_doctor", lambda settings: ALL_PASSING)
+    monkeypatch.setattr(cli, "run_doctor", lambda settings, **kwargs: ALL_PASSING)
 
     result = runner.invoke(cli.app, ["doctor", "--json"])
 
@@ -89,3 +89,31 @@ def test_stub_commands_exit_2_with_message(command, phase):
 
     assert result.exit_code == 2
     assert f"not implemented yet (phase {phase})" in result.stdout
+
+
+def test_doctor_passes_the_live_flag_through_to_run_doctor(monkeypatch):
+    seen = {}
+
+    def fake(settings, **kwargs):
+        seen.update(kwargs)
+        return ALL_PASSING
+
+    monkeypatch.setattr(cli, "run_doctor", fake)
+
+    runner.invoke(cli.app, ["doctor", "--live"])
+
+    assert seen["live"] is True
+
+
+def test_doctor_does_not_run_live_by_default(monkeypatch):
+    seen = {}
+
+    def fake(settings, **kwargs):
+        seen.update(kwargs)
+        return ALL_PASSING
+
+    monkeypatch.setattr(cli, "run_doctor", fake)
+
+    runner.invoke(cli.app, ["doctor"])
+
+    assert seen["live"] is False

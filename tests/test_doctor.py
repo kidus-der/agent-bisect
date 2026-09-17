@@ -129,15 +129,18 @@ def test_airline_pass_rate_fails_outside_window(rate):
     assert evaluate_airline_pass_rate({"airline_pass_rate": rate}).passed is False
 
 
-def test_e2e_task_reward_fails_when_config_absent():
-    result = evaluate_e2e_task_reward(None)
+def test_e2e_task_reward_fails_when_nothing_was_run():
+    result = evaluate_e2e_task_reward(None, None)
 
     assert result.passed is False
-    assert "not measured yet" in result.detail
+    assert "no end-to-end" in result.detail
 
 
-def test_e2e_task_reward_passes_when_present():
-    assert evaluate_e2e_task_reward({"e2e_task_reward": 0.8}).passed is True
+def test_e2e_task_reward_passes_on_a_recorded_numeric_reward():
+    models = {"agent": "a", "user_sim": "u", "judge": "j"}
+    e2e = {"task_id": "0", "reward": 0.8, "agent": "a", "user_sim": "u"}
+
+    assert evaluate_e2e_task_reward(models, e2e).passed is True
 
 
 # ---- load_models_config ----
@@ -162,9 +165,11 @@ def test_load_models_config_reads_toml(tmp_path):
 def test_run_doctor_all_pass_when_everything_is_healthy_and_configured(tmp_path):
     settings = _settings()
     models_config = {
+        "agent": "a",
+        "user_sim": "u",
+        "judge": "j",
         "valid_tool_call_rate": 0.97,
         "airline_pass_rate": 0.55,
-        "e2e_task_reward": 1.0,
     }
 
     results = run_doctor(
@@ -174,6 +179,7 @@ def test_run_doctor_all_pass_when_everything_is_healthy_and_configured(tmp_path)
         get_tau2_status=lambda: (True, True, ""),
         get_nim_reachable=lambda: (True, "GET /v1/models -> 200"),
         load_models_config_fn=lambda: models_config,
+        load_e2e_fn=lambda: {"task_id": "0", "reward": 1.0, "agent": "a", "user_sim": "u"},
     )
 
     assert all(r.passed for r in results)
@@ -183,6 +189,7 @@ def test_run_doctor_all_pass_when_everything_is_healthy_and_configured(tmp_path)
         "node",
         "tau2",
         "nim_reachable",
+        "chosen_models",
         "valid_tool_call_rate",
         "airline_pass_rate",
         "e2e_task_reward",
@@ -199,6 +206,7 @@ def test_run_doctor_fails_only_on_not_measured_yet_checks_when_config_absent():
         get_tau2_status=lambda: (True, True, ""),
         get_nim_reachable=lambda: (True, "GET /v1/models -> 200"),
         load_models_config_fn=lambda: None,
+        load_e2e_fn=lambda: None,
     )
 
     by_name = {r.name: r for r in results}
@@ -209,6 +217,7 @@ def test_run_doctor_fails_only_on_not_measured_yet_checks_when_config_absent():
     assert by_name["nim_reachable"].passed is True
     assert by_name["valid_tool_call_rate"].passed is False
     assert by_name["airline_pass_rate"].passed is False
+    assert by_name["chosen_models"].passed is False
     assert by_name["e2e_task_reward"].passed is False
 
 

@@ -40,6 +40,11 @@ LEDGER_PATH = REPO_ROOT / "runs" / "ledger.sqlite"
 PHASE = "P0"
 P0_CALL_CAP = 4000
 RAMP_CALL_BUDGET = 1200
+#: Protocol 0004 section 5.5 asks whether the limit is per model or account-wide,
+#: but its step list never schedules the "each model alone" baseline that question
+#: needs. This allowance pays for that one window, over and above the 1,200-call
+#: ramp budget. The overage is deliberate, bounded and recorded in the state file.
+ISOLATION_ALLOWANCE = 120
 STATE_SCHEMA = 1
 
 RAMP_RATES = (20, 40, 60, 90, 120, 160, 200)
@@ -215,9 +220,12 @@ async def run_window(
 class Ramp:
     """Owns the resumable state file, the ledger and the ramp call budget."""
 
-    def __init__(self, state_path: Path, ledger: BudgetLedger) -> None:
+    def __init__(
+        self, state_path: Path, ledger: BudgetLedger, *, allowance: int = RAMP_CALL_BUDGET
+    ) -> None:
         self._state_path = state_path
         self._ledger = ledger
+        self._allowance = allowance
         self._state = self._load()
 
     def _load(self) -> dict:
@@ -245,7 +253,7 @@ class Ramp:
         return sum(w["sent"] for w in self._state["windows"])
 
     def budget_left(self) -> int:
-        return RAMP_CALL_BUDGET - self.calls_spent
+        return self._allowance - self.calls_spent
 
     def find(self, phase: str, model: str, target_rpm: int, index: int) -> dict | None:
         key = f"{phase}|{model}|{target_rpm}|{index}"
@@ -285,7 +293,7 @@ class Ramp:
         if need > self.budget_left():
             raise RampBudgetExhausted(
                 f"window {phase}|{model}|{target_rpm} needs {need} calls, "
-                f"{self.budget_left()} left of {RAMP_CALL_BUDGET}"
+                f"{self.budget_left()} left of {self._allowance}"
             )
         outcomes = await run_window(client, model, target_rpm, duration_s)
         record_window(self._ledger, model, outcomes)
@@ -406,7 +414,9 @@ async def _run_others(ramp: Ramp, client: httpx.AsyncClient, measured: int) -> N
     account_wide, detail = await account_wide_probe(ramp, client, measured)
     ramp.set_account_wide(account_wide, detail)
     print(f"account-wide: {account_wide} — {detail}")
-    ramp.set_measured(SECOND_MODEL, measured)
+    # Deliberately NOT ramp.set_measured(SECOND_MODEL, measured): the pair
+    # window measures the second model *under contention*, which is not its
+    # own ceiling. Use --isolate to measure it alone.
 
     duration = short_window_duration(ramp.budget_left(), len(SHORT_RAMP_MODELS))
     print(f"short ramps: {duration:.0f}s windows, {ramp.budget_left()} calls left")
@@ -416,6 +426,25 @@ async def _run_others(ramp: Ramp, client: httpx.AsyncClient, measured: int) -> N
         except RampBudgetExhausted as exc:
             ramp.note(f"short ramp for {model} skipped: {exc}")
             print(f"  skip {model}: {exc}")
+
+
+async def isolate(
+    ramp: Ramp, client: httpx.AsyncClient, model: str, rate: int, duration_s: float
+) -> dict:
+    """One model alone at `rate`, to settle protocol §5.5.
+
+    The pair window only shows that *someone* was throttled. Deciding
+    per-model vs account-wide needs each model's behaviour alone at the same
+    rate: 429s alone mean that model's own ceiling is lower; clean alone
+    means the combined rate caused them.
+    """
+    row = await ramp.window(client, "isolate", model, rate, duration_s)
+    verdict = "its own ceiling is below this rate" if row["rate_limited"] else "clean alone"
+    ramp.note(
+        f"isolation window: {model} alone at {rate} rpm for {duration_s:.0f}s -> "
+        f"{row['rate_limited']} HTTP 429 of {row['sent']} ({verdict})"
+    )
+    return row
 
 
 async def run(only: str | None) -> Ramp:
@@ -440,13 +469,39 @@ async def run(only: str | None) -> Ramp:
     return ramp
 
 
+async def run_isolation(model: str, rate: int, duration_s: float) -> Ramp:
+    settings = get_settings()
+    if not settings.has_nvidia_key:
+        raise SystemExit("NVIDIA_API_KEY not set; cannot measure the rate limit.")
+    assert settings.nvidia_api_key is not None
+    ledger = BudgetLedger(LEDGER_PATH, max_calls=P0_CALL_CAP)
+    ramp = Ramp(STATE_PATH, ledger, allowance=RAMP_CALL_BUDGET + ISOLATION_ALLOWANCE)
+    headers = {"Authorization": f"Bearer {settings.nvidia_api_key.get_secret_value()}"}
+    async with httpx.AsyncClient(
+        base_url=settings.nvidia_base_url, headers=headers, timeout=REQUEST_TIMEOUT_S
+    ) as client:
+        await isolate(ramp, client, model, rate, duration_s)
+    return ramp
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--only", choices=("primary", "all"), default="all",
         help="'primary' stops after the first model's full ramp.",
     )
+    parser.add_argument("--isolate", default=None,
+                        help="Measure one model ALONE at --rate, to settle per-model "
+                             "vs account-wide (protocol 0004 section 5.5).")
+    parser.add_argument("--rate", type=int, default=120)
+    parser.add_argument("--window", type=float, default=WINDOW_S)
     args = parser.parse_args()
+    if args.isolate:
+        ramp = asyncio.run(run_isolation(args.isolate, args.rate, args.window))
+        print(f"\nwrote {STATE_PATH}")
+        for note in ramp.state["notes"][-1:]:
+            print(f"  {note}")
+        return
     ramp = asyncio.run(run(None if args.only == "all" else args.only))
     print(f"\nwrote {STATE_PATH} ({ramp.calls_spent} ramp calls spent, "
           f"{ramp.budget_left()} left of {RAMP_CALL_BUDGET})")

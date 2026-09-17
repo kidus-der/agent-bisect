@@ -39,10 +39,16 @@ def _print_json(results: list[CheckResult]) -> None:
 @app.command()
 def doctor(
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    live: bool = typer.Option(
+        False,
+        "--live",
+        help="Run ONE real τ² airline task end to end with the chosen models "
+        "(makes API calls). Without it, the recorded result is verified instead.",
+    ),
 ) -> None:
     """Check the environment: key presence, tooling, tau2, NIM reachability, measured thresholds."""
     settings = get_settings()
-    results = run_doctor(settings)
+    results = run_doctor(settings, live=live)
 
     if json_output:
         _print_json(results)

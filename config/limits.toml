@@ -1,11 +1,40 @@
-# Rate-limiter settings for agent_bisect.core.llm.TokenBucketLimiter.
+# Rate-limiter settings for agent_bisect.core.limits / core.llm.TokenBucketLimiter.
 #
-# `requests_per_minute` is the process-wide token-bucket rate for calls to
-# NVIDIA NIM. This default (30) is a conservative placeholder — P0b
-# measures each candidate model's actual ceiling by ramping to HTTP 429 and
-# records "measured requests/min minus a 10% safety margin" per
-# docs/decisions/0001-preregistration.md. Do not hand-tune this value;
-# P0b's measurement script is the only writer once it runs.
+# Written by P0b from the measured ramp (runs/p0/rate_limit.json), per the
+# protocol in docs/decisions/0004-p0-probe-protocol.md §5 and the "measured
+# minus 10%" rule in docs/decisions/0001-preregistration.md. Do not hand-tune
+# these; re-measure and rewrite instead. Numbers and evidence:
+# docs/decisions/models.md.
+#
+# scope = "model": NVIDIA NIM enforces the limit PER MODEL on this key, not
+# account-wide. Evidence: in a 60s window with two models running at 120 rpm
+# each (240 rpm combined), openai/gpt-oss-20b took 120/120 with zero 429s
+# while nvidia/nemotron-3.5-lightning-30b-a3b took 48 HTTP 429s; a shared
+# account bucket could not throttle one model to that degree and spare the
+# other entirely. Confirmed by an isolation window: nemotron-3.5-lightning
+# ALONE at 120 rpm still returned 10 HTTP 429s in 60 requests, so its own
+# ceiling — not the combined rate — is what it hit.
 
 [limiter]
-requests_per_minute = 30
+# Applies to any model without an override below: the 120 rpm ceiling
+# measured for deepseek-v4-flash, nemotron-3-super and glm-5.3-flash
+# (all clean at 120, all 429 at 160), minus the 10% safety margin.
+requests_per_minute = 108
+scope = "model"
+# Tasks run concurrently in threads; the bucket, not the provider, paces them.
+max_concurrency = 5
+
+[limiter.per_model]
+# No 429 at any rate up to the ramp's 200 rpm ceiling -> 200 - 10%.
+"openai/gpt-oss-20b" = 180
+# Measured clean at 120, 429 at 160 -> 120 - 10%.
+"deepseek-ai/deepseek-v4-flash-0731" = 108
+"nvidia/nemotron-3-super-120b-a12b" = 108
+"z-ai/glm-5.3-flash" = 108
+# Clean at 120; 160 was never reached (ramp budget exhausted), so 120 is a
+# measured floor rather than a located ceiling. Treated as 120 - 10%.
+"nvidia/nemotron-3-ultra-550b-a55b" = 108
+# Both returned 429s AT 120 rpm, so their ceilings are below it and were
+# never bracketed. Set to half the rate that throttled them until measured.
+"nvidia/nemotron-3.5-lightning-30b-a3b" = 60
+"moonshotai/kimi-k3" = 60
