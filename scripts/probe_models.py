@@ -43,7 +43,13 @@ from agent_bisect.adapters.tau2_probe import ProbeCollector, TaskProbeResult
 from agent_bisect.core.budget import BudgetLedger
 from agent_bisect.core.config import get_settings, redact
 from agent_bisect.core.limits import get_limiter_settings, get_shared_limiter
-from agent_bisect.core.llm import LiteLLMTransport, LLMClient, LLMClientConfig, LLMRequest
+from agent_bisect.core.llm import (
+    AuthenticationError,
+    LiteLLMTransport,
+    LLMClient,
+    LLMClientConfig,
+    LLMRequest,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROBE_DIR = REPO_ROOT / "runs" / "p0" / "probe"
@@ -217,6 +223,12 @@ def run_one_task(
         simulation = run_single_task(
             config, task, seed=seed, evaluation_type=EvaluationType.ALL
         )
+    except AuthenticationError:
+        # The key will not start working by retrying, and every remaining task
+        # would fail the same way. Stop the run: finished tasks are already
+        # checkpointed, so fixing the key and re-running resumes from here.
+        _local.collector = None
+        raise
     except Exception as exc:  # noqa: BLE001 - infra failure, recorded not raised
         # Exception, not BaseException: Ctrl+C must stop the probe rather than
         # be written into a checkpoint as if it were a task-level failure.
@@ -283,7 +295,12 @@ def probe_models(
             for model, task in pending
         }
         for future, model in futures.items():
-            row = future.result()
+            try:
+                row = future.result()
+            except AuthenticationError as exc:
+                print(f"\nSTOPPING: {exc}", flush=True)
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise
             status = row.error or ("pass" if row.passed else f"reward={row.reward}")
             print(f"  {model} task {row.task_id}: {status} "
                   f"({row.n_steps} msgs, {row.calls_used} calls, {row.wall_time_s:.0f}s)",
