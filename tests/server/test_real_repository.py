@@ -364,3 +364,64 @@ def test_search_reports_status_for_both_run_kinds(one_complete_one_recording_dir
     by_id = {hit.id: hit for hit in results.hits}
     assert by_id["recording-run"].status == "recording"
     assert by_id["complete-run"].status == "complete"
+
+
+@pytest.fixture
+def two_runs_one_with_a_tool_dir(tmp_path) -> Path:
+    """`run-with-tool` calls `book_reservation`; `run-without-tool` has an
+    agent-only step -- the q filter's tool-name reach has to distinguish them
+    even though neither run's `RunSummary` itself carries a tool name."""
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    _write_run(writer, "run-without-tool", n_steps=1)
+    writer.start_run(
+        RunManifest(
+            run_id="run-with-tool",
+            domain="airline",
+            task_id="refund_after_cancellation",
+            agent_model="m",
+            user_model="u",
+            tau2_commit="c",
+            created_at=datetime.now(UTC),
+        )
+    )
+    writer.append_step(
+        Step(
+            run_id="run-with-tool",
+            step_idx=0,
+            actor="tool",
+            tool_name="book_reservation",
+            state_before="a",
+            state_after="a",
+            state_hash="h",
+        )
+    )
+    writer.record_outcome(Outcome(run_id="run-with-tool", reward=1.0))
+    return runs_dir
+
+
+def test_q_filter_reaches_tool_names_in_real_mode(two_runs_one_with_a_tool_dir):
+    repo = RealRepository(runs_dir=two_runs_one_with_a_tool_dir)
+    runs, total = repo.list_runs(RunFilter(q="book_reservation"))
+    assert total == 1
+    assert runs[0].run_id == "run-with-tool"
+
+
+def test_q_filter_is_case_insensitive_in_real_mode(two_runs_one_with_a_tool_dir):
+    repo = RealRepository(runs_dir=two_runs_one_with_a_tool_dir)
+    runs, _ = repo.list_runs(RunFilter(q="BOOK_RESERVATION"))
+    assert [r.run_id for r in runs] == ["run-with-tool"]
+
+
+def test_fault_type_none_matches_every_real_run(two_runs_one_with_a_tool_dir):
+    """Real recordings never have a planted fault -- `fault_type=none` must
+    match all of them, never zero."""
+    repo = RealRepository(runs_dir=two_runs_one_with_a_tool_dir)
+    runs, total = repo.list_runs(RunFilter(fault_type="none"))
+    assert total == 2
+
+
+def test_fault_type_specific_value_matches_no_real_run(two_runs_one_with_a_tool_dir):
+    repo = RealRepository(runs_dir=two_runs_one_with_a_tool_dir)
+    runs, total = repo.list_runs(RunFilter(fault_type="wrong_value"))
+    assert total == 0

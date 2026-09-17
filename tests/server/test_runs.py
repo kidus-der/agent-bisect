@@ -26,6 +26,62 @@ def test_list_runs_sort_descending(client):
     assert sizes == sorted(sizes, reverse=True)
 
 
+def test_q_filter_matches_run_id_case_insensitive(client):
+    body = client.get("/api/runs?q=BRIEF-12-step").json()["data"]
+    assert {r["run_id"] for r in body["runs"]} == {"brief-12-step"}
+
+
+def test_q_filter_matches_task_id(client):
+    body = client.get("/api/runs?q=refund_after_cancellation&limit=200").json()["data"]
+    assert "brief-12-step" in {r["run_id"] for r in body["runs"]}
+    assert all(r["task_id"] == "refund_after_cancellation" for r in body["runs"])
+
+
+def test_q_filter_matches_model_substring(client):
+    body = client.get("/api/runs?q=nemotron&limit=200").json()["data"]
+    assert len(body["runs"]) > 0
+    assert all("nemotron" in r["model"] for r in body["runs"])
+
+
+def test_q_filter_matches_a_tool_name_not_present_on_run_summary(client):
+    """`update_reservation_baggages` lives on individual steps, not on
+    `RunSummary` -- the filter has to reach into per-run tool names."""
+    body = client.get("/api/runs?q=update_reservation_baggages&limit=200").json()["data"]
+    assert "brief-12-step" in {r["run_id"] for r in body["runs"]}
+
+
+def test_q_filter_excludes_non_matching_runs(client):
+    body = client.get("/api/runs?q=no_such_run_or_tool_exists_zzz").json()
+    assert body["data"]["runs"] == []
+    assert body["meta"]["total"] == 0
+
+
+def test_q_over_max_length_is_rejected(client):
+    assert client.get(f"/api/runs?q={'a' * 101}").status_code == 422
+
+
+def test_fault_type_filter_exact_match(client):
+    body = client.get("/api/runs?fault_type=wrong_value&limit=200").json()["data"]
+    assert len(body["runs"]) > 0
+    assert all(r["fault_type"] == "wrong_value" for r in body["runs"])
+
+
+def test_fault_type_filter_none_means_unplanted(client):
+    body = client.get("/api/runs?fault_type=none&limit=200").json()["data"]
+    assert len(body["runs"]) > 0
+    assert all(r["fault_type"] is None for r in body["runs"])
+
+
+def test_fault_type_invalid_value_is_422(client):
+    assert client.get("/api/runs?fault_type=not_a_real_fault_type").status_code == 422
+
+
+def test_meta_total_reflects_the_filtered_count(client):
+    filtered_total = client.get("/api/runs?fault_type=wrong_value&limit=1").json()["meta"]["total"]
+    unfiltered_total = client.get("/api/runs?limit=1").json()["meta"]["total"]
+    assert 0 < filtered_total < unfiltered_total
+
+
 def test_list_runs_pagination_is_stable(client):
     page1 = client.get("/api/runs?limit=20&page=1").json()["data"]["runs"]
     page2 = client.get("/api/runs?limit=20&page=2").json()["data"]["runs"]
