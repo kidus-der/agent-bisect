@@ -14,9 +14,10 @@ for nothing twice.
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, TextIO
+from typing import Annotated, Any, TextIO
 
 import typer
 
@@ -33,7 +34,8 @@ from agent_bisect.adapters.tau2_batch import (
 )
 from agent_bisect.cli_io import own_stdout, say
 from agent_bisect.core.budget import DEFAULT_LEDGER_PATH, BudgetLedger
-from agent_bisect.core.config import get_settings
+from agent_bisect.core.config import get_settings, redact
+from agent_bisect.core.job_status import done, failed, queued, running, write_status
 from agent_bisect.core.models import load_chosen_models
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import TapeReader, TapeWriter
@@ -42,8 +44,22 @@ MISSING_KEY_EXIT_CODE = 1
 #: Ledger cap for a P1 recording batch, from the run plan's call budget.
 DEFAULT_CALL_CAP = 1500
 DEFAULT_PHASE = "P1"
+#: Longest error text kept on a published status. Redacted first, always.
+ERROR_CHARS = 400
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
+
+
+def _publish(runs_dir: Path, status: dict[str, Any]) -> None:
+    """Write the job status the dashboard's Live page polls.
+
+    Never fatal: a batch that recorded twenty runs must not be reported as
+    a failure because a status file could not be written.
+    """
+    try:
+        write_status(runs_dir, status)
+    except OSError as exc:  # noqa: BLE001 - reported, never raised
+        print(f"warning: could not write the job status: {exc}", file=sys.stderr)  # noqa: T201
 
 
 def _reporter(stream: TextIO) -> Callable[[Checkpoint], None]:
@@ -115,19 +131,66 @@ def record(
 
     # The cap is this phase's budget, not the file's: the same ledger
     # already carries every call P0 spent.
-    ledger = BudgetLedger(ledger_path, max_calls=max_calls, cap_scope="phase")
-    with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
-        checkpoints = record_batch(
-            items,
-            spec_for=lambda item: _spec_for(template, item),
-            store=store,
-            tape=tape,
-            reader=reader,
-            root=runs_dir,
-            concurrency=concurrency,
-            on_done=None if json_output else _reporter(stdout),
-        )
+    common = {
+        "kind": "record",
+        # Stable across resumes: the Live page is watching one job, and a
+        # batch that stops and restarts is the same job carrying on.
+        "job_id": f"{phase}-record-{domain}",
+        "phase": phase,
+        "items_total": len(items),
+        "model": template.agent_model,
+    }
+    _publish(runs_dir, queued(**common, items_done=len(items) - len(outstanding)))
 
+    ledger = BudgetLedger(ledger_path, max_calls=max_calls, cap_scope="phase")
+    finished = len(items) - len(outstanding)
+    progress: Callable[[Checkpoint], None] | None = None
+
+    def on_checkpoint(checkpoint: Checkpoint) -> None:
+        nonlocal finished
+        finished += 1
+        _publish(
+            runs_dir,
+            running(
+                **common, items_done=finished, calls_spent=ledger.totals_per_phase().get(phase, 0)
+            ),
+        )
+        if progress is not None:
+            progress(checkpoint)
+
+    try:
+        with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
+            progress = None if json_output else _reporter(stdout)  # noqa: F841 - see on_checkpoint
+            checkpoints = record_batch(
+                items,
+                spec_for=lambda item: _spec_for(template, item),
+                store=store,
+                tape=tape,
+                reader=reader,
+                root=runs_dir,
+                concurrency=concurrency,
+                on_done=on_checkpoint,
+            )
+    except Exception as exc:
+        _publish(
+            runs_dir,
+            failed(
+                **common,
+                items_done=finished,
+                error=redact(f"{type(exc).__name__}: {exc}")[:ERROR_CHARS],
+                calls_spent=ledger.totals_per_phase().get(phase, 0),
+            ),
+        )
+        raise
+
+    _publish(
+        runs_dir,
+        done(
+            **common,
+            items_done=len(checkpoints),
+            calls_spent=ledger.totals_per_phase().get(phase, 0),
+        ),
+    )
     summary = {
         **summarise(checkpoints),
         "calls": ledger.totals_per_phase().get(phase, 0),
