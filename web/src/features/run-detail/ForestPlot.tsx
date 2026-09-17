@@ -1,6 +1,6 @@
 import { scaleLinear } from '@visx/scale'
 import { motion, useReducedMotion } from 'motion/react'
-import { useId, useMemo, memo } from 'react'
+import { useMemo, memo } from 'react'
 import useMeasure from 'react-use-measure'
 
 import { STAGGER_SECONDS, springTransition } from '@/design/motion'
@@ -26,7 +26,6 @@ interface ForestRowViewProps {
   readonly onSelect: (step: number) => void
   readonly delay: number
   readonly reduced: boolean
-  readonly gradientId: string
 }
 
 function rowLabel(row: ForestRow): string {
@@ -38,17 +37,10 @@ function rowLabel(row: ForestRow): string {
   return `Step ${row.step}, effect ${formatEffect(row.effect)}, 95% interval ${formatEffect(row.low)} to ${formatEffect(row.high)}${verdict}`
 }
 
-function ForestRowView({
-  row,
-  x,
-  width,
-  selected,
-  onSelect,
-  delay,
-  reduced,
-  gradientId,
-}: ForestRowViewProps) {
-  const stroke = row.blamed ? `url(#${gradientId})` : 'var(--bx-measure)'
+function ForestRowView({ row, x, width, selected, onSelect, delay, reduced }: ForestRowViewProps) {
+  // A gradient in objectBoundingBox units has nothing to resolve against on a
+  // zero-height line, so the blamed whisker painted as nothing. Solid amber.
+  const stroke = row.blamed ? 'var(--bx-blame)' : 'var(--bx-measure)'
   const fill = row.blamed ? 'var(--bx-blame)' : 'var(--bx-measure)'
   const mid = ROW_HEIGHT / 2
   const estimateX = x(row.effect)
@@ -92,6 +84,7 @@ function ForestRowView({
             transition={grow}
           >
             <line
+              data-whisker="span"
               x1={x(row.low)}
               x2={x(row.high)}
               y1={mid}
@@ -102,6 +95,7 @@ function ForestRowView({
             {[row.low, row.high].map((bound) => (
               <line
                 key={bound}
+                data-whisker="cap"
                 x1={x(bound)}
                 x2={x(bound)}
                 y1={mid - CAP_HALF}
@@ -185,7 +179,6 @@ interface ForestPlotProps {
  */
 function ForestPlotImpl({ rows, domain, delta, selectedStep, onSelectStep }: ForestPlotProps) {
   const reduced = useReducedMotion() ?? false
-  const gradientId = useId()
   const [plotRef, plotBounds] = useMeasure({ debounce: 0 })
   const width = Math.max(plotBounds.width, MIN_PLOT_WIDTH)
   const x = useMemo(
@@ -197,14 +190,6 @@ function ForestPlotImpl({ rows, domain, delta, selectedStep, onSelectStep }: For
 
   return (
     <div>
-      <svg aria-hidden="true" width={0} height={0} className="absolute">
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="var(--bx-blame)" />
-            <stop offset="1" stopColor="var(--bx-blame-coral)" />
-          </linearGradient>
-        </defs>
-      </svg>
       <div className="relative pt-6">
         {/* Zero and delta are drawn once behind every row, so they read as one axis. */}
         <div
@@ -242,7 +227,6 @@ function ForestPlotImpl({ rows, domain, delta, selectedStep, onSelectStep }: For
                   row.blamed ? lastDelay + STAGGER_SECONDS.forest : index * STAGGER_SECONDS.forest
                 }
                 reduced={reduced}
-                gradientId={gradientId}
               />
             ))}
           </ul>
