@@ -48,8 +48,10 @@ test('every KPI reaches its recorded value', async ({ page }) => {
 test('both charts carry a text alternative with their real numbers', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText(/Recall at m, for m from 1 to 10/)).toBeAttached()
-  await expect(page.getByText(/cost on a logarithmic axis/)).toBeAttached()
-  await expect(page.getByText(/Bisect: \$1\.56 per diagnosis/)).toBeAttached()
+  // Calls are the cost unit the server always measures; the price is only
+  // printed because this fixture happens to carry one.
+  await expect(page.getByText(/calls on a logarithmic axis/)).toBeAttached()
+  await expect(page.getByText(/Bisect: 780 calls per diagnosis \(\$1\.56\)/)).toBeAttached()
 })
 
 test('the rewind plays the hero run and can be paused', async ({ page }) => {
