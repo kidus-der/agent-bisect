@@ -62,7 +62,11 @@ def _trim(value: Any, max_items: int = _MAX_ITEMS) -> Any:
 
 def _render(client: TestClient, path: str) -> str:
     body = client.get(path).json()
-    return json.dumps(_trim(body["data"]), indent=2, sort_keys=True)
+    # Compact, not `indent=2`: a pretty-printed `run-detail` (12 steps' worth
+    # of step_effects, a full judge panel) runs past 100 lines on its own --
+    # this is a documentation example, not a payload someone reads structure
+    # from via indentation.
+    return json.dumps(_trim(body["data"]), sort_keys=True, separators=(",", ":"))
 
 
 def _replace_block(text: str, name: str, payload: str) -> str:
