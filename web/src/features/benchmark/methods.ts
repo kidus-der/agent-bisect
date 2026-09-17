@@ -93,9 +93,7 @@ export function methodLabel(name: MethodName): string {
 export function byMethodOrder<T extends { readonly method: MethodName }>(
   rows: readonly T[],
 ): readonly T[] {
-  return [...rows].sort(
-    (a, b) => METHOD_ORDER.indexOf(a.method) - METHOD_ORDER.indexOf(b.method),
-  )
+  return [...rows].sort((a, b) => METHOD_ORDER.indexOf(a.method) - METHOD_ORDER.indexOf(b.method))
 }
 
 export const FAULT_TYPE_LABELS = {
@@ -110,16 +108,21 @@ export const POSITION_ORDER = ['early', 'middle', 'late'] as const
 
 /** Where the blamed step landed relative to the planted one. */
 export const BLAME_LABELS = {
-  exact: 'exact step',
-  earlier: 'an earlier step',
-  later: 'a later step',
-  none: 'no step blamed',
+  exact: '✓ exact step',
+  earlier: '✕ an earlier step',
+  later: '✕ a later step',
+  none: '· no step blamed',
 } as const
 export const BLAME_LABEL_ORDER = ['exact', 'earlier', 'later', 'none'] as const
 
+/**
+ * Only `exact` is a hit. `earlier` and `later` are both misses and share the fail
+ * role; their own labels, which are always drawn, say which way they missed.
+ * `none` is the quiet "nothing was concluded" state, so it takes from-tape slate.
+ */
 export const BLAME_LABEL_ROLES: Readonly<Record<keyof typeof BLAME_LABELS, RoleName>> = {
   exact: 'pass',
-  earlier: 'judge',
-  later: 'judge',
-  none: 'fail',
+  earlier: 'fail',
+  later: 'fail',
+  none: 'tape',
 }
