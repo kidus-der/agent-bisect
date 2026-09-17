@@ -11,6 +11,7 @@ import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 import { TapeStep, type TapeStepState } from '@/components/primitives/TapeStep'
 import { cn } from '@/lib/utils'
 
+import { type Arm, forkCellState, forkLabel, rerunSummary } from './rerunNarrative'
 import { MAX_CELL_WIDTH_PX, MIN_CELL_WIDTH_PX } from './timelineScale'
 
 import {
@@ -28,9 +29,15 @@ interface RerunViewProps {
   readonly rerunId: string
 }
 
-function tapeState(step: number, forkStep: number, last: number, passed: boolean): TapeStepState {
+function tapeState(
+  step: number,
+  forkStep: number,
+  last: number,
+  passed: boolean,
+  arm: Arm,
+): TapeStepState {
   if (step < forkStep) return 'tape'
-  if (step === forkStep) return 'blamed'
+  if (step === forkStep) return forkCellState(arm)
   if (step === last) return passed ? 'passed' : 'failed'
   return 'ran'
 }
@@ -39,10 +46,11 @@ interface RerunTapeProps {
   readonly nSteps: number
   readonly forkStep: number
   readonly passed: boolean
+  readonly arm: Arm
 }
 
 /** The same tape, showing where this one re-run forked from the recording. */
-function RerunTape({ nSteps, forkStep, passed }: RerunTapeProps) {
+function RerunTape({ nSteps, forkStep, passed, arm }: RerunTapeProps) {
   return (
     <div className="[scrollbar-width:none] overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
       {/* Cells fill the panel the way the run tape does, rather than sitting as a
@@ -57,7 +65,7 @@ function RerunTape({ nSteps, forkStep, passed }: RerunTapeProps) {
           <TapeStep
             key={step}
             step={step}
-            state={tapeState(step, forkStep, nSteps, passed)}
+            state={tapeState(step, forkStep, nSteps, passed, arm)}
             size="fluid"
           />
         ))}
@@ -71,10 +79,11 @@ interface StepColumnProps {
   readonly steps: readonly StepView[]
   readonly forkStep: number
   readonly changed: ReadonlySet<number>
+  readonly arm: Arm
 }
 
 /** One side of the recorded-vs-re-run comparison. */
-function StepColumn({ label, steps, forkStep, changed }: StepColumnProps) {
+function StepColumn({ label, steps, forkStep, changed, arm }: StepColumnProps) {
   return (
     <div className="min-w-0">
       <InstrumentLabel as="h3" className="mb-2 block">
@@ -87,6 +96,7 @@ function StepColumn({ label, steps, forkStep, changed }: StepColumnProps) {
             step={step}
             forkStep={forkStep}
             changed={changed.has(step.step_idx)}
+            arm={arm}
           />
         ))}
       </ul>
@@ -115,16 +125,23 @@ interface StepRowProps {
   readonly step: StepView
   readonly forkStep: number
   readonly changed: boolean
+  readonly arm: Arm
 }
 
-function StepRow({ step, forkStep, changed }: StepRowProps) {
+function StepRow({ step, forkStep, changed, arm }: StepRowProps) {
   const isFork = step.step_idx === forkStep
+  const forkIntervened = isFork && arm === 'treated'
   return (
     <li
       className={cn(
         'flex min-h-14 items-start gap-3 border-l-2 py-2 pl-3',
         step.from_tape ? 'border-tape bg-tape-tint' : 'border-measure',
-        isFork && 'border-blame bg-blame-tint',
+        // Amber marks the arm that actually replaced something, never the control.
+        forkIntervened
+          ? 'border-blame bg-blame-tint'
+          : isFork
+            ? 'border-measure bg-measure-tint'
+            : '',
       )}
     >
       <span className="w-8 shrink-0 num text-small text-ink-muted">{step.step_idx}</span>
@@ -140,11 +157,7 @@ function StepRow({ step, forkStep, changed }: StepRowProps) {
         </p>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[11px] text-ink-muted">
           <span>
-            {isFork
-              ? 'fork · intervention applied here'
-              : step.from_tape
-                ? 'read from tape · 0 calls'
-                : 're-run live'}
+            {isFork ? forkLabel(arm) : step.from_tape ? 'read from tape · 0 calls' : 're-run live'}
           </span>
           {changed && !isFork ? (
             <span className="text-measure">differs from the recording</span>
@@ -263,7 +276,7 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
         bodyClassName="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8"
       >
         <div className="min-w-0 flex-1">
-          <RerunTape nSteps={nSteps} forkStep={row.step} passed={row.passed} />
+          <RerunTape nSteps={nSteps} forkStep={row.step} passed={row.passed} arm={row.arm} />
           <p className="mt-3 font-mono text-small text-ink-muted">
             steps 1–{Math.max(row.step - 1, 0)} read from tape · 0 calls · forked at k={row.step} ·{' '}
             {row.calls} calls spent
@@ -274,17 +287,27 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
         </div>
       </Panel>
 
-      {/* Side by side, because the only question this view answers is what the
-          intervention changed downstream of the fork. */}
+      {/* Side by side, because the only question this view answers is what this
+          arm changed downstream of the fork. */}
       <Panel variant="card" label="from the fork · recorded vs this re-run">
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 lg:grid-cols-2">
-          <StepColumn label="recorded" steps={recordedTail} forkStep={row.step} changed={changed} />
-          <StepColumn label="this re-run" steps={stepList} forkStep={row.step} changed={changed} />
+          <StepColumn
+            label="recorded"
+            steps={recordedTail}
+            forkStep={row.step}
+            changed={changed}
+            arm={row.arm}
+          />
+          <StepColumn
+            label="this re-run"
+            steps={stepList}
+            forkStep={row.step}
+            changed={changed}
+            arm={row.arm}
+          />
         </div>
-        <p className="mt-4 border-t border-line pt-3 text-small text-ink-muted">
-          {changed.size === 0
-            ? `Only the intervention at step ${row.step} differs; every later step came out the same as the recording.`
-            : `${changed.size} step${changed.size === 1 ? '' : 's'} after the fork came out differently from the recording.`}
+        <p className="mt-4 border-t border-line pt-3 text-small text-pretty text-ink-muted">
+          {rerunSummary(row.arm, row.step, changed.size)}
         </p>
       </Panel>
     </div>
