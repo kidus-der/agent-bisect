@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from agent_bisect.adapters.tau2_fault_injector import injector_spec_from
 from agent_bisect.adapters.tau2_inject import Tau2InjectRunner
 from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
 from agent_bisect.attribution.interventions import TruthfulToolResult, from_ref
@@ -251,6 +252,73 @@ def test_the_p3_gate_passes_on_the_dry_run(dry_run):
         "split": True, "replay": True, "strata": False,
     }
     assert "missing: ['late']" in next(c for c in criteria if c.name == "strata").detail
+
+
+# ---- the standing fault (decision 0016) ----
+
+
+@pytest.mark.parametrize("prefix_tools", ["snapshot", "rerun_live"])
+def test_a_fork_taken_before_the_planted_step_still_fails(dry_run, prefix_tools):
+    """The regression test for decision 0016.
+
+    A one-shot planted fault lives only in the recording, so a fork taken
+    before k re-executes the tool live, gets the truth and passes — which
+    would make the pre-registered shared control measure the base run and
+    collapse every effect to zero. With the fault standing in the world
+    the same fork still fails, and removing the fault is what makes it
+    pass again.
+    """
+    item = next(
+        entry for entry in dry_run["result"].items if entry["position_bucket"] == "middle"
+    )
+    before = item["planted_step"] - 1
+
+    with_fault = _fork_faulted(dry_run, item, before, prefix_tools, keep_fault=True)
+    without = _fork_faulted(dry_run, item, before, prefix_tools, keep_fault=False)
+
+    assert with_fault.passed is False
+    assert without.passed is True
+
+
+def test_the_faulted_run_carries_its_fault_in_its_manifest(dry_run):
+    store = dry_run["store"]
+
+    for item in dry_run["result"].items:
+        fault = injector_spec_from(store.reader.get_manifest(item["run_id"]).params)
+        assert fault is not None, item["run_id"]
+        assert fault.step_idx == item["planted_step"]
+        assert fault.fault_type == item["fault_type"]
+        assert fault.content == from_ref(item["intervention"]).new_result["content"]
+
+
+def _fork_faulted(dry_run, item, fork_step: int, prefix_tools, *, keep_fault: bool):
+    """Fork the faulted recording, with or without its standing fault."""
+    from agent_bisect.adapters.tau2 import recording_session
+    from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
+    from agent_bisect.core.replay import NoOpIntervention
+    from agent_bisect.core.runner import ForkSpec, run_fork
+
+    store = dry_run["store"]
+    fault = injector_spec_from(store.reader.get_manifest(item["run_id"]).params)
+    spec = ForkSpec(
+        parent_run_id=item["run_id"],
+        run_id=f"{item['item_id']}-before-{fork_step}-{prefix_tools}-{int(keep_fault)}",
+        fork_step=fork_step,
+        prefix_tools=prefix_tools,
+    )
+    with recording_session(
+        ledger=ledger_for(dry_run["root"]), phase="P3",
+        completion_fn=dry_run["llm"].completion,
+        api_key=UNUSED_API_KEY, api_base=UNUSED_API_BASE, limiter_for=no_limiter,
+    ):
+        import tau2.utils.llm_utils as llm_utils
+
+        driver = FaultedForkDriver(
+            spec, store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=llm_utils.completion,
+            fault=fault if keep_fault else None,
+        )
+        return run_fork(driver, spec, NoOpIntervention())
 
 
 # ---- resume ----

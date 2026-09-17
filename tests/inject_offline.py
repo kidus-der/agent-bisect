@@ -133,9 +133,25 @@ def _role_of(message: Any) -> str | None:
 
 
 def _content_of(message: Any) -> str:
-    if isinstance(message, Mapping):
-        return str(message.get("content") or "")
-    return str(getattr(message, "content", "") or "")
+    raw = (
+        message.get("content") if isinstance(message, Mapping)
+        else getattr(message, "content", None)
+    )
+    return _canonical(str(raw or ""))
+
+
+def _canonical(content: str) -> str:
+    """A tool answer as *data*, not as text.
+
+    A snapshot restore comes back through the blob store's canonical JSON,
+    so its dicts are key-sorted while a live database keeps insertion
+    order. An agent that noticed that would be reacting to spelling; this
+    one reacts to the answer changing.
+    """
+    try:
+        return json.dumps(json.loads(content), sort_keys=True)
+    except (TypeError, ValueError):
+        return content
 
 
 def _tool_calls_of(message: Any) -> list[Any]:
