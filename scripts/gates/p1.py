@@ -40,8 +40,33 @@ ensure_tau2_data_dir()
 
 from agent_bisect.adapters.tau2 import UNKNOWN_COMMIT, RunSpec, build_orchestrator  # noqa: E402
 from agent_bisect.adapters.tau2_snapshot import Tau2Snapshotter  # noqa: E402
+from agent_bisect.core.run_stats import summarise_runs  # noqa: E402
 from agent_bisect.core.store import BlobStore  # noqa: E402
 from agent_bisect.core.tape import RunManifest, TapeReader  # noqa: E402
+from scripts.gates.evidence import (  # noqa: E402
+    current_commit,
+    format_evidence,
+    provenance_for,
+    render_table,
+)
+
+DEFAULT_EVIDENCE_PATH = REPO_ROOT / "docs" / "gates" / "P1.md"
+PHASE = "P1"
+#: The files whose commits actually produced this verdict. HEAD alone is
+#: misleading in a shared tree: it is whatever any other agent pushed last.
+EVIDENCE_SOURCES = (
+    "scripts/gates/p1.py",
+    "agent_bisect/adapters/tau2.py",
+    "agent_bisect/adapters/tau2_batch.py",
+    "agent_bisect/adapters/tau2_snapshot.py",
+    "agent_bisect/core/tape.py",
+    "agent_bisect/cli_record.py",
+    "config/models.toml",
+)
+GATE_TEXT = (
+    "20 recorded runs; restoring any step reproduces its recorded DB hash at 100% of "
+    "steps; a redaction test proves the key appears in no blob or log."
+)
 
 REQUIRED_RUNS = 20
 #: The shape of an NVIDIA key, built rather than written out so this file
@@ -239,10 +264,87 @@ def write_report(runs_dir: Path, criteria: list[Criterion]) -> Path:
     return path
 
 
+def _calls_by_model(runs_dir: Path, phase: str) -> list[tuple[str, str]]:
+    """What this phase spent, per model, straight from the ledger."""
+    import sqlite3
+
+    ledger = runs_dir / "ledger.sqlite"
+    if not ledger.exists():
+        return []
+    connection = sqlite3.connect(f"file:{ledger}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            "SELECT model, COUNT(*) FROM calls WHERE phase = ? GROUP BY model ORDER BY 2 DESC",
+            (phase,),
+        ).fetchall()
+    finally:
+        connection.close()
+    total = sum(count for _model, count in rows)
+    return [(f"`{model}`", str(count)) for model, count in rows] + [("**total**", f"**{total}**")]
+
+
+def _stats_section(runs_dir: Path) -> str:
+    """The numbers P3's planning needs, from the runs this gate just checked."""
+    stats = summarise_runs(TapeReader(runs_dir), BlobStore(runs_dir), runs_dir)
+    sites = stats.injection_sites
+    rows = [
+        ("runs recorded", f"{stats.runs}"),
+        ("passed (reward 1.0)", f"{stats.passed}/{stats.runs}"),
+        ("mean steps per run", f"{stats.mean_steps:.1f}"),
+        ("mean LLM calls per run", f"{stats.mean_llm_calls:.1f}"),
+        ("&nbsp;&nbsp;agent", f"{stats.mean_agent_calls:.1f}"),
+        ("&nbsp;&nbsp;user simulator", f"{stats.mean_user_calls:.1f}"),
+        ("&nbsp;&nbsp;evaluator", f"{stats.mean_evaluator_calls:.1f}"),
+        ("mean tool steps per run", f"{stats.mean_tool_steps:.1f}"),
+        ("mean call span per run (s)", f"{stats.mean_call_span_s:.1f}"),
+        ("injection sites (tool results)", f"{sites.total} ({stats.mean_injection_sites:.1f}/run)"),
+        ("&nbsp;&nbsp;early / middle / late", f"{sites.early} / {sites.middle} / {sites.late}"),
+        ("&nbsp;&nbsp;not already an error", f"{sites.clean}"),
+    ]
+    return (
+        "Read off the recordings by `scripts/p1_stats.py` (also written to "
+        "`runs/p1/stats.json`). The call span is a run's first to last reserved call, so it "
+        "excludes environment construction and reward computation and includes time spent "
+        "waiting on the rate limiter.\n\n"
+        + render_table(("Measure", "Value"), rows)
+    )
+
+
+def write_evidence(runs_dir: Path, criteria: list[Criterion], path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        format_evidence(
+            gate=PHASE,
+            title="record and snapshot",
+            script="scripts/gates/p1.py",
+            criteria=criteria,
+            gate_text=GATE_TEXT,
+            commands=[
+                "uv run bisect record --domain airline --tasks 0-19 --trials 1 \\",
+                "    --concurrency 3 --phase P1 --max-calls 1500",
+                "uv run python scripts/gates/p1.py --write-evidence",
+                "uv run python scripts/p1_stats.py",
+            ],
+            provenance=provenance_for(EVIDENCE_SOURCES),
+            sections={
+                "Calls spent (ledger, phase P1)": render_table(
+                    ("Model", "Calls"), _calls_by_model(runs_dir, PHASE)
+                ),
+                "What the recordings look like (for P3)": _stats_section(runs_dir),
+            },
+            commit=current_commit(),
+        )
+    )
+    return path
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-dir", type=Path, default=REPO_ROOT / "runs")
     parser.add_argument("--required-runs", type=int, default=REQUIRED_RUNS)
+    parser.add_argument(
+        "--write-evidence", action="store_true", help="Regenerate docs/gates/P1.md."
+    )
     parser.add_argument(
         "--also-scan",
         type=Path,
@@ -262,6 +364,8 @@ def main(argv: list[str] | None = None) -> int:
     report = write_report(args.runs_dir, criteria)
     passed = all(criterion.passed for criterion in criteria)
     print(f"P1 gate: {'PASS' if passed else 'FAILED'} — report at {report}")
+    if args.write_evidence:
+        print(f"wrote {write_evidence(args.runs_dir, criteria, DEFAULT_EVIDENCE_PATH)}")
     return 0 if passed else 1
 
 
