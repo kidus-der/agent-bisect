@@ -144,11 +144,8 @@ function Plot({ width, height, series }: PlotProps) {
   // The CI envelope with a 10% pad, not a fixed 80-100 window: with every band
   // inside a few points of the others, a fixed floor left the plot mostly empty.
   const drawn = positionDomain(series)
-  const y = scaleLinear<number>({
-    domain: [drawn.min, drawn.max],
-    range: [innerHeight, 0],
-    nice: true,
-  })
+  // No `nice`: it rounds the padded envelope straight back out to 80-100%.
+  const y = scaleLinear<number>({ domain: [drawn.min, drawn.max], range: [innerHeight, 0] })
 
   // Direct labels beat a legend here, but they must not collide.
   const labels = series
