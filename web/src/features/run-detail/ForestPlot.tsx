@@ -137,10 +137,11 @@ interface ForestAxisProps {
 }
 
 function ForestAxis({ x, width, domain }: ForestAxisProps) {
-  const ticks = useMemo(() => {
-    const [min, max] = domain
-    return Array.from({ length: AXIS_TICKS }, (_, i) => min + ((max - min) * i) / (AXIS_TICKS - 1))
-  }, [domain])
+  // d3's nice ticks: uniform, round intervals instead of the domain split five ways.
+  const ticks = useMemo(
+    () => scaleLinear<number>({ domain: [...domain] }).ticks(AXIS_TICKS),
+    [domain],
+  )
   return (
     <svg
       aria-hidden="true"
