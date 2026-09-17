@@ -243,6 +243,40 @@ describe('states', () => {
   })
 })
 
+describe('LoadingRegion retry notice', () => {
+  test('says nothing about retries on the first attempt', () => {
+    render(
+      <LoadingRegion subject="runs">
+        <Skeleton className="h-3" />
+      </LoadingRegion>,
+    )
+    expect(screen.queryByText(/retrying/)).toBeNull()
+  })
+
+  test('after a failed attempt it shows which attempt is running and why the last one failed', () => {
+    render(
+      <LoadingRegion
+        subject="runs"
+        failureCount={1}
+        failureMessage="Cannot reach the Bisect server."
+      >
+        <Skeleton className="h-3" />
+      </LoadingRegion>,
+    )
+    expect(screen.getByText('retrying… (2 of 3)')).toBeInTheDocument()
+    expect(screen.getByText('Cannot reach the Bisect server.')).toBeInTheDocument()
+  })
+
+  test('never counts past the last attempt', () => {
+    render(
+      <LoadingRegion subject="runs" failureCount={7}>
+        <Skeleton className="h-3" />
+      </LoadingRegion>,
+    )
+    expect(screen.getByText('retrying… (3 of 3)')).toBeInTheDocument()
+  })
+})
+
 describe('controls', () => {
   test('SegmentedControl is a labelled radio group', async () => {
     const onChange = vi.fn()
