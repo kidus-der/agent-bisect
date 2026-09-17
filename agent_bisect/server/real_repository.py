@@ -17,11 +17,14 @@ trigger just by being asked a question.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError
 
 from agent_bisect.core.limits import load_limiter_settings
 from agent_bisect.core.store import BlobStore
@@ -33,6 +36,7 @@ from agent_bisect.server.schemas_benchmark import BenchmarkSummary, DatasetPage
 from agent_bisect.server.schemas_live import (
     BudgetStatus,
     CallsPoint,
+    JobStatus,
     LiveSnapshot,
     RateLimitStatus,
 )
@@ -54,6 +58,11 @@ from agent_bisect.server.schemas_runs import (
 PACKAGE_VERSION = "0.1.0"
 _LIVE_WINDOW_MINUTES = 30
 _RECENT_WINDOW_SECONDS = 60
+#: `runs/<phase>/status.json`: the convention a long-running job can write
+#: its own progress to (documented in docs/design/api-contract.md). One
+#: object per file, shaped like `JobStatus` minus `job_id` (the phase
+#: directory name) and `phase` (defaults to that name, upper-cased).
+_STATUS_FILENAME = "status.json"
 
 
 def _total_tokens(step: Step) -> int | None:
@@ -410,9 +419,46 @@ class RealRepository:
                 current_rpm=round(current_rpm, 1),
                 headroom_rpm=round(settings.requests_per_minute - current_rpm, 1),
             ),
-            jobs=(),
+            jobs=self._read_job_statuses(),
             events=(),
         )
+
+    def _read_job_statuses(self) -> tuple[JobStatus, ...]:
+        """Reads every `runs/<phase>/status.json` present -- a long-running
+        job's own report of its progress. Never invents a job that isn't
+        there, and a single malformed/unreadable file is skipped (logged
+        nowhere, since this module has no logging story yet, but skipped
+        rather than taking down the whole live snapshot over one bad file).
+        """
+        if not self._runs_dir.is_dir():
+            return ()
+        statuses = []
+        for status_path in sorted(self._runs_dir.glob(f"*/{_STATUS_FILENAME}")):
+            phase_name = status_path.parent.name
+            try:
+                payload = json.loads(status_path.read_text())
+                statuses.append(
+                    JobStatus(
+                        job_id=phase_name,
+                        kind=payload["kind"],
+                        state=payload["state"],
+                        progress=payload["progress"],
+                        phase=payload.get("phase", phase_name.upper()),
+                        label=payload.get("label"),
+                        items_done=payload.get("items_done"),
+                        items_total=payload.get("items_total"),
+                        model=payload.get("model"),
+                        calls_spent=payload.get("calls_spent"),
+                        started_at=payload.get("started_at"),
+                        finished_at=payload.get("finished_at"),
+                        eta_seconds=payload.get("eta_seconds"),
+                        last_checkpoint_at=payload.get("last_checkpoint_at"),
+                        error=payload.get("error"),
+                    )
+                )
+            except (OSError, json.JSONDecodeError, KeyError, ValidationError):
+                continue
+        return tuple(statuses)
 
     def pr_checks(self) -> tuple[PrCheckSummary, ...]:
         raise DataNotAvailable("no PR checks have run yet (gate/action.py)")
