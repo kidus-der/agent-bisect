@@ -248,6 +248,22 @@ are `null` today (P7 hasn't wired a per-arm interval into
 to `demo/` on that branch, no base run to compare) has `base_pass_rate:
 null` in `ScenarioRow`, matching `result.json`'s own shape.
 
+**Real mode's overview/benchmark/dataset.** `GET /api/overview` and
+`/api/benchmark` read `data/results/p5_summary.json` (P5's committed,
+payload-free evaluation summary, `agent_bisect.bench.results`) -- its
+field names already match these DTOs, so `methods`/`heatmap`/`by_position`/
+`sankey`/`gap`/`recall`/`recall_provenance` are lifted out directly.
+`cost_histogram` is bucketed from `data/results/p5_items.json`'s real
+per-item `total_calls` instead, since the summary deliberately excludes
+the cost curve. `mean_cost_usd`/`cost_per_diagnosis_usd` stay `null` (no
+per-model USD price list); `cost_per_diagnosis_calls` is the ledger's real
+call count over `runs/blame/`'s diagnosed-run count.
+`OverviewPayload.hero_run` is the earliest-`item_id` run Bisect diagnosed
+exactly (or, failing that, its earliest attempt), resolved against the
+real tape index. `GET /api/dataset` reads `data/manifest.json` via
+`agent_bisect.bench.manifest.load_frozen`; an unfrozen or tampered
+manifest is `DataNotAvailable`, not a 500.
+
 ## Security
 
 Binds `127.0.0.1` by default (`runserver.py`); non-loopback `--host` needs
