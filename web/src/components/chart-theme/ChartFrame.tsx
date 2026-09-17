@@ -14,6 +14,8 @@ interface ChartFrameProps {
   /** Tailwind height class for the plot area. */
   readonly heightClassName?: string
   readonly legend?: ReactNode
+  /** `secondary` for a quieter chart beside a primary one (direction.md §4). */
+  readonly variant?: 'chart' | 'secondary'
   readonly className?: string
 }
 
@@ -25,12 +27,13 @@ export function ChartFrame({
   children,
   heightClassName = 'h-56',
   legend,
+  variant = 'chart',
   className,
 }: ChartFrameProps) {
   const titleId = useId()
   const descriptionId = useId()
   return (
-    <Panel variant="chart" className={className}>
+    <Panel variant={variant} className={className}>
       <figure aria-labelledby={titleId} aria-describedby={descriptionId} className="m-0">
         <header className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
           <div className="flex min-w-0 flex-col gap-1">

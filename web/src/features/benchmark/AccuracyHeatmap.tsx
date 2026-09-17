@@ -209,7 +209,7 @@ export function AccuracyHeatmap({ cells }: AccuracyHeatmapProps) {
   const caption = 'Blame accuracy by planted fault type and method, with 95% Wilson intervals.'
 
   return (
-    <Panel variant="chart" bodyClassName="flex flex-col gap-4">
+    <Panel variant="secondary" bodyClassName="flex flex-col gap-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <InstrumentLabel>accuracy_by_fault</InstrumentLabel>

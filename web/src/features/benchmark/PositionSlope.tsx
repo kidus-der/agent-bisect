@@ -254,6 +254,7 @@ export function PositionSlope({ rows }: PositionSlopeProps) {
   const onlyOne = series.length === 1
   return (
     <ChartFrame
+      variant="secondary"
       label="accuracy_by_position"
       title="Accuracy by fault position"
       description={describe(series)}
