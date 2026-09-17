@@ -1,0 +1,1677 @@
+{
+  "/api/benchmark": {
+    "data": {
+      "by_position": [
+        {
+          "accuracy": 0.9655,
+          "method": "bisect",
+          "n": 29,
+          "position": "early"
+        },
+        {
+          "accuracy": 1.0,
+          "method": "bisect",
+          "n": 18,
+          "position": "late"
+        },
+        {
+          "accuracy": 0.9487,
+          "method": "bisect",
+          "n": 39,
+          "position": "middle"
+        }
+      ],
+      "cost_histogram": [
+        {
+          "calls_high": 400,
+          "calls_low": 0,
+          "count": 13
+        },
+        {
+          "calls_high": 800,
+          "calls_low": 400,
+          "count": 34
+        },
+        {
+          "calls_high": 1200,
+          "calls_low": 800,
+          "count": 35
+        },
+        {
+          "calls_high": 1600,
+          "calls_low": 1200,
+          "count": 3
+        },
+        {
+          "calls_high": 2400,
+          "calls_low": 2000,
+          "count": 1
+        }
+      ],
+      "flaky_ablation": {
+        "arms": [
+          {
+            "accuracy": {
+              "ci_high": 0.9881,
+              "ci_low": 0.9024,
+              "value": 0.9651
+            },
+            "name": "snapshot"
+          },
+          {
+            "accuracy": {
+              "ci_high": 0.9183,
+              "ci_low": 0.7718,
+              "value": 0.8605
+            },
+            "name": "no_snapshot"
+          }
+        ],
+        "difference": {
+          "ci_high": 0.1963,
+          "ci_low": 0.0193,
+          "value": 0.1046
+        }
+      },
+      "heatmap": [
+        {
+          "accuracy": 0.9565,
+          "fault_type": "missing_field",
+          "method": "bisect",
+          "n": 23
+        },
+        {
+          "accuracy": 0.8261,
+          "fault_type": "missing_field",
+          "method": "judge_all_at_once",
+          "n": 23
+        },
+        {
+          "accuracy": 0.7826,
+          "fault_type": "missing_field",
+          "method": "judge_step_by_step",
+          "n": 23
+        },
+        {
+          "accuracy": 0.913,
+          "fault_type": "missing_field",
+          "method": "no_control",
+          "n": 23
+        },
+        {
+          "accuracy": 0.9565,
+          "fault_type": "missing_field",
+          "method": "rerun_live",
+          "n": 23
+        },
+        {
+          "accuracy": 1.0,
+          "fault_type": "stale_record",
+          "method": "bisect",
+          "n": 21
+        },
+        {
+          "accuracy": 0.619,
+          "fault_type": "stale_record",
+          "method": "judge_all_at_once",
+          "n": 21
+        },
+        {
+          "accuracy": 1.0,
+          "fault_type": "stale_record",
+          "method": "judge_step_by_step",
+          "n": 21
+        },
+        {
+          "accuracy": 0.8095,
+          "fault_type": "stale_record",
+          "method": "no_control",
+          "n": 21
+        },
+        {
+          "accuracy": 0.9048,
+          "fault_type": "stale_record",
+          "method": "rerun_live",
+          "n": 21
+        },
+        {
+          "accuracy": 1.0,
+          "fault_type": "tool_error",
+          "method": "bisect",
+          "n": 18
+        },
+        {
+          "accuracy": 0.6667,
+          "fault_type": "tool_error",
+          "method": "judge_all_at_once",
+          "n": 18
+        },
+        {
+          "accuracy": 1.0,
+          "fault_type": "tool_error",
+          "method": "judge_step_by_step",
+          "n": 18
+        },
+        {
+          "accuracy": 0.7222,
+          "fault_type": "tool_error",
+          "method": "no_control",
+          "n": 18
+        },
+        {
+          "accuracy": 0.9444,
+          "fault_type": "tool_error",
+          "method": "rerun_live",
+          "n": 18
+        },
+        {
+          "accuracy": 0.9167,
+          "fault_type": "wrong_value",
+          "method": "bisect",
+          "n": 24
+        },
+        {
+          "accuracy": 0.9167,
+          "fault_type": "wrong_value",
+          "method": "judge_all_at_once",
+          "n": 24
+        },
+        {
+          "accuracy": 0.75,
+          "fault_type": "wrong_value",
+          "method": "judge_step_by_step",
+          "n": 24
+        },
+        {
+          "accuracy": 0.6667,
+          "fault_type": "wrong_value",
+          "method": "no_control",
+          "n": 24
+        },
+        {
+          "accuracy": 0.9583,
+          "fault_type": "wrong_value",
+          "method": "rerun_live",
+          "n": 24
+        }
+      ],
+      "methods": [
+        {
+          "accuracy": {
+            "ci_high": 0.9881,
+            "ci_low": 0.9024,
+            "value": 0.9651
+          },
+          "mean_calls": 780.35,
+          "mean_cost_usd": 1.5607,
+          "method": "bisect"
+        },
+        {
+          "accuracy": {
+            "ci_high": 0.8441,
+            "ci_low": 0.6679,
+            "value": 0.7674
+          },
+          "mean_calls": 1.0,
+          "mean_cost_usd": 0.03,
+          "method": "judge_all_at_once"
+        },
+        {
+          "accuracy": {
+            "ci_high": 0.9271,
+            "ci_low": 0.7853,
+            "value": 0.8721
+          },
+          "mean_calls": 19.79,
+          "mean_cost_usd": 0.5937,
+          "method": "judge_step_by_step"
+        },
+        {
+          "accuracy": {
+            "ci_high": 0.9749,
+            "ci_low": 0.871,
+            "value": 0.9419
+          },
+          "mean_calls": 1540.47,
+          "mean_cost_usd": 3.0809,
+          "method": "rerun_live"
+        },
+        {
+          "accuracy": {
+            "ci_high": 0.8538,
+            "ci_low": 0.6805,
+            "value": 0.7791
+          },
+          "mean_calls": 745.58,
+          "mean_cost_usd": 1.4912,
+          "method": "no_control"
+        }
+      ],
+      "sankey": [
+        {
+          "count": 22,
+          "fault_type": "missing_field",
+          "label": "exact"
+        },
+        {
+          "count": 1,
+          "fault_type": "missing_field",
+          "label": "none"
+        },
+        {
+          "count": 21,
+          "fault_type": "stale_record",
+          "label": "exact"
+        },
+        {
+          "count": 18,
+          "fault_type": "tool_error",
+          "label": "exact"
+        },
+        {
+          "count": 22,
+          "fault_type": "wrong_value",
+          "label": "exact"
+        },
+        {
+          "count": 2,
+          "fault_type": "wrong_value",
+          "label": "none"
+        }
+      ]
+    },
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  },
+  "/api/dataset?page=1&limit=50": {
+    "data": {
+      "entries": [
+        {
+          "base_pass_rate": 0.8812,
+          "domain": "airline",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.0746,
+          "planted_step": 55,
+          "position_bucket": "late",
+          "run_id": "run-edge-60-step",
+          "split": "dev",
+          "task_id": "seat_upgrade_request"
+        },
+        {
+          "base_pass_rate": 0.8783,
+          "domain": "retail",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.1197,
+          "planted_step": 7,
+          "position_bucket": "early",
+          "run_id": "run-edge-long-payload",
+          "split": "dev",
+          "task_id": "return_window_dispute"
+        },
+        {
+          "base_pass_rate": 0.7699,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.1426,
+          "planted_step": 15,
+          "position_bucket": "late",
+          "run_id": "run-edge-unicode",
+          "split": "test",
+          "task_id": "address_change_pending"
+        },
+        {
+          "base_pass_rate": 0.9,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "brief-12-step",
+          "split": "test",
+          "task_id": "refund_after_cancellation"
+        },
+        {
+          "base_pass_rate": 0.968,
+          "domain": "retail",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.1068,
+          "planted_step": 15,
+          "position_bucket": "late",
+          "run_id": "run-0002",
+          "split": "dev",
+          "task_id": "product_availability_check"
+        },
+        {
+          "base_pass_rate": 0.9561,
+          "domain": "airline",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.054,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0006",
+          "split": "test",
+          "task_id": "certificate_reissue"
+        },
+        {
+          "base_pass_rate": 0.9365,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.112,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0007",
+          "split": "dev",
+          "task_id": "return_window_dispute"
+        },
+        {
+          "base_pass_rate": 0.8854,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0316,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0008",
+          "split": "dev",
+          "task_id": "cancel_before_ship"
+        },
+        {
+          "base_pass_rate": 0.8275,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0976,
+          "planted_step": 19,
+          "position_bucket": "late",
+          "run_id": "run-0011",
+          "split": "dev",
+          "task_id": "duplicate_booking_cleanup"
+        },
+        {
+          "base_pass_rate": 0.8596,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.0577,
+          "planted_step": 7,
+          "position_bucket": "early",
+          "run_id": "run-0015",
+          "split": "test",
+          "task_id": "seat_upgrade_request"
+        },
+        {
+          "base_pass_rate": 0.9853,
+          "domain": "airline",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0787,
+          "planted_step": 7,
+          "position_bucket": "late",
+          "run_id": "run-0016",
+          "split": "dev",
+          "task_id": "refund_after_cancellation"
+        },
+        {
+          "base_pass_rate": 0.7616,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.1357,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0019",
+          "split": "dev",
+          "task_id": "product_availability_check"
+        },
+        {
+          "base_pass_rate": 0.9798,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1104,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0023",
+          "split": "dev",
+          "task_id": "refund_after_cancellation"
+        },
+        {
+          "base_pass_rate": 0.9894,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1472,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0025",
+          "split": "dev",
+          "task_id": "refund_partial_items"
+        },
+        {
+          "base_pass_rate": 0.9435,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1414,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0029",
+          "split": "dev",
+          "task_id": "reschedule_flight_change"
+        },
+        {
+          "base_pass_rate": 0.8196,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.1118,
+          "planted_step": 27,
+          "position_bucket": "late",
+          "run_id": "run-0030",
+          "split": "test",
+          "task_id": "passenger_name_correction"
+        },
+        {
+          "base_pass_rate": 0.8285,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.0595,
+          "planted_step": 23,
+          "position_bucket": "late",
+          "run_id": "run-0033",
+          "split": "test",
+          "task_id": "return_window_dispute"
+        },
+        {
+          "base_pass_rate": 0.7767,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.109,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0039",
+          "split": "test",
+          "task_id": "return_window_dispute"
+        },
+        {
+          "base_pass_rate": 0.8293,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1287,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0040",
+          "split": "dev",
+          "task_id": "payment_method_swap"
+        },
+        {
+          "base_pass_rate": 0.8021,
+          "domain": "airline",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.0126,
+          "planted_step": 7,
+          "position_bucket": "early",
+          "run_id": "run-0042",
+          "split": "test",
+          "task_id": "baggage_fee_dispute"
+        },
+        {
+          "base_pass_rate": 0.9186,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0538,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0044",
+          "split": "dev",
+          "task_id": "baggage_fee_dispute"
+        },
+        {
+          "base_pass_rate": 0.826,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.031,
+          "planted_step": 3,
+          "position_bucket": "middle",
+          "run_id": "run-0047",
+          "split": "dev",
+          "task_id": "baggage_fee_dispute"
+        },
+        {
+          "base_pass_rate": 0.8857,
+          "domain": "airline",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0479,
+          "planted_step": 11,
+          "position_bucket": "middle",
+          "run_id": "run-0052",
+          "split": "dev",
+          "task_id": "certificate_reissue"
+        },
+        {
+          "base_pass_rate": 0.7917,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.0229,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0055",
+          "split": "dev",
+          "task_id": "refund_partial_items"
+        },
+        {
+          "base_pass_rate": 0.7744,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0388,
+          "planted_step": 3,
+          "position_bucket": "middle",
+          "run_id": "run-0058",
+          "split": "dev",
+          "task_id": "cancel_before_ship"
+        },
+        {
+          "base_pass_rate": 0.8109,
+          "domain": "retail",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.1307,
+          "planted_step": 15,
+          "position_bucket": "middle",
+          "run_id": "run-0060",
+          "split": "test",
+          "task_id": "product_availability_check"
+        },
+        {
+          "base_pass_rate": 0.9827,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.1195,
+          "planted_step": 11,
+          "position_bucket": "middle",
+          "run_id": "run-0062",
+          "split": "dev",
+          "task_id": "exchange_wrong_size"
+        },
+        {
+          "base_pass_rate": 0.9477,
+          "domain": "airline",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.1497,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0065",
+          "split": "dev",
+          "task_id": "seat_upgrade_request"
+        },
+        {
+          "base_pass_rate": 0.9319,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0535,
+          "planted_step": 23,
+          "position_bucket": "late",
+          "run_id": "run-0068",
+          "split": "dev",
+          "task_id": "cancel_before_ship"
+        },
+        {
+          "base_pass_rate": 0.7581,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0186,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0069",
+          "split": "test",
+          "task_id": "product_availability_check"
+        },
+        {
+          "base_pass_rate": 0.7593,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.0766,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0076",
+          "split": "dev",
+          "task_id": "refund_partial_items"
+        },
+        {
+          "base_pass_rate": 0.9153,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0631,
+          "planted_step": 7,
+          "position_bucket": "early",
+          "run_id": "run-0080",
+          "split": "dev",
+          "task_id": "address_change_pending"
+        },
+        {
+          "base_pass_rate": 0.7513,
+          "domain": "airline",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.0834,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0081",
+          "split": "test",
+          "task_id": "certificate_reissue"
+        },
+        {
+          "base_pass_rate": 0.8454,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1362,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0086",
+          "split": "dev",
+          "task_id": "exchange_wrong_size"
+        },
+        {
+          "base_pass_rate": 0.9086,
+          "domain": "airline",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.0723,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0087",
+          "split": "test",
+          "task_id": "seat_upgrade_request"
+        },
+        {
+          "base_pass_rate": 0.7618,
+          "domain": "retail",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.0825,
+          "planted_step": 15,
+          "position_bucket": "middle",
+          "run_id": "run-0092",
+          "split": "dev",
+          "task_id": "address_change_pending"
+        },
+        {
+          "base_pass_rate": 0.9906,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.0126,
+          "planted_step": 3,
+          "position_bucket": "middle",
+          "run_id": "run-0095",
+          "split": "dev",
+          "task_id": "refund_after_cancellation"
+        },
+        {
+          "base_pass_rate": 0.778,
+          "domain": "airline",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.1094,
+          "planted_step": 11,
+          "position_bucket": "late",
+          "run_id": "run-0097",
+          "split": "dev",
+          "task_id": "reschedule_flight_change"
+        },
+        {
+          "base_pass_rate": 0.887,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1395,
+          "planted_step": 11,
+          "position_bucket": "late",
+          "run_id": "run-0100",
+          "split": "dev",
+          "task_id": "baggage_fee_dispute"
+        },
+        {
+          "base_pass_rate": 0.9258,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0213,
+          "planted_step": 11,
+          "position_bucket": "middle",
+          "run_id": "run-0101",
+          "split": "dev",
+          "task_id": "refund_after_cancellation"
+        },
+        {
+          "base_pass_rate": 0.8678,
+          "domain": "retail",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0471,
+          "planted_step": 11,
+          "position_bucket": "middle",
+          "run_id": "run-0104",
+          "split": "dev",
+          "task_id": "exchange_wrong_size"
+        },
+        {
+          "base_pass_rate": 0.7783,
+          "domain": "airline",
+          "fault_type": "wrong_value",
+          "faulted_pass_rate": 0.1033,
+          "planted_step": 15,
+          "position_bucket": "late",
+          "run_id": "run-0110",
+          "split": "dev",
+          "task_id": "duplicate_booking_cleanup"
+        },
+        {
+          "base_pass_rate": 0.993,
+          "domain": "airline",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.0726,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0111",
+          "split": "test",
+          "task_id": "duplicate_booking_cleanup"
+        },
+        {
+          "base_pass_rate": 0.9817,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0282,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0113",
+          "split": "dev",
+          "task_id": "reservation_lookup_by_name"
+        },
+        {
+          "base_pass_rate": 0.788,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0792,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0114",
+          "split": "test",
+          "task_id": "seat_upgrade_request"
+        },
+        {
+          "base_pass_rate": 0.914,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.0178,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0116",
+          "split": "dev",
+          "task_id": "passenger_name_correction"
+        },
+        {
+          "base_pass_rate": 0.7948,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.102,
+          "planted_step": 15,
+          "position_bucket": "middle",
+          "run_id": "run-0117",
+          "split": "test",
+          "task_id": "baggage_fee_dispute"
+        },
+        {
+          "base_pass_rate": 0.9751,
+          "domain": "airline",
+          "fault_type": "tool_error",
+          "faulted_pass_rate": 0.1271,
+          "planted_step": 15,
+          "position_bucket": "middle",
+          "run_id": "run-0119",
+          "split": "dev",
+          "task_id": "seat_upgrade_request"
+        },
+        {
+          "base_pass_rate": 0.8969,
+          "domain": "retail",
+          "fault_type": "stale_record",
+          "faulted_pass_rate": 0.1147,
+          "planted_step": 3,
+          "position_bucket": "early",
+          "run_id": "run-0120",
+          "split": "test",
+          "task_id": "product_availability_check"
+        },
+        {
+          "base_pass_rate": 0.8139,
+          "domain": "retail",
+          "fault_type": "missing_field",
+          "faulted_pass_rate": 0.1103,
+          "planted_step": 7,
+          "position_bucket": "middle",
+          "run_id": "run-0124",
+          "split": "dev",
+          "task_id": "exchange_wrong_size"
+        }
+      ]
+    },
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": 50,
+      "next_cursor": null,
+      "page": 1,
+      "simulated": true,
+      "total": 86
+    },
+    "success": true
+  },
+  "/api/live/snapshot": {
+    "data": {
+      "budget": {
+        "cap": 12000,
+        "used": 4954
+      },
+      "calls_series": [
+        {
+          "calls_per_minute": 32.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:10:00+00:00"
+        },
+        {
+          "calls_per_minute": 6.5,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:10:00+00:00"
+        },
+        {
+          "calls_per_minute": 30.4,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:11:00+00:00"
+        },
+        {
+          "calls_per_minute": 7.2,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:11:00+00:00"
+        },
+        {
+          "calls_per_minute": 28.2,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:12:00+00:00"
+        },
+        {
+          "calls_per_minute": 14.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:12:00+00:00"
+        },
+        {
+          "calls_per_minute": 5.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:13:00+00:00"
+        },
+        {
+          "calls_per_minute": 10.1,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:13:00+00:00"
+        },
+        {
+          "calls_per_minute": 5.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:14:00+00:00"
+        },
+        {
+          "calls_per_minute": 9.6,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:14:00+00:00"
+        },
+        {
+          "calls_per_minute": 22.5,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:15:00+00:00"
+        },
+        {
+          "calls_per_minute": 10.8,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:15:00+00:00"
+        },
+        {
+          "calls_per_minute": 10.7,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:16:00+00:00"
+        },
+        {
+          "calls_per_minute": 6.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:16:00+00:00"
+        },
+        {
+          "calls_per_minute": 21.2,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:17:00+00:00"
+        },
+        {
+          "calls_per_minute": 32.9,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:17:00+00:00"
+        },
+        {
+          "calls_per_minute": 6.7,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:18:00+00:00"
+        },
+        {
+          "calls_per_minute": 25.2,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:18:00+00:00"
+        },
+        {
+          "calls_per_minute": 2.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:19:00+00:00"
+        },
+        {
+          "calls_per_minute": 8.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:19:00+00:00"
+        },
+        {
+          "calls_per_minute": 27.1,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:20:00+00:00"
+        },
+        {
+          "calls_per_minute": 31.7,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:20:00+00:00"
+        },
+        {
+          "calls_per_minute": 31.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:21:00+00:00"
+        },
+        {
+          "calls_per_minute": 29.2,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:21:00+00:00"
+        },
+        {
+          "calls_per_minute": 20.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:22:00+00:00"
+        },
+        {
+          "calls_per_minute": 24.7,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:22:00+00:00"
+        },
+        {
+          "calls_per_minute": 34.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:23:00+00:00"
+        },
+        {
+          "calls_per_minute": 27.6,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:23:00+00:00"
+        },
+        {
+          "calls_per_minute": 29.3,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:24:00+00:00"
+        },
+        {
+          "calls_per_minute": 8.4,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:24:00+00:00"
+        },
+        {
+          "calls_per_minute": 24.7,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:25:00+00:00"
+        },
+        {
+          "calls_per_minute": 2.8,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:25:00+00:00"
+        },
+        {
+          "calls_per_minute": 8.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:26:00+00:00"
+        },
+        {
+          "calls_per_minute": 16.6,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:26:00+00:00"
+        },
+        {
+          "calls_per_minute": 31.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:27:00+00:00"
+        },
+        {
+          "calls_per_minute": 32.9,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:27:00+00:00"
+        },
+        {
+          "calls_per_minute": 4.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:28:00+00:00"
+        },
+        {
+          "calls_per_minute": 13.8,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:28:00+00:00"
+        },
+        {
+          "calls_per_minute": 26.3,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:29:00+00:00"
+        },
+        {
+          "calls_per_minute": 29.1,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:29:00+00:00"
+        },
+        {
+          "calls_per_minute": 28.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:30:00+00:00"
+        },
+        {
+          "calls_per_minute": 4.9,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:30:00+00:00"
+        },
+        {
+          "calls_per_minute": 32.0,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:31:00+00:00"
+        },
+        {
+          "calls_per_minute": 28.9,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:31:00+00:00"
+        },
+        {
+          "calls_per_minute": 11.1,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:32:00+00:00"
+        },
+        {
+          "calls_per_minute": 22.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:32:00+00:00"
+        },
+        {
+          "calls_per_minute": 34.0,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:33:00+00:00"
+        },
+        {
+          "calls_per_minute": 29.3,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:33:00+00:00"
+        },
+        {
+          "calls_per_minute": 31.2,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:34:00+00:00"
+        },
+        {
+          "calls_per_minute": 30.2,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:34:00+00:00"
+        },
+        {
+          "calls_per_minute": 14.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:35:00+00:00"
+        },
+        {
+          "calls_per_minute": 7.4,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:35:00+00:00"
+        },
+        {
+          "calls_per_minute": 15.5,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:36:00+00:00"
+        },
+        {
+          "calls_per_minute": 19.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:36:00+00:00"
+        },
+        {
+          "calls_per_minute": 14.0,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:37:00+00:00"
+        },
+        {
+          "calls_per_minute": 33.9,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:37:00+00:00"
+        },
+        {
+          "calls_per_minute": 33.7,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:38:00+00:00"
+        },
+        {
+          "calls_per_minute": 3.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:38:00+00:00"
+        },
+        {
+          "calls_per_minute": 23.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T10:39:00+00:00"
+        },
+        {
+          "calls_per_minute": 5.7,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T10:39:00+00:00"
+        }
+      ],
+      "events": [
+        {
+          "level": "info",
+          "message": "simulated: blame batch 29827360 progressed",
+          "ts": "2026-09-17T10:40:41.888528+00:00"
+        },
+        {
+          "level": "info",
+          "message": "simulated: eval batch 29827359 progressed",
+          "ts": "2026-09-17T10:40:26.888528+00:00"
+        },
+        {
+          "level": "warn",
+          "message": "simulated: record batch 29827358 progressed",
+          "ts": "2026-09-17T10:40:11.888528+00:00"
+        },
+        {
+          "level": "info",
+          "message": "simulated: blame batch 29827357 progressed",
+          "ts": "2026-09-17T10:39:56.888528+00:00"
+        },
+        {
+          "level": "info",
+          "message": "simulated: eval batch 29827356 progressed",
+          "ts": "2026-09-17T10:39:41.888528+00:00"
+        }
+      ],
+      "jobs": [
+        {
+          "job_id": "job-0",
+          "kind": "blame",
+          "progress": 0.2,
+          "state": "queued"
+        },
+        {
+          "job_id": "job-1",
+          "kind": "eval",
+          "progress": 0.33,
+          "state": "done"
+        },
+        {
+          "job_id": "job-2",
+          "kind": "record",
+          "progress": 0.46,
+          "state": "running"
+        }
+      ],
+      "rate_limit": {
+        "current_rpm": 25.2,
+        "headroom_rpm": 14.8,
+        "limiter_rpm": 40
+      }
+    },
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  },
+  "/api/meta": {
+    "data": {
+      "agent_model": "nvidia/llama-3.1-nemotron-70b-instruct",
+      "data_source": "fixture",
+      "generated_at": "2026-09-17T00:00:00Z",
+      "package_version": "0.1.0",
+      "simulated": true,
+      "tau2_commit": "a1b2c3d4e5f6",
+      "user_model": "meta/llama-3.1-8b-instruct"
+    },
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  },
+  "/api/pr-checks": {
+    "data": [
+      {
+        "base_pass_rate": 0.875,
+        "check_id": "pr-check-00",
+        "head_pass_rate": 0.5833,
+        "is_regression": true,
+        "p_value": 0.023,
+        "pr_number": 1000,
+        "title": "reschedule_flight_change"
+      },
+      {
+        "base_pass_rate": 0.9167,
+        "check_id": "pr-check-01",
+        "head_pass_rate": 0.625,
+        "is_regression": true,
+        "p_value": 0.0162,
+        "pr_number": 1001,
+        "title": "payment_method_swap"
+      },
+      {
+        "base_pass_rate": 0.9167,
+        "check_id": "pr-check-02",
+        "head_pass_rate": 0.5417,
+        "is_regression": true,
+        "p_value": 0.0035,
+        "pr_number": 1002,
+        "title": "certificate_reissue"
+      },
+      {
+        "base_pass_rate": 0.7917,
+        "check_id": "pr-check-03",
+        "head_pass_rate": 0.8333,
+        "is_regression": false,
+        "p_value": 0.7115,
+        "pr_number": 1003,
+        "title": "exchange_wrong_size"
+      },
+      {
+        "base_pass_rate": 0.75,
+        "check_id": "pr-check-04",
+        "head_pass_rate": 0.75,
+        "is_regression": false,
+        "p_value": 1.0,
+        "pr_number": 1004,
+        "title": "passenger_name_correction"
+      },
+      {
+        "base_pass_rate": 0.875,
+        "check_id": "pr-check-05",
+        "head_pass_rate": 0.875,
+        "is_regression": false,
+        "p_value": 1.0,
+        "pr_number": 1005,
+        "title": "product_availability_check"
+      }
+    ],
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  },
+  "/api/pr-checks/pr-check-00": {
+    "data": {
+      "base_pass_rate": {
+        "ci_high": 0.9566,
+        "ci_low": 0.69,
+        "value": 0.875
+      },
+      "check_id": "pr-check-00",
+      "comment_markdown": "Bisect \u00b7 agent regression detected\nscenario suite     reschedule_flight_change (24 tasks x 4 runs)\npass rate          base 0.88  ->  head 0.58   (p = 0.023)\ndecisive step      step 10\neffect of reverting at step 10   +0.29\n48 model calls \u00b7 details -> bisect serve",
+      "decisive_step_base": 10,
+      "decisive_step_head": 10,
+      "head_pass_rate": {
+        "ci_high": 0.7553,
+        "ci_low": 0.3883,
+        "value": 0.5833
+      },
+      "is_regression": true,
+      "p_value": 0.023,
+      "pr_number": 1000,
+      "scenarios": [
+        {
+          "base_pass_rate": 0.89,
+          "head_pass_rate": 0.49,
+          "n": 4,
+          "scenario": "reschedule_flight_change-00"
+        },
+        {
+          "base_pass_rate": 0.65,
+          "head_pass_rate": 0.52,
+          "n": 4,
+          "scenario": "reschedule_flight_change-01"
+        },
+        {
+          "base_pass_rate": 0.87,
+          "head_pass_rate": 0.49,
+          "n": 4,
+          "scenario": "reschedule_flight_change-02"
+        },
+        {
+          "base_pass_rate": 0.68,
+          "head_pass_rate": 0.3,
+          "n": 4,
+          "scenario": "reschedule_flight_change-03"
+        },
+        {
+          "base_pass_rate": 0.6,
+          "head_pass_rate": 0.25,
+          "n": 4,
+          "scenario": "reschedule_flight_change-04"
+        },
+        {
+          "base_pass_rate": 0.74,
+          "head_pass_rate": 0.46,
+          "n": 4,
+          "scenario": "reschedule_flight_change-05"
+        },
+        {
+          "base_pass_rate": 0.91,
+          "head_pass_rate": 0.5,
+          "n": 4,
+          "scenario": "reschedule_flight_change-06"
+        },
+        {
+          "base_pass_rate": 0.76,
+          "head_pass_rate": 0.5,
+          "n": 4,
+          "scenario": "reschedule_flight_change-07"
+        },
+        {
+          "base_pass_rate": 0.93,
+          "head_pass_rate": 0.26,
+          "n": 4,
+          "scenario": "reschedule_flight_change-08"
+        },
+        {
+          "base_pass_rate": 0.88,
+          "head_pass_rate": 0.26,
+          "n": 4,
+          "scenario": "reschedule_flight_change-09"
+        },
+        {
+          "base_pass_rate": 0.96,
+          "head_pass_rate": 0.58,
+          "n": 4,
+          "scenario": "reschedule_flight_change-10"
+        },
+        {
+          "base_pass_rate": 0.87,
+          "head_pass_rate": 0.52,
+          "n": 4,
+          "scenario": "reschedule_flight_change-11"
+        },
+        {
+          "base_pass_rate": 0.98,
+          "head_pass_rate": 0.54,
+          "n": 4,
+          "scenario": "reschedule_flight_change-12"
+        },
+        {
+          "base_pass_rate": 0.88,
+          "head_pass_rate": 0.41,
+          "n": 4,
+          "scenario": "reschedule_flight_change-13"
+        },
+        {
+          "base_pass_rate": 0.82,
+          "head_pass_rate": 0.49,
+          "n": 4,
+          "scenario": "reschedule_flight_change-14"
+        },
+        {
+          "base_pass_rate": 0.67,
+          "head_pass_rate": 0.4,
+          "n": 4,
+          "scenario": "reschedule_flight_change-15"
+        },
+        {
+          "base_pass_rate": 1.0,
+          "head_pass_rate": 0.36,
+          "n": 4,
+          "scenario": "reschedule_flight_change-16"
+        },
+        {
+          "base_pass_rate": 0.61,
+          "head_pass_rate": 0.37,
+          "n": 4,
+          "scenario": "reschedule_flight_change-17"
+        },
+        {
+          "base_pass_rate": 0.92,
+          "head_pass_rate": 0.31,
+          "n": 4,
+          "scenario": "reschedule_flight_change-18"
+        },
+        {
+          "base_pass_rate": 0.92,
+          "head_pass_rate": 0.56,
+          "n": 4,
+          "scenario": "reschedule_flight_change-19"
+        },
+        {
+          "base_pass_rate": 0.64,
+          "head_pass_rate": 0.53,
+          "n": 4,
+          "scenario": "reschedule_flight_change-20"
+        },
+        {
+          "base_pass_rate": 0.74,
+          "head_pass_rate": 0.36,
+          "n": 4,
+          "scenario": "reschedule_flight_change-21"
+        },
+        {
+          "base_pass_rate": 0.82,
+          "head_pass_rate": 0.26,
+          "n": 4,
+          "scenario": "reschedule_flight_change-22"
+        },
+        {
+          "base_pass_rate": 0.67,
+          "head_pass_rate": 0.21,
+          "n": 4,
+          "scenario": "reschedule_flight_change-23"
+        }
+      ],
+      "title": "reschedule_flight_change"
+    },
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  },
+  "/api/pr-checks/pr-check-03": {
+    "data": {
+      "base_pass_rate": {
+        "ci_high": 0.9076,
+        "ci_low": 0.5953,
+        "value": 0.7917
+      },
+      "check_id": "pr-check-03",
+      "comment_markdown": "Bisect \u00b7 no regression detected\nscenario suite     exchange_wrong_size\npass rate          base 0.79  ->  head 0.83   (p = 0.712)\nno decisive step change \u00b7 details -> bisect serve",
+      "decisive_step_base": null,
+      "decisive_step_head": null,
+      "head_pass_rate": {
+        "ci_high": 0.9332,
+        "ci_low": 0.6415,
+        "value": 0.8333
+      },
+      "is_regression": false,
+      "p_value": 0.7115,
+      "pr_number": 1003,
+      "scenarios": [
+        {
+          "base_pass_rate": 0.72,
+          "head_pass_rate": 0.83,
+          "n": 4,
+          "scenario": "exchange_wrong_size-00"
+        },
+        {
+          "base_pass_rate": 0.9,
+          "head_pass_rate": 0.65,
+          "n": 4,
+          "scenario": "exchange_wrong_size-01"
+        },
+        {
+          "base_pass_rate": 0.97,
+          "head_pass_rate": 0.98,
+          "n": 4,
+          "scenario": "exchange_wrong_size-02"
+        },
+        {
+          "base_pass_rate": 0.82,
+          "head_pass_rate": 0.86,
+          "n": 4,
+          "scenario": "exchange_wrong_size-03"
+        },
+        {
+          "base_pass_rate": 0.89,
+          "head_pass_rate": 0.64,
+          "n": 4,
+          "scenario": "exchange_wrong_size-04"
+        },
+        {
+          "base_pass_rate": 0.88,
+          "head_pass_rate": 0.81,
+          "n": 4,
+          "scenario": "exchange_wrong_size-05"
+        },
+        {
+          "base_pass_rate": 0.66,
+          "head_pass_rate": 0.93,
+          "n": 4,
+          "scenario": "exchange_wrong_size-06"
+        },
+        {
+          "base_pass_rate": 0.89,
+          "head_pass_rate": 0.84,
+          "n": 4,
+          "scenario": "exchange_wrong_size-07"
+        },
+        {
+          "base_pass_rate": 0.61,
+          "head_pass_rate": 0.95,
+          "n": 4,
+          "scenario": "exchange_wrong_size-08"
+        },
+        {
+          "base_pass_rate": 0.78,
+          "head_pass_rate": 0.84,
+          "n": 4,
+          "scenario": "exchange_wrong_size-09"
+        },
+        {
+          "base_pass_rate": 0.91,
+          "head_pass_rate": 1.0,
+          "n": 4,
+          "scenario": "exchange_wrong_size-10"
+        },
+        {
+          "base_pass_rate": 0.84,
+          "head_pass_rate": 0.68,
+          "n": 4,
+          "scenario": "exchange_wrong_size-11"
+        },
+        {
+          "base_pass_rate": 0.67,
+          "head_pass_rate": 0.68,
+          "n": 4,
+          "scenario": "exchange_wrong_size-12"
+        },
+        {
+          "base_pass_rate": 0.76,
+          "head_pass_rate": 0.8,
+          "n": 4,
+          "scenario": "exchange_wrong_size-13"
+        },
+        {
+          "base_pass_rate": 0.74,
+          "head_pass_rate": 0.98,
+          "n": 4,
+          "scenario": "exchange_wrong_size-14"
+        },
+        {
+          "base_pass_rate": 0.74,
+          "head_pass_rate": 0.62,
+          "n": 4,
+          "scenario": "exchange_wrong_size-15"
+        },
+        {
+          "base_pass_rate": 0.96,
+          "head_pass_rate": 0.63,
+          "n": 4,
+          "scenario": "exchange_wrong_size-16"
+        },
+        {
+          "base_pass_rate": 0.94,
+          "head_pass_rate": 0.69,
+          "n": 4,
+          "scenario": "exchange_wrong_size-17"
+        },
+        {
+          "base_pass_rate": 0.72,
+          "head_pass_rate": 0.7,
+          "n": 4,
+          "scenario": "exchange_wrong_size-18"
+        },
+        {
+          "base_pass_rate": 0.69,
+          "head_pass_rate": 0.98,
+          "n": 4,
+          "scenario": "exchange_wrong_size-19"
+        },
+        {
+          "base_pass_rate": 0.86,
+          "head_pass_rate": 0.71,
+          "n": 4,
+          "scenario": "exchange_wrong_size-20"
+        },
+        {
+          "base_pass_rate": 0.82,
+          "head_pass_rate": 0.66,
+          "n": 4,
+          "scenario": "exchange_wrong_size-21"
+        },
+        {
+          "base_pass_rate": 0.61,
+          "head_pass_rate": 0.74,
+          "n": 4,
+          "scenario": "exchange_wrong_size-22"
+        },
+        {
+          "base_pass_rate": 0.83,
+          "head_pass_rate": 0.65,
+          "n": 4,
+          "scenario": "exchange_wrong_size-23"
+        }
+      ],
+      "title": "exchange_wrong_size"
+    },
+    "error": null,
+    "meta": {
+      "data_source": "fixture",
+      "limit": null,
+      "next_cursor": null,
+      "page": null,
+      "simulated": true,
+      "total": null
+    },
+    "success": true
+  }
+}
