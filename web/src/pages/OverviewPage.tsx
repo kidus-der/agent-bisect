@@ -49,7 +49,11 @@ export function OverviewPage() {
   if (overview.isPending) {
     return (
       <TitledState>
-        <LoadingRegion subject="the headline result">
+        <LoadingRegion
+          subject="the headline result"
+          failureCount={overview.failureCount}
+          failureMessage={overview.failureReason?.message}
+        >
           <OverviewSkeleton />
         </LoadingRegion>
       </TitledState>

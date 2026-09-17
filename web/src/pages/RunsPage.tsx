@@ -84,7 +84,11 @@ export function RunsPage() {
     return (
       <>
         {header}
-        <LoadingRegion subject="runs">
+        <LoadingRegion
+          subject="runs"
+          failureCount={query.failureCount}
+          failureMessage={query.failureReason?.message}
+        >
           <TableSkeletonPage />
         </LoadingRegion>
       </>
