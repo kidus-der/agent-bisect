@@ -233,6 +233,21 @@ rest of the snapshot; no job is invented for a phase with no file. Shape
 (`GET /api/runs?status=recording`: two fixture-mode edge-case runs the same
 shape, but `"status": "recording", "outcome": null` — never `"fail"`.)
 
+**Real mode's PR checks.** `GET /api/pr-checks` and `.../{check_id}` read
+`runs/gate/<check_id>/result.json` (P7's `bisect gate`, one directory per
+invocation, `agent_bisect.gate.action.to_result_json`). `check_id` is the
+directory name. `pr_number` is `null` in real mode: a local gate run
+compares two git refs, which need not be a GitHub PR at all (fixture mode
+still always has one). `title` is derived from `base_ref`/`head_ref` (e.g.
+`"main → feature-x"`) since no title is stored. `base_pass_rate`/
+`head_pass_rate` on the detail view are a real Wilson interval computed
+here from the stored `value`/`n` -- `result.json`'s own `ci_low`/`ci_high`
+are `null` today (P7 hasn't wired a per-arm interval into
+`to_result_json`), so the repository computes one rather than let a
+`CiValue` appear without a real CI. A scenario present only on head (added
+to `demo/` on that branch, no base run to compare) has `base_pass_rate:
+null` in `ScenarioRow`, matching `result.json`'s own shape.
+
 ## Security
 
 Binds `127.0.0.1` by default (`runserver.py`); non-loopback `--host` needs
