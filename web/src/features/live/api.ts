@@ -10,6 +10,8 @@ export type RateLimitStatus = Readonly<Schemas['RateLimitStatus']>
 export type JobStatus = Readonly<Schemas['JobStatus']>
 export type JobState = JobStatus['state']
 
+export type JobPhase = JobStatus['phase']
+
 export const liveKeys = { snapshot: ['live', 'snapshot'] as const } as const
 
 type SnapshotResult = ApiResult<LiveSnapshot | NotAvailable>
