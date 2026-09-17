@@ -2,6 +2,8 @@ import { DataTable, type DataTableColumn } from '@/components/primitives/DataTab
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { formatPercent, formatPoints } from '@/lib/stats'
+
+import { deltaBarGeometry } from './deltaBarGeometry'
 import { cn } from '@/lib/utils'
 
 import type { ScenarioRow } from './api'
@@ -21,18 +23,18 @@ function delta(row: ScenarioRow): number {
  */
 function DeltaBar({ value, scale }: { readonly value: number; readonly scale: number }) {
   const worse = value < WORSE_THRESHOLD
-  const magnitude = scale > 0 ? Math.min(1, Math.abs(value) / scale) : 0
+  const bar = deltaBarGeometry(value, scale)
   return (
     <span aria-hidden="true" className="relative inline-block h-4 w-28 align-middle">
+      {/* Anchored on the axis midpoint the header declares: the side says the
+          sign, the length says the size. */}
       <span
         className={cn(
           'absolute top-1/2 h-2.5 -translate-y-1/2',
-          worse ? 'right-1/2 rounded-l-step bg-fail' : 'left-1/2 rounded-r-step bg-pass',
+          worse ? 'rounded-l-step bg-fail' : 'rounded-r-step bg-pass',
         )}
-        style={{ width: `${(magnitude / 2) * 100}%` }}
+        style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
       />
-      {/* The zero line sits above the bar, so a bar that reaches it still shows
-          where it ends: worse runs left of the line, better runs right. */}
       <span className="absolute inset-y-0 left-1/2 z-10 w-px bg-ink-muted" />
     </span>
   )
