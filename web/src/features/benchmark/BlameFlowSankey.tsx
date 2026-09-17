@@ -1,5 +1,5 @@
 import { useReducedMotion } from 'motion/react'
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useMemo } from 'react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
@@ -12,6 +12,7 @@ import {
 } from '@/components/charts/sankey'
 
 import { formatPercent } from '@/lib/stats'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 
 import type { SankeyFlow } from './api'
 import { buildBlameFlow, describeBlameFlow } from './blameFlow'
@@ -43,20 +44,6 @@ const NARROW_MARGIN = {
 
 const NARROW_QUERY = '(max-width: 640px)'
 
-/** Nesting a ParentSize inside the chart's own breaks its sizing, so this reads the viewport. */
-function useNarrowViewport(): boolean {
-  const subscribe = useCallback((onChange: () => void) => {
-    if (typeof window.matchMedia !== 'function') return () => undefined
-    const list = window.matchMedia(NARROW_QUERY)
-    list.addEventListener('change', onChange)
-    return () => list.removeEventListener('change', onChange)
-  }, [])
-  const read = useCallback(
-    () => typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches,
-    [],
-  )
-  return useSyncExternalStore(subscribe, read, () => false)
-}
 const NODE_WIDTH = 10
 const NODE_PADDING = 16
 const LINK_OPACITY = 0.38
@@ -70,7 +57,7 @@ interface BlameFlowSankeyProps {
 /** Planted fault type on the left, where the blame actually landed on the right. */
 export function BlameFlowSankey({ rows }: BlameFlowSankeyProps) {
   const reduced = useReducedMotion() === true
-  const narrow = useNarrowViewport()
+  const narrow = useMediaQuery(NARROW_QUERY)
   const graph = useMemo(() => buildBlameFlow(rows, narrow), [rows, narrow])
   const exact = rows.reduce((sum, row) => sum + (row.label === 'exact' ? row.count : 0), 0)
 
