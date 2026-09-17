@@ -1,4 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
+
+import apiFixtures from './fixtures/api.json' with { type: 'json' }
+import { mockApi } from './apiFixture'
 import { type Page, expect, test } from '@playwright/test'
 
 import {
@@ -160,6 +163,27 @@ test('real mode: no price list, no flaky-world run, and recall past the replay',
   // The missing ablation is stated, not hidden.
   await expect(page.getByText('No flaky-world run to compare against')).toBeVisible()
   await expect(page.getByText(/What snapshots are worth/)).toHaveCount(0)
+})
+
+test('an overview whose featured run is not indexed keeps every measured figure', async ({
+  page,
+}) => {
+  // Arrange — real mode only: P5 has results, but the run the hero would
+  // replay is missing from the tape index.
+  // The overview needs the runs strip and the hero's run detail too, so this
+  // one test borrows the overview suite's own mock set.
+  await mockApi(page)
+  const overview = apiFixtures.overview as { readonly data: Record<string, unknown> }
+  await page.route('**/api/overview', (route) =>
+    route.fulfill({ json: { ...overview, data: { ...overview.data, hero_run: null } } }),
+  )
+  await applyTheme(page, 'dark')
+  await page.goto('/')
+
+  // Assert — the hero card alone reports the gap; the headline stands.
+  await expect(page.getByText('No indexed run to replay')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('pts')
+  await expect(page.getByText('runs recorded')).toBeVisible()
 })
 
 test('an unmeasured overview, benchmark and dataset each say so', async ({ page }) => {
