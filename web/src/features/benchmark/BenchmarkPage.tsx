@@ -5,8 +5,10 @@ import { PageHeader } from '@/pages/PageHeader'
 
 import type { BenchmarkSummary } from './api'
 import { useBenchmarkQuery } from './api'
+import { AccuracyHeatmap } from './AccuracyHeatmap'
 import { BenchmarkSkeleton } from './BenchmarkSkeleton'
 import { MethodComparison } from './MethodComparison'
+import { PositionSlope } from './PositionSlope'
 
 export const EVAL_COMMAND = 'bisect eval --split test'
 
@@ -26,6 +28,10 @@ function BenchmarkSections({ summary }: { readonly summary: BenchmarkSummary }) 
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
       <MethodComparison methods={summary.methods} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+        <AccuracyHeatmap cells={summary.heatmap} />
+        <PositionSlope rows={summary.by_position} />
+      </div>
     </div>
   )
 }
