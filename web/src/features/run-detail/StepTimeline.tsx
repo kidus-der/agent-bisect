@@ -43,6 +43,8 @@ interface StepTimelineProps {
   readonly canRewind: boolean
   readonly rerunCount: number | null
   readonly intervention: Intervention | null
+  /** The tape is still being written, so it does not end at the last cell. */
+  readonly recording: boolean
 }
 
 function axisTicks(nSteps: number): readonly number[] {
@@ -84,6 +86,7 @@ export function StepTimeline({
   canRewind,
   rerunCount,
   intervention,
+  recording,
 }: StepTimelineProps) {
   const reduced = useReducedMotion() ?? false
   const [frameRef, frame] = useMeasure({ debounce: 0 })
@@ -303,6 +306,17 @@ export function StepTimeline({
           </div>
         </div>
       </div>
+
+      {/* A recording run's tape does not end at its last cell: say so where the
+          cells stop, instead of leaving the rest of the panel blank. */}
+      {recording && !geometry.scrolls ? (
+        <p
+          className="-mt-8 mb-4 flex h-12 items-center rounded-step border border-dashed border-line-strong px-3 font-mono text-[11px] tracking-wide text-ink-muted uppercase"
+          style={{ marginLeft: geometry.contentWidth + 12 }}
+        >
+          still recording
+        </p>
+      ) : null}
 
       {geometry.scrolls ? (
         <TimelineMinimap

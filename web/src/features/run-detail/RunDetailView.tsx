@@ -128,6 +128,7 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
             canRewind={treatedAtPlayhead.length > 0}
             rerunCount={treatedAtPlayhead.length || null}
             intervention={rewind && summary ? summary : null}
+            recording={detail.status === 'recording'}
           />
         </div>
         <div className="shrink-0 border-t border-line pt-4 xl:w-56 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
@@ -142,7 +143,7 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
       </Panel>
 
       {!bisected ? (
-        <Panel variant="card">
+        <Panel variant="card" className="max-w-3xl">
           <NotBisected runId={runId} />
         </Panel>
       ) : null}

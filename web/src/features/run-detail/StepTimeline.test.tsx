@@ -68,6 +68,7 @@ function Harness({ onChange }: { readonly onChange?: (step: number) => void }) {
       canRewind
       rerunCount={8}
       intervention={null}
+      recording={false}
     />
   )
 }
@@ -160,6 +161,7 @@ describe('StepTimeline playhead', () => {
         canRewind
         rerunCount={8}
         intervention={null}
+        recording={false}
       />,
     )
     const slider = screen.getByRole('slider', { name: 'Step playhead' })
@@ -187,6 +189,7 @@ describe('StepTimeline playhead', () => {
         canRewind
         rerunCount={8}
         intervention={null}
+        recording={false}
       />,
     )
 
@@ -214,6 +217,7 @@ describe('StepTimeline playhead', () => {
         canRewind
         rerunCount={8}
         intervention={null}
+        recording={false}
       />,
     )
 
@@ -239,6 +243,7 @@ describe('StepTimeline playhead', () => {
         canRewind
         rerunCount={8}
         intervention={null}
+        recording={false}
       />,
     )
 
@@ -262,6 +267,7 @@ describe('StepTimeline playhead', () => {
         canRewind={false}
         rerunCount={8}
         intervention={null}
+        recording={false}
       />,
     )
 
