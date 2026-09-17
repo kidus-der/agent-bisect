@@ -117,22 +117,27 @@ export function RunDetailHeader({ runId, run, verdict, simulated }: RunDetailHea
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <motion.span
-          layoutId={layoutIds.runBlameStripe(id)}
-          transition={transition}
-          data-morph="blame"
-          className="inline-flex"
-        >
-          {verdict ? (
-            <BlameBadge
-              step={verdict.step}
-              effect={verdict.effect}
-              interval={[verdict.low, verdict.high]}
-            />
-          ) : run ? null : (
-            <Skeleton className="h-6 w-56 rounded-pill" />
-          )}
-        </motion.span>
+        {/* A run nobody has bisected has no blame to show, and an empty box
+            here would be a morph target of zero size: the row's stripe would
+            animate into nothing instead of simply swapping. */}
+        {verdict || !run ? (
+          <motion.span
+            layoutId={layoutIds.runBlameStripe(id)}
+            transition={transition}
+            data-morph="blame"
+            className="inline-flex"
+          >
+            {verdict ? (
+              <BlameBadge
+                step={verdict.step}
+                effect={verdict.effect}
+                interval={[verdict.low, verdict.high]}
+              />
+            ) : (
+              <Skeleton className="h-6 w-56 rounded-pill" />
+            )}
+          </motion.span>
+        ) : null}
         {run?.planted_step !== undefined &&
         run?.planted_step !== null &&
         run?.fault_type !== null ? (

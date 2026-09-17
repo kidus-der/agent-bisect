@@ -33,18 +33,16 @@ const RUN = {
 const VERDICT = { step: 7, effect: 0.875, low: 0.4743, high: 0.965 }
 
 /** The header renders a Link, so it needs a router around it and nothing else. */
-async function renderHeader(run: RunDetail | null): Promise<HTMLElement> {
+async function renderHeader(
+  run: RunDetail | null,
+  verdict: typeof VERDICT | null = run ? VERDICT : null,
+): Promise<HTMLElement> {
   const rootRoute = createRootRoute()
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
     component: () => (
-      <RunDetailHeader
-        runId="brief-12-step"
-        run={run}
-        verdict={run ? VERDICT : null}
-        simulated={run !== null}
-      />
+      <RunDetailHeader runId="brief-12-step" run={run} verdict={verdict} simulated={run !== null} />
     ),
   })
   const router = createRouter({
@@ -79,6 +77,15 @@ describe('RunDetailHeader morph targets', () => {
     for (const target of MORPH_TARGETS) {
       expect(container.querySelectorAll(`[data-morph="${target}"]`)).toHaveLength(1)
     }
+  })
+
+  it('drops the blame target on a run nobody has bisected', async () => {
+    // An empty target of zero size would pull the Runs row's stripe into
+    // nothing. With no blame to show, the two pages just swap.
+    const container = await renderHeader(RUN, null)
+
+    expect(container.querySelectorAll('[data-morph="blame"]')).toHaveLength(0)
+    expect(container.querySelectorAll('[data-morph="id"]')).toHaveLength(1)
   })
 
   it('shows the run id from the route before the payload arrives', async () => {
