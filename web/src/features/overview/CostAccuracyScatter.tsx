@@ -34,8 +34,12 @@ const MIN_HEIGHT = 240
  */
 const Y_DOMAIN = [0.5, 1] as const
 const Y_TICKS = [0.5, 0.6, 0.7, 0.8, 0.9, 1] as const
-/** Three money labels; five touch at the widths this chart gets. */
-const X_TICKS_NARROW = [0.03, 0.3, 3] as const
+/**
+ * Decade ticks across the range calls actually span: one call (a single judge
+ * pass) to a few thousand (a full re-run sweep). Four labels; five touch at the
+ * widths this chart gets. Any tick outside the domain is dropped when drawn.
+ */
+const X_TICKS_NARROW = [1, 10, 100, 1000] as const
 const POINT_RADIUS = 5
 const HEADLINE_RADIUS = 7
 const CAP_HALF = 4
@@ -144,7 +148,10 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
           titleOffset={MARGIN.left - 12}
         />
 
-        {X_TICKS_NARROW.map((tick) => (
+        {X_TICKS_NARROW.filter((tick) => {
+          const [low, high] = x.domain()
+          return tick >= (low ?? 0) && tick <= (high ?? 0)
+        }).map((tick) => (
           <text
             key={tick}
             x={x(tick)}
