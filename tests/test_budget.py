@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 from agent_bisect.core.budget import BudgetExceededError, BudgetLedger, CallRecord, current_phase
 from pydantic import ValidationError
@@ -147,3 +149,82 @@ def test_ledger_uses_wal_journal_mode(tmp_path):
     conn.close()
 
     assert mode.lower() == "wal"
+
+
+# ---- run attribution (P1b) ----
+
+
+def test_reserve_records_the_run_a_call_belongs_to(tmp_path):
+    """Every recorded run must be able to say what it cost."""
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+
+    ledger.reserve(phase="P1", model="m", purpose="agent", run_id="airline-3-t0")
+
+    assert ledger.totals_per_run() == {"airline-3-t0": 1}
+
+
+def test_run_id_is_optional(tmp_path):
+    """A rate-limit ramp or a probe belongs to no run."""
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+
+    ledger.reserve(phase="P0", model="m", purpose="probe")
+
+    assert ledger.totals_per_run() == {}
+    assert ledger.total_calls() == 1
+
+
+def test_totals_per_run_groups_by_run(tmp_path):
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    for _ in range(3):
+        ledger.reserve(phase="P1", model="m", purpose="agent", run_id="a")
+    ledger.reserve(phase="P1", model="m", purpose="user", run_id="b")
+
+    assert ledger.totals_per_run() == {"a": 3, "b": 1}
+
+
+def test_record_also_carries_a_run_id(tmp_path):
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+
+    ledger.record(
+        CallRecord(
+            ts=1.0, phase="P1", model="m", purpose="agent", status="ok",
+            tokens_in=1, tokens_out=1, latency_ms=1.0, run_id="airline-0-t0",
+        )
+    )
+
+    assert ledger.totals_per_run() == {"airline-0-t0": 1}
+
+
+def test_an_existing_ledger_without_the_column_is_migrated_in_place(tmp_path):
+    """P0 wrote thousands of rows before run attribution existed; they must
+    survive, and keep counting against the cap."""
+    path = tmp_path / "ledger.sqlite"
+    legacy = sqlite3.connect(path)
+    with legacy:
+        legacy.execute(
+            "CREATE TABLE calls (id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
+            "phase TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL, "
+            "status TEXT NOT NULL, tokens_in INTEGER NOT NULL, tokens_out INTEGER NOT NULL, "
+            "latency_ms REAL NOT NULL)"
+        )
+        legacy.execute(
+            "INSERT INTO calls (ts, phase, model, purpose, status, tokens_in, tokens_out, "
+            "latency_ms) VALUES (1.0, 'P0', 'm', 'probe', 'ok', 1, 1, 1.0)"
+        )
+    legacy.close()
+
+    ledger = BudgetLedger(path)
+
+    assert ledger.total_calls() == 1
+    assert ledger.totals_per_run() == {}
+    ledger.reserve(phase="P1", model="m", purpose="agent", run_id="r1")
+    assert ledger.totals_per_run() == {"r1": 1}
+
+
+def test_migrating_twice_is_a_no_op(tmp_path):
+    path = tmp_path / "ledger.sqlite"
+    BudgetLedger(path).reserve(phase="P1", model="m", purpose="agent", run_id="r1")
+
+    reopened = BudgetLedger(path)
+
+    assert reopened.totals_per_run() == {"r1": 1}
