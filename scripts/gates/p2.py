@@ -55,6 +55,13 @@ from agent_bisect.core.tape import TapeReader, canonical_request_hash  # noqa: E
 
 REQUIRED_RUNS = 20
 
+#: Not copied into the divergence check's scratch store: the replay needs
+#: the tape and the blobs, and nothing else. Other phases' artifacts are
+#: megabytes of irrelevance, and the ledger must not be written to twice.
+_SCRATCH_IGNORE = shutil.ignore_patterns(
+    "p0", "p1", "p2", "p4", "logs", "record", "ledger.sqlite*"
+)
+
 
 class NetworkBlockedError(RuntimeError):
     """Something tried to open a socket while the gate was running."""
@@ -169,7 +176,7 @@ def check_divergence_is_detected(runs_dir: Path, run_id: str) -> Criterion:
     scratch = Path(tempfile.mkdtemp(prefix="bisect-p2-"))
     try:
         copy = scratch / "runs"
-        shutil.copytree(runs_dir, copy, ignore=shutil.ignore_patterns("p1", "p2", "logs"))
+        shutil.copytree(runs_dir, copy, ignore=_SCRATCH_IGNORE)
         step_idx = _mutate_one_request(copy, run_id)
         try:
             with network_blocked():
