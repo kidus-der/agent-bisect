@@ -37,4 +37,9 @@ export function stubMatchMedia(matches: (query: string) => boolean): void {
 
 stubMatchMedia(() => false)
 Element.prototype.scrollIntoView = () => undefined
+Element.prototype.scrollTo = () => undefined
+// jsdom has no pointer capture; real drag behaviour is covered by Playwright.
+Element.prototype.setPointerCapture = () => undefined
+Element.prototype.releasePointerCapture = () => undefined
+Element.prototype.hasPointerCapture = () => false
 window.scrollTo = () => undefined
