@@ -3,27 +3,27 @@ import { type ErrorComponentProps, Link } from '@tanstack/react-router'
 import { ApiError } from '@/api/client'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
-import { Panel } from '@/components/primitives/Panel'
+import { StatePanel } from '@/components/primitives/StatePanel'
 import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 
 /** Per-route error boundary: a failing page never takes the shell down with it. */
 export function RouteError({ error, reset }: ErrorComponentProps) {
   const apiError = error instanceof ApiError ? error : undefined
   return (
-    <Panel variant="card">
+    <StatePanel>
       <ErrorState
         title="This page failed to render"
         message={error instanceof Error ? error.message : 'An unexpected error occurred.'}
         code={apiError?.code}
         onRetry={reset}
       />
-    </Panel>
+    </StatePanel>
   )
 }
 
 export function RouteNotFound() {
   return (
-    <Panel variant="card">
+    <StatePanel variant="canvas">
       <EmptyState
         label="404 · no such route"
         title="Nothing is recorded at this address"
@@ -33,7 +33,7 @@ export function RouteNotFound() {
           Back to Overview
         </Link>
       </EmptyState>
-    </Panel>
+    </StatePanel>
   )
 }
 
