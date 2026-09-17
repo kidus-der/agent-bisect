@@ -214,47 +214,17 @@ def check_replays(items: Sequence[DatasetItem], runs_dir: Path, sample: int) -> 
 def _replay_faulted(run_id: str, store: BlobStore, reader: TapeReader) -> None:
     """Replay one faulted recording from its own tape, executing no tool.
 
-    `adapters.tau2_replay.replay_run` verifies a recording by re-executing
-    every tool and asserting the recorded result comes back. A faulted
-    recording is exactly the case where that is false by construction: the
-    result at the planted step is the mutation, and the tool would answer
-    truthfully. So the snapshot mode is used instead — every LLM request
-    hash is still checked, every recorded tool result is served, the world
-    is restored from the recorded snapshot and its hash checked, and the
-    whole tape must be consumed.
+    `tool_mode="snapshot"`, not the default `"verify"`: a faulted
+    recording is exactly the case where re-executing the tool does *not*
+    reproduce the recorded result, because the result at the planted step
+    is the mutation and the tool would answer truthfully. Everything else
+    still holds — every LLM request hash is checked, the world is
+    restored from the recorded snapshot and its hash checked, the whole
+    tape must be consumed, and the reward must come out the same.
     """
-    from agent_bisect.adapters.tau2 import build_orchestrator
-    from agent_bisect.adapters.tau2_fault_injector import restored_fault
-    from agent_bisect.adapters.tau2_replay import (  # noqa: PLC2701
-        REPLAY_EVERYTHING,
-        Tau2Replayer,
-        _CountingSink,
-        _driving,
-        _run,
-        _spec_from,
-    )
-    from agent_bisect.core.runner import check_replay_complete
+    from agent_bisect.adapters.tau2_replay import replay_run
 
-    manifest = reader.get_manifest(run_id)
-    orchestrator = build_orchestrator(_spec_from(manifest), f"{run_id}-p3gate")
-    replayer = Tau2Replayer(
-        environment=orchestrator.environment,
-        steps=reader.get_steps(run_id),
-        store=store,
-        sink=_CountingSink(),
-        fork_step=REPLAY_EVERYTHING,
-        tool_mode="snapshot",
-    )
-    # The item's standing fault is part of its world, so it is restored
-    # here too (`docs/decisions/0016-persistent-planted-fault.md`). A
-    # snapshot replay executes no tool, so it changes nothing today; it
-    # would matter the moment this replayed with `rerun_live`.
-    with (
-        restored_fault(orchestrator.environment, manifest.params),
-        _driving(replayer, orchestrator.environment, None),
-    ):
-        _run(orchestrator)
-    check_replay_complete(replayer.cursor)
+    replay_run(run_id, store=store, reader=reader, tool_mode="snapshot")
 
 
 def _sample(items: Sequence[DatasetItem], size: int) -> list[DatasetItem]:
