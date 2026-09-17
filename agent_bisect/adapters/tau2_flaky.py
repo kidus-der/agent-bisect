@@ -315,3 +315,42 @@ def flaky_db_hash(environment: Any, world: FlakyWorld) -> str:
 def canonical_actions(actions: Sequence[Mapping[str, Any]], world: FlakyWorld) -> list[dict]:
     """The golden actions with their arguments canonicalised the same way."""
     return [canonicalise(dict(action), world.canonical_ids()) for action in actions]
+
+
+# ---- evaluating a flaky run (decision 0011) ---------------------------------
+
+
+def canonical_simulation(simulation: Any, world: FlakyWorld) -> Any:
+    """`simulation` with this run's random names replaced by the deterministic ones.
+
+    A renaming applied to the whole trajectory — every message body and
+    every tool-call argument — so that tau2's own evaluator, which
+    replays the write actions on a fresh environment of its own, sees the
+    identifiers *it* would have minted. Without it the replay does not
+    merely score 0: `Environment.set_state` raises on the mismatch.
+    """
+    mapping = world.canonical_ids()
+    return type(simulation).model_validate(
+        canonicalise(simulation.model_dump(mode="json"), mapping)
+    )
+
+
+def flaky_evaluate(simulation: Any, task: Any, domain: str, world: FlakyWorld) -> Any:
+    """tau2's own reward, computed on the canonicalised trajectory.
+
+    This is the flaky-world reward defined in
+    `docs/decisions/0011-flaky-world.md`: not a relaxed check, the same
+    one — the DB hash, the action checks and the communicate checks — with
+    generated identifiers and clock stamps renamed first. Two runs that
+    booked the same flight under different random names agree; a run that
+    booked a different flight still does not.
+    """
+    from tau2.evaluator.evaluator import EvaluationType, evaluate_simulation
+
+    return evaluate_simulation(
+        simulation=canonical_simulation(simulation, world),
+        task=task,
+        evaluation_type=EvaluationType.ALL,
+        solo_mode=False,
+        domain=domain,
+    )

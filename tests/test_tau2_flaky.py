@@ -258,13 +258,16 @@ def flaky_recordings(tmp_path_factory) -> dict:
             spec = RunSpec(domain="airline", task_id="0", agent_model=AGENT_MODEL,
                            user_model=USER_MODEL, seed=42)
             orchestrator = build_orchestrator(spec, run_id)
-            with flaky_world(orchestrator.environment, config):
-                _record(orchestrator, spec, run_id, store, record_run, Tau2Recorder)
+            with flaky_world(orchestrator.environment, config) as world_used:
+                simulation = _record(orchestrator, spec, run_id, store, record_run,
+                                     Tau2Recorder)
             runs.append((run_id, config))
-    return {"store": store, "runs": runs}
+            if index == 0:
+                scored = (simulation, orchestrator.task, world_used)
+    return {"store": store, "runs": runs, "scored": scored}
 
 
-def _record(orchestrator, spec, run_id, store, record_run, recorder_class) -> None:
+def _record(orchestrator, spec, run_id, store, record_run, recorder_class):
     """Record one run on an environment the flaky world already wraps."""
     from datetime import UTC, datetime
 
@@ -289,6 +292,7 @@ def _record(orchestrator, spec, run_id, store, record_run, recorder_class) -> No
     )
     with recorder.bind(orchestrator.environment):
         simulation = run_simulation(orchestrator, evaluation_type=EvaluationType.COMMUNICATE)
+    result = simulation
     if simulation.reward_info is not None:
         recorder.record_outcome(
             reward=simulation.reward_info.reward,
@@ -296,6 +300,41 @@ def _record(orchestrator, spec, run_id, store, record_run, recorder_class) -> No
                                            simulation.termination_reason)),
             breakdown=simulation.reward_info.model_dump(mode="json"),
         )
+    return result
+
+
+def test_the_canonicalised_reward_can_be_computed_where_tau2s_cannot(flaky_recordings):
+    """The decision-0011 measurement, end to end: scoring a flaky run that
+    books with `EvaluationType.ALL` raises, because tau2 replays the write
+    action on its own environment and mints `HATHAT` where the recording
+    holds a random id. The same evaluation on the canonicalised trajectory
+    returns a reward."""
+    from agent_bisect.adapters.tau2_flaky import flaky_evaluate
+    from tau2.evaluator.evaluator import EvaluationType, evaluate_simulation
+
+    simulation, task, world = flaky_recordings["scored"]
+
+    with pytest.raises(ValueError, match="Tool call"):
+        evaluate_simulation(simulation=simulation, task=task,
+                            evaluation_type=EvaluationType.ALL, solo_mode=False,
+                            domain="airline")
+
+    reward_info = flaky_evaluate(simulation, task, "airline", world)
+
+    assert reward_info.reward in (0.0, 1.0)
+
+
+def test_canonicalising_a_trajectory_renames_the_generated_id(flaky_recordings):
+    from agent_bisect.adapters.tau2_flaky import canonical_simulation
+
+    simulation, _task, world = flaky_recordings["scored"]
+    flaky_id = world.id_trail[0][0]
+
+    renamed = canonical_simulation(simulation, world)
+
+    assert flaky_id in simulation.model_dump_json()
+    assert flaky_id not in renamed.model_dump_json()
+    assert "HATHAT" in renamed.model_dump_json()
 
 
 def test_a_flaky_run_records_like_any_other(flaky_recordings):
