@@ -20,11 +20,12 @@ def test_no_airline_task_needs_a_judge():
     assert len(task_ids("airline")) == 50
 
 
-def test_most_retail_tasks_are_as_cheap_to_score_as_airline():
-    """112 of 114 retail tasks carry NL_ASSERTION in their reward basis,
-    but only the 40 that also list nl_assertions actually call a model."""
-    assert len(task_ids("retail", judged=True)) == 40
-    assert len(task_ids("retail", judged=False)) == 74
+def test_nearly_every_retail_task_calls_a_judge():
+    """tau2 runs its NL judge whenever NL_ASSERTION is in the reward basis,
+    whether or not the task lists any assertions -- 112 of 114 retail
+    tasks (`docs/decisions/0018-retail-nl-judge.md`)."""
+    assert len(task_ids("retail", judged=True)) == 112
+    assert len(task_ids("retail", judged=False)) == 2
 
 
 def test_the_judged_tasks_come_last():

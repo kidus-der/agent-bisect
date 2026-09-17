@@ -38,6 +38,7 @@ from agent_bisect.adapters.tau2 import recording_session, tau2_commit
 from agent_bisect.adapters.tau2_batch import tasks_from_range
 from agent_bisect.adapters.tau2_flaky import FlakyConfig, canonical_rewards
 from agent_bisect.adapters.tau2_inject import Tau2InjectRunner
+from agent_bisect.adapters.tau2_judge import judge_routed
 from agent_bisect.adapters.tau2_tasks import collection_order, shard_of
 from agent_bisect.bench.inject import InjectConfig
 from agent_bisect.bench.inject import collect as run_collection
@@ -149,7 +150,10 @@ def collect(
         own_stdout() as stdout,
         recording_session(ledger=ledger, phase=phase),
         canonical_rewards(),
+        judge_routed() as judge,
     ):
+        if not json_output:
+            typer.echo(f"tau2's NL-assertion judge routed to {judge}")
         runner = Tau2InjectRunner(
             store=BlobStore(runs_dir),
             tape=TapeWriter(runs_dir),

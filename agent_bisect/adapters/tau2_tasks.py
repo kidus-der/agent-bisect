@@ -35,11 +35,16 @@ def _reward_basis(task: Any) -> list[str]:
 
 
 def needs_a_judge(task: Any) -> bool:
-    """True when scoring this task makes an LLM call."""
-    criteria = getattr(task, "evaluation_criteria", None)
-    return "NL_ASSERTION" in _reward_basis(task) and bool(
-        getattr(criteria, "nl_assertions", None)
-    )
+    """True when scoring this task makes an LLM call.
+
+    τ²'s own condition, and only that one: `task_needs_nl =
+    RewardType.NL_ASSERTION in task.evaluation_criteria.reward_basis`
+    (`evaluator/evaluator.py`). It does **not** also require the task to
+    list any assertions — measured the hard way, by 32 retail tasks whose
+    reward called a judge we had classified as judge-free. 112 of the 114
+    retail tasks are in this set.
+    """
+    return "NL_ASSERTION" in _reward_basis(task)
 
 
 def writes_to_the_world(task: Any) -> bool:
