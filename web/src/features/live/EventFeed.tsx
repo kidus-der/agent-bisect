@@ -15,11 +15,51 @@ const LEVEL_STYLES: Readonly<Record<LiveEvent['level'], { glyph: string; classNa
   error: { glyph: '✕', className: 'text-fail' },
 }
 
+/**
+ * The server's messages are shaped `simulated: <phase> batch <id> progressed`,
+ * so eight rows carried about one row of information. The phase is lifted into
+ * a chip and the simulated marker into a tag, leaving the message itself.
+ */
+const MESSAGE_PATTERN = /^(simulated:\s*)?(\w+)\s+(batch\s+\S+.*)$/
+
+interface ParsedMessage {
+  readonly simulated: boolean
+  readonly phase: string | null
+  readonly detail: string
+}
+
+export function parseEventMessage(message: string): ParsedMessage {
+  const match = MESSAGE_PATTERN.exec(message.trim())
+  if (!match) return { simulated: false, phase: null, detail: message }
+  return {
+    simulated: Boolean(match[1]),
+    phase: match[2] ?? null,
+    detail: match[3] ?? message,
+  }
+}
+
 /** Local wall-clock, to the second: the feed is read against what is happening now. */
 function formatTime(ts: string): string {
   const parsed = Date.parse(ts)
   if (!Number.isFinite(parsed)) return '--:--:--'
   return new Date(parsed).toLocaleTimeString('en-GB', { hour12: false })
+}
+
+function EventMessage({ message }: { readonly message: string }) {
+  const parsed = parseEventMessage(message)
+  return (
+    <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      {parsed.simulated ? (
+        <span className="rounded-step border border-line px-1 label-instrument">sim</span>
+      ) : null}
+      {parsed.phase ? (
+        <span className="rounded-step border border-line-strong bg-elevated px-1.5 label-instrument text-ink">
+          {parsed.phase}
+        </span>
+      ) : null}
+      <span className="min-w-0 text-small text-pretty text-ink">{parsed.detail}</span>
+    </span>
+  )
 }
 
 interface EventFeedProps {
@@ -80,7 +120,7 @@ export function EventFeed({ events }: EventFeedProps) {
                   >
                     <span aria-hidden="true">{level.glyph}</span> {event.level}
                   </span>
-                  <span className="min-w-0 text-small text-pretty text-ink">{event.message}</span>
+                  <EventMessage message={event.message} />
                 </li>
               )
             })}
