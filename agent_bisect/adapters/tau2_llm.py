@@ -43,7 +43,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent_bisect.core.budget import BudgetLedger, CallRecord, current_phase
+from agent_bisect.core.budget import BudgetLedger, current_phase
 from agent_bisect.core.config import Settings, get_settings
 from agent_bisect.core.limits import get_shared_limiter
 from agent_bisect.core.llm import (
@@ -162,7 +162,7 @@ class Tau2Router:
     ) -> tuple[Any, int]:
         attempt = 0
         while True:
-            self._ledger.check_budget()
+            call_id = self._ledger.reserve(phase=self._phase, model=model, purpose=purpose)
             self.limiter_for(model).acquire_sync()
             call_start = self._clock()
             failure: TransportError | None = None
@@ -176,11 +176,9 @@ class Tau2Router:
                 # probe, not be swallowed by the backoff.
                 failure = _as_transport_error(exc)
             if failure is None:
-                self._record(model, purpose, "ok", call_start)
+                self._finish(call_id, "ok", call_start)
                 return response, attempt + 1
-            delay = self._delay_before_retry(
-                failure, model, purpose, call_start, start, attempt
-            )
+            delay = self._delay_before_retry(failure, call_id, call_start, start, attempt)
             if delay is None:
                 # Raised OUTSIDE the except block: `raise` inside one re-links
                 # __context__ to the provider exception, whose text is
@@ -192,8 +190,7 @@ class Tau2Router:
     def _delay_before_retry(
         self,
         exc: TransportError,
-        model: str,
-        purpose: str,
+        call_id: int,
         call_start: float,
         start: float,
         attempt: int,
@@ -206,19 +203,19 @@ class Tau2Router:
         """
         retryable = exc.status_code is None or exc.status_code in RETRYABLE_STATUS_CODES
         if not retryable:
-            self._record(model, purpose, "error", call_start)
+            self._finish(call_id, "error", call_start)
             return None
         if self._clock() - start >= self._config.max_elapsed_s:
-            self._record(model, purpose, "exhausted", call_start)
+            self._finish(call_id, "exhausted", call_start)
             return None
-        self._record(model, purpose, "retrying", call_start)
+        self._finish(call_id, "retrying", call_start)
         # Without this the ledger shows a "retrying" row with no reason, and a
         # run that is quietly burning a third of its calls on retries looks
         # identical to one that is merely slow. The message is already redacted
         # by TransportError.
         _log.warning(
-            "retrying %s (%s) after status=%s attempt=%d: %s",
-            model, purpose, exc.status_code, attempt + 1, exc,
+            "retrying call %d after status=%s attempt=%d: %s",
+            call_id, exc.status_code, attempt + 1, exc,
         )
         if exc.retry_after is not None:
             return exc.retry_after
@@ -229,18 +226,9 @@ class Tau2Router:
             rand=self._rand,
         )
 
-    def _record(self, model: str, purpose: str, status: str, call_start: float) -> None:
-        self._ledger.record(
-            CallRecord(
-                ts=time.time(),
-                phase=self._phase,
-                model=model,
-                purpose=purpose,
-                status=status,
-                tokens_in=0,
-                tokens_out=0,
-                latency_ms=(self._clock() - call_start) * 1000,
-            )
+    def _finish(self, call_id: int, status: str, call_start: float) -> None:
+        self._ledger.finish(
+            call_id, status=status, latency_ms=(self._clock() - call_start) * 1000
         )
 
 

@@ -43,7 +43,7 @@ from typing import Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agent_bisect.core.budget import BudgetLedger, CallRecord, current_phase
+from agent_bisect.core.budget import BudgetLedger, current_phase
 from agent_bisect.core.config import redact
 
 DEFAULT_REQUESTS_PER_MINUTE = 30.0
@@ -74,6 +74,14 @@ class LLMResponse(BaseModel):
     tokens_in: int
     tokens_out: int
     raw: dict = Field(default_factory=dict)
+
+
+class RecordingError(RuntimeError):
+    """A call was made and ledgered, but `record_before_use` could not archive it.
+
+    Raised instead of returning the response: record-before-use means a
+    caller must never act on traffic that was not durably recorded.
+    """
 
 
 class TransportError(Exception):
@@ -316,51 +324,67 @@ class LLMClient:
         start = self._clock()
         attempt = 0
         while True:
-            # Checked before every attempt, not just the first: a call that
-            # would exceed the cap never reaches the network, retry or not.
-            self._ledger.check_budget()
+            # Reserved before every attempt, not just the first: a call that
+            # would exceed the cap never reaches the network, retry or not,
+            # and the reservation is atomic so concurrent callers cannot
+            # overshoot it together.
+            call_id = self._ledger.reserve(
+                phase=phase_name, model=request.model, purpose=request.purpose
+            )
             await self._limiter.acquire()
             call_start = self._clock()
+            failure: TransportError | None = None
+            response = None
             try:
                 response = await self._transport.complete(
                     request, api_base=self._api_base, api_key=self._api_key
                 )
             except TransportError as exc:
-                # Every attempt is registered, success or failure, so the
-                # ledger reflects real network calls made (each one counts
-                # against the provider's rate limit and our own budget).
-                delay = self._delay_before_retry(
-                    exc, request, phase_name, call_start, start, attempt
+                failure = exc
+            if failure is None and response is not None:
+                # The ledger row is written before the hook runs: the call has
+                # been made and paid for whether or not recording succeeds.
+                self._finish(
+                    call_id, "ok", response.tokens_in, response.tokens_out, call_start
                 )
-                attempt += 1
-                await self._sleep(delay)
-                continue
-            if self._record_before_use is not None:
-                await self._record_before_use(request, response)
-            self._record(
-                request, phase_name, "ok", response.tokens_in, response.tokens_out, call_start
+                if self._record_before_use is not None:
+                    await self._invoke_hook(request, response)
+                return response
+            assert failure is not None
+            # Every attempt is registered, success or failure, so the ledger
+            # reflects real network calls made (each one counts against the
+            # provider's rate limit and our own budget).
+            delay = self._delay_before_retry(
+                failure, call_id, call_start, start, attempt
             )
-            return response
+            if delay is None:
+                raise failure
+            attempt += 1
+            await self._sleep(delay)
 
     def _delay_before_retry(
         self,
         exc: TransportError,
-        request: LLMRequest,
-        phase: str,
+        call_id: int,
         call_start: float,
         start: float,
         attempt: int,
-    ) -> float:
-        """Record the failed attempt and return the delay before retrying, or re-raise `exc`."""
+    ) -> float | None:
+        """Close out the failed attempt; return the retry delay, or None to give up.
+
+        Returning None instead of raising keeps the `raise` at the call
+        site, outside the `except` block, so the provider's unredacted
+        exception is not re-linked as `__context__`.
+        """
         is_retryable = exc.status_code is None or exc.status_code in RETRYABLE_STATUS_CODES
         elapsed = self._clock() - start
         if not is_retryable:
-            self._record(request, phase, "error", 0, 0, call_start)
-            raise exc
+            self._finish(call_id, "error", 0, 0, call_start)
+            return None
         if elapsed >= self._config.max_elapsed_s:
-            self._record(request, phase, "exhausted", 0, 0, call_start)
-            raise exc
-        self._record(request, phase, "retrying", 0, 0, call_start)
+            self._finish(call_id, "exhausted", 0, 0, call_start)
+            return None
+        self._finish(call_id, "retrying", 0, 0, call_start)
         if exc.retry_after is not None:
             return exc.retry_after
         return compute_backoff_s(
@@ -370,24 +394,36 @@ class LLMClient:
             rand=self._rand,
         )
 
-    def _record(
+    async def _invoke_hook(self, request: LLMRequest, response: LLMResponse) -> None:
+        """Run `record_before_use`; a failure there must not be mistaken for success.
+
+        The ledger row is already written, so a paid call is never missing
+        from the accounting. But a response whose durable recording failed
+        must not be handed to a caller that would act on it — P1 relies on
+        record-before-use — so the failure is surfaced as `RecordingError`.
+        """
+        assert self._record_before_use is not None
+        try:
+            await self._record_before_use(request, response)
+        except Exception as exc:  # noqa: BLE001 - re-raised as RecordingError below
+            failure = RecordingError(redact(f"{type(exc).__name__}: {exc}"))
+            failure.__cause__ = None
+            failure.__context__ = None
+            failure.__suppress_context__ = True
+            raise failure from None
+
+    def _finish(
         self,
-        request: LLMRequest,
-        phase: str,
+        call_id: int,
         status: str,
         tokens_in: int,
         tokens_out: int,
         call_start: float,
     ) -> None:
-        self._ledger.record(
-            CallRecord(
-                ts=time.time(),
-                phase=phase,
-                model=request.model,
-                purpose=request.purpose,
-                status=status,
-                tokens_in=tokens_in,
-                tokens_out=tokens_out,
-                latency_ms=(self._clock() - call_start) * 1000,
-            )
+        self._ledger.finish(
+            call_id,
+            status=status,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            latency_ms=(self._clock() - call_start) * 1000,
         )
