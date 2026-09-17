@@ -232,6 +232,43 @@ def test_a_call_that_already_happened_earlier_is_never_faulted(tmp_path):
     assert {item["planted_step"] for item in result.items} <= {1}
 
 
+# ---- the stop rule ----
+
+
+def test_the_wall_clock_budget_stops_the_collection(tmp_path):
+    result = run(tmp_path, FakeRunner(), max_seconds=0.0, floor_items=0)
+
+    assert result.stopped_reason == "time budget reached"
+    assert result.items == []
+
+
+def test_the_budget_never_cuts_below_the_floor_the_gate_needs(tmp_path):
+    """Past the deadline the collection keeps going until there is a
+    dataset at all (`docs/decisions/0012-p3-floor.md`)."""
+    result = run(tmp_path, FakeRunner(), max_seconds=0.0, floor_items=3)
+
+    assert len(result.items) >= 3
+    assert result.stopped_reason == "time budget reached"
+
+
+def test_a_shard_stops_on_the_shared_count_not_its_own(tmp_path):
+    """Two shards write one journal, so the second sees the first's items
+    and stops when the dataset is big enough."""
+    journal = Journal(tmp_path)
+    collect(FakeRunner(), tasks=AIRLINE[:2], journal=journal, config=InjectConfig())
+    first = _kept_on_disk(journal)
+
+    second = collect(FakeRunner(), tasks=AIRLINE[2:], journal=journal,
+                     config=InjectConfig(target_items=first))
+
+    assert second.stopped_reason == "target reached"
+    assert _kept_on_disk(journal) == first
+
+
+def _kept_on_disk(journal: Journal) -> int:
+    return sum(1 for record in journal.all("candidate") if record.get("status") == "kept")
+
+
 # ---- telling the dashboard where we are ----
 
 

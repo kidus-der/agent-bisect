@@ -35,6 +35,7 @@ without a model.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -97,6 +98,11 @@ class InjectConfig:
     max_kept_per_run: int = 3
     seed: int = 20260917
     target_items: int = 120
+    #: Keep going past the wall-clock budget until at least this many are
+    #: kept (`docs/decisions/0012-p3-floor.md`, `0017`).
+    floor_items: int = 60
+    #: Wall-clock budget for the whole collection. `None` means no limit.
+    max_seconds: float | None = None
     trial: int = 0
 
     def as_dict(self) -> dict[str, Any]:
@@ -109,6 +115,8 @@ class InjectConfig:
             "max_kept_per_run": self.max_kept_per_run,
             "seed": self.seed,
             "target_items": self.target_items,
+            "floor_items": self.floor_items,
+            "max_seconds": self.max_seconds,
         }
 
 
@@ -238,6 +246,11 @@ class _Collector:
         self._runs_dir = runs_dir
         self._calls_spent = calls_spent
         self._started_at: str | None = None
+        self._began = time.monotonic()
+        #: Kept items across *every* shard, read from the shared journal.
+        #: A sharded collection stops when the dataset is big enough, not
+        #: when one worker's own share is.
+        self._kept_total = _kept_count(journal)
         self._counts: dict[str, int] = dict.fromkeys(FUNNEL_COUNTS, 0)
         self._items: list[dict[str, Any]] = []
         self._balancer = FaultBalancer(_kept_by_fault_type(journal))
@@ -250,16 +263,17 @@ class _Collector:
         self._publish()
         try:
             for domain, task_id in tasks:
-                if len(self._items) >= self._config.target_items:
-                    reason = "target reached"
+                stop = self._should_stop()
+                if stop is not None:
+                    reason = stop
                     break
                 self._one_task(domain, task_id)
+                self._kept_total = _kept_count(self._journal)
                 self._publish()
             else:
-                if len(self._items) >= self._config.target_items:
-                    reason = "target reached"
-        except _Stop as stop:
-            reason = stop.reason
+                reason = self._should_stop() or reason
+        except _Stop as stop_signal:
+            reason = stop_signal.reason
         self._publish(final=reason)
         return CollectionResult(
             items=self._items[: self._config.target_items],
@@ -267,9 +281,27 @@ class _Collector:
             stopped_reason=reason,
         )
 
+    def _should_stop(self) -> str | None:
+        """The stop rule of `docs/decisions/0017-p3-collection-policy.md`.
+
+        The wall-clock budget does not cut the collection below the floor
+        the gate is evaluated against: past the deadline it keeps going
+        until there are enough items to have a dataset at all.
+        """
+        if self._kept_total >= self._config.target_items:
+            return "target reached"
+        budget = self._config.max_seconds
+        if budget is None or time.monotonic() - self._began < budget:
+            return None
+        if self._kept_total >= self._config.floor_items:
+            return "time budget reached"
+        return None
+
     # -- telling the dashboard where we are ---------------------------------
 
-    STOPPED_CLEANLY = frozenset({"tasks exhausted", "target reached"})
+    STOPPED_CLEANLY = frozenset(
+        {"tasks exhausted", "target reached", "time budget reached"}
+    )
 
     def _publish(self, final: str | None = None) -> None:
         """Write `runs/p3/status.json`, atomically. Never fails the run."""
@@ -279,7 +311,7 @@ class _Collector:
             "kind": "inject",
             "phase": PHASE,
             "label": "planted-fault collection",
-            "items_done": len(self._items),
+            "items_done": self._kept_total,
             "items_total": self._config.target_items,
             "calls_spent": self._calls_spent() if self._calls_spent else None,
         }
@@ -621,6 +653,11 @@ def _repeats_before(steps: Sequence[ToolStep], step: ToolStep) -> bool:
         and dict(other.tool_args) == dict(step.tool_args)
         for other in steps
     )
+
+
+def _kept_count(journal: Journal) -> int:
+    """Kept items on disk, across every shard sharing this journal."""
+    return sum(1 for record in journal.all("candidate") if record.get("status") == "kept")
 
 
 def _kept_by_fault_type(journal: Journal) -> dict[str, int]:

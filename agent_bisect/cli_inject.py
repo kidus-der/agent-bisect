@@ -37,6 +37,7 @@ import typer
 from agent_bisect.adapters.tau2 import recording_session, tau2_commit
 from agent_bisect.adapters.tau2_batch import tasks_from_range
 from agent_bisect.adapters.tau2_inject import Tau2InjectRunner
+from agent_bisect.adapters.tau2_tasks import collection_order, shard_of
 from agent_bisect.bench.inject import InjectConfig
 from agent_bisect.bench.inject import collect as run_collection
 from agent_bisect.bench.journal import Journal
@@ -70,6 +71,18 @@ app = typer.Typer(help="Plant faults on stable successes and freeze the dataset.
 def collect(
     domain: str = typer.Option("airline", help="tau2 domain to collect from."),
     tasks: str = typer.Option("0-19", help='Task ids: "0-19", "0,3,7" or "4".'),
+    all_tasks: bool = typer.Option(
+        False, "--all-tasks",
+        help="Every task, cheapest-to-score first (decision 0017). Ignores --domain/--tasks.",
+    ),
+    shard: int = typer.Option(0, help="This worker's index, for a sharded collection."),
+    shards: int = typer.Option(1, help="How many workers share this journal."),
+    max_hours: float = typer.Option(
+        0.0, help="Wall-clock budget; 0 means no limit. The floor still applies."
+    ),
+    floor: int = typer.Option(
+        InjectConfig().floor_items, help="Never stop on time below this many items."
+    ),
     agent_model: str = typer.Option("", help="Agent model id. Default: the P0 choice."),
     user_model: str = typer.Option("", help="User-simulator model id. Default: the P0 choice."),
     seed: int = typer.Option(300, help="Seed pinned into every base run manifest."),
@@ -101,13 +114,25 @@ def collect(
 
     chosen = load_chosen_models()
     config = InjectConfig(
-        attempts_per_bucket=attempts_per_bucket, seed=collection_seed, target_items=target
+        attempts_per_bucket=attempts_per_bucket,
+        seed=collection_seed,
+        target_items=target,
+        floor_items=floor,
+        max_seconds=max_hours * 3600 if max_hours > 0 else None,
     )
     journal = Journal(work_dir)
     ledger = BudgetLedger(ledger_path, max_calls=max_calls)
-    task_list = [(domain, task_id) for task_id in tasks_from_range(tasks)]
+    task_list = shard_of(
+        collection_order() if all_tasks
+        else [(domain, task_id) for task_id in tasks_from_range(tasks)],
+        shard,
+        shards,
+    )
     if not json_output:
-        typer.echo(f"{len(task_list)} tasks, target {target} items, cap {max_calls} calls")
+        typer.echo(
+            f"shard {shard}/{shards}: {len(task_list)} tasks, target {target} items "
+            f"(floor {floor}), cap {max_calls} calls"
+        )
 
     with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
         runner = Tau2InjectRunner(
