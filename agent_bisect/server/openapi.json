@@ -57,7 +57,14 @@
             "type": "array"
           },
           "flaky_ablation": {
-            "$ref": "#/components/schemas/FlakyAblation"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlakyAblation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "heatmap": {
             "items": {
@@ -201,9 +208,20 @@
             "title": "Accuracy",
             "type": "number"
           },
-          "mean_cost_usd": {
-            "title": "Mean Cost Usd",
+          "mean_calls": {
+            "title": "Mean Calls",
             "type": "number"
+          },
+          "mean_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Cost Usd"
           },
           "method": {
             "enum": [
@@ -220,6 +238,7 @@
         "required": [
           "method",
           "mean_cost_usd",
+          "mean_calls",
           "accuracy"
         ],
         "title": "CostAccuracyPoint",
@@ -1490,9 +1509,27 @@
             "title": "Calls Spent",
             "type": "integer"
           },
+          "cost_per_diagnosis_calls": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Diagnosis Calls"
+          },
           "cost_per_diagnosis_usd": {
-            "title": "Cost Per Diagnosis Usd",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Diagnosis Usd"
           },
           "failures_diagnosed": {
             "title": "Failures Diagnosed",
@@ -1507,7 +1544,8 @@
           "runs_recorded",
           "failures_diagnosed",
           "calls_spent",
-          "cost_per_diagnosis_usd"
+          "cost_per_diagnosis_usd",
+          "cost_per_diagnosis_calls"
         ],
         "title": "Kpis",
         "type": "object"
@@ -1638,8 +1676,15 @@
             "type": "number"
           },
           "mean_cost_usd": {
-            "title": "Mean Cost Usd",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Cost Usd"
           },
           "method": {
             "enum": [
@@ -1705,12 +1750,16 @@
             },
             "title": "Recall At M",
             "type": "array"
+          },
+          "recall_provenance": {
+            "$ref": "#/components/schemas/RecallProvenance"
           }
         },
         "required": [
           "headline",
           "kpis",
           "recall_at_m",
+          "recall_provenance",
           "cost_vs_accuracy",
           "hero_run"
         ],
@@ -1931,6 +1980,30 @@
           "recall"
         ],
         "title": "RecallPoint",
+        "type": "object"
+      },
+      "RecallProvenance": {
+        "description": "recall@m beyond `measured_to_m` was never confirmed by a re-run --\nit is the judge's ranking alone (does its top-m contain the planted\nstep). Mirrors `bench.evaluate.build_report`'s own `recall_provenance`\ndocument so the UI can label the unmeasured tail rather than imply it\nwas tested.",
+        "properties": {
+          "beyond_is_judge_ranking_only": {
+            "title": "Beyond Is Judge Ranking Only",
+            "type": "boolean"
+          },
+          "measured_to_m": {
+            "title": "Measured To M",
+            "type": "integer"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "measured_to_m",
+          "beyond_is_judge_ranking_only",
+          "note"
+        ],
+        "title": "RecallProvenance",
         "type": "object"
       },
       "RerunPage": {
