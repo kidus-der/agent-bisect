@@ -211,7 +211,7 @@ export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: 
           ref={plotRef}
           aria-hidden="true"
           className={cn(
-            'pointer-events-none absolute top-0 right-0 bottom-0 left-[3.75rem]',
+            'pointer-events-none absolute top-0 right-0 bottom-0 left-[4.25rem]',
             'md:right-[11.75rem]',
           )}
         >
@@ -227,23 +227,26 @@ export function ForestPlot({ rows, domain, delta, selectedStep, onSelectStep }: 
             δ {delta.toFixed(2)}
           </span>
         </div>
-        <ul className="relative flex flex-col">
-          {rows.map((row, index) => (
-            <ForestRowView
-              key={row.step}
-              row={row}
-              x={x}
-              width={width}
-              selected={row.step === selectedStep}
-              onSelect={onSelectStep}
-              delay={
-                row.blamed ? lastDelay + STAGGER_SECONDS.forest : index * STAGGER_SECONDS.forest
-              }
-              reduced={reduced}
-              gradientId={gradientId}
-            />
-          ))}
-        </ul>
+        {/* A 60-step run has 60 rows: cap the list and keep the axis in view below it. */}
+        <div className="relative max-h-[26rem] overflow-y-auto">
+          <ul className="flex flex-col">
+            {rows.map((row, index) => (
+              <ForestRowView
+                key={row.step}
+                row={row}
+                x={x}
+                width={width}
+                selected={row.step === selectedStep}
+                onSelect={onSelectStep}
+                delay={
+                  row.blamed ? lastDelay + STAGGER_SECONDS.forest : index * STAGGER_SECONDS.forest
+                }
+                reduced={reduced}
+                gradientId={gradientId}
+              />
+            ))}
+          </ul>
+        </div>
         <div className="pl-[4.25rem] md:pr-[11.75rem]">
           <ForestAxis x={x} width={width} domain={domain} />
         </div>

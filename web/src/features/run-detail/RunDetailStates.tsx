@@ -1,4 +1,6 @@
+import { CliCommand } from '@/components/primitives/CodeBlock'
 import { EmptyState } from '@/components/primitives/EmptyState'
+import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 
@@ -50,15 +52,22 @@ interface NotBisectedProps {
   readonly runId: string
 }
 
-/** A recorded run nobody has bisected yet: say what to run, invent nothing. */
+/**
+ * A recorded run nobody has bisected yet: say what to run, invent nothing. The
+ * real tape is already on screen above, so this state does not draw a fake one.
+ */
 export function NotBisected({ runId }: NotBisectedProps) {
   return (
-    <EmptyState
-      label="no blame computed"
-      title="This run has not been bisected"
-      description="Blame rewinds to each candidate step, replaces exactly one thing and re-runs the tail N times against a shared control. Until that runs there is no effect to show, and Bisect will not guess one."
-      command={`bisect blame ${runId} --top 3 --n 8`}
-    />
+    <div className="flex max-w-prose flex-col items-start gap-3">
+      <InstrumentLabel>no blame computed</InstrumentLabel>
+      <h2 className="text-h2 text-ink">This run has not been bisected</h2>
+      <p className="text-pretty text-ink-muted">
+        Blame rewinds to each candidate step, replaces exactly one thing and re-runs the tail N
+        times against a shared control. Until that runs there is no effect to show, and Bisect will
+        not guess one.
+      </p>
+      <CliCommand command={`bisect blame ${runId} --top 3 --n 8`} />
+    </div>
   )
 }
 

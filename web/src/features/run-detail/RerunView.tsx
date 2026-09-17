@@ -175,16 +175,21 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
       </div>
       <h1 className="font-mono text-h2 text-ink">{rerunId}</h1>
 
-      <Panel variant="canvas" label="tape · this re-run">
-        <RerunTape nSteps={nSteps} forkStep={row.step} passed={row.passed} />
-        <p className="mt-3 font-mono text-small text-ink-muted">
-          steps 1–{Math.max(row.step - 1, 0)} read from tape · 0 calls · forked at k={row.step} ·{' '}
-          {row.calls} calls spent
-        </p>
-      </Panel>
-
-      <Panel variant="card" label="re-run">
-        <Meta row={row} />
+      <Panel
+        variant="canvas"
+        label="tape · this re-run"
+        bodyClassName="flex flex-col gap-6 xl:flex-row xl:items-start xl:gap-8"
+      >
+        <div className="min-w-0 flex-1">
+          <RerunTape nSteps={nSteps} forkStep={row.step} passed={row.passed} />
+          <p className="mt-3 font-mono text-small text-ink-muted">
+            steps 1–{Math.max(row.step - 1, 0)} read from tape · 0 calls · forked at k={row.step} ·{' '}
+            {row.calls} calls spent
+          </p>
+        </div>
+        <div className="shrink-0 border-t border-line pt-4 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
+          <Meta row={row} />
+        </div>
       </Panel>
 
       <Panel variant="card" label="steps from the fork" bodyClassName="flex flex-col gap-1">

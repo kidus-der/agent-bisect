@@ -26,9 +26,6 @@ interface TapeCellProps {
   readonly state: TapeStepState
   readonly x: number
   readonly width: number
-  readonly isPlayhead: boolean
-  /** After the playhead: recorded, but not yet scrubbed to. */
-  readonly ahead: boolean
   readonly reduced: boolean
 }
 
@@ -38,16 +35,7 @@ function springFor(state: TapeStepState): SpringName {
   return 'snap'
 }
 
-const TapeCell = memo(function TapeCell({
-  step,
-  actor,
-  state,
-  x,
-  width,
-  isPlayhead,
-  ahead,
-  reduced,
-}: TapeCellProps) {
+const TapeCell = memo(function TapeCell({ step, actor, state, x, width, reduced }: TapeCellProps) {
   const Icon = ACTOR_ICONS[actor]
   const delay =
     reduced || state !== 'tape'
@@ -62,7 +50,6 @@ const TapeCell = memo(function TapeCell({
         className={cn(
           'flex items-center justify-center',
           state === 'tape' ? 'text-tape' : 'text-ink-muted',
-          (state === 'pending' || ahead) && 'opacity-45',
         )}
         style={{ height: ACTOR_LANE_HEIGHT }}
       >
@@ -73,20 +60,13 @@ const TapeCell = memo(function TapeCell({
         key={state}
         className={cn('w-full', state === 'blamed' && 'relative z-10')}
         initial={reduced ? false : { opacity: 0.2, scale: 0.88 }}
-        animate={{
-          opacity: state === 'pending' ? 0.45 : ahead ? 0.55 : 1,
-          scale: state === 'blamed' ? BLAMED_SCALE : 1,
-        }}
+        // Opacity is never used to dim a cell's own text: it would drop the step
+        // number below AA. How far the replay has been scrubbed is the bar below.
+        animate={{ opacity: 1, scale: state === 'blamed' ? BLAMED_SCALE : 1 }}
         transition={{ ...springTransition(springFor(state), reduced), delay }}
       >
         <TapeStep step={step} state={state} size="fluid" />
       </motion.div>
-      {isPlayhead ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 -bottom-0.5 h-0.5 bg-measure"
-        />
-      ) : null}
     </div>
   )
 })
@@ -103,7 +83,12 @@ interface TapeLaneProps {
 /** The tape itself: an actor glyph lane over the step cells, both on the band scale. */
 export function TapeLane({ steps, states, geometry, playhead, height, reduced }: TapeLaneProps) {
   return (
-    <div aria-hidden="true" className="relative" style={{ width: geometry.contentWidth, height }}>
+    <div
+      aria-hidden="true"
+      data-testid="tape-lane"
+      className="relative"
+      style={{ width: geometry.contentWidth, height }}
+    >
       {steps.map((step) => (
         <TapeCell
           key={step.step_idx}
@@ -112,11 +97,18 @@ export function TapeLane({ steps, states, geometry, playhead, height, reduced }:
           state={states[step.step_idx - 1] ?? 'pending'}
           x={geometry.x(step.step_idx)}
           width={geometry.bandWidth}
-          isPlayhead={step.step_idx === playhead}
-          ahead={step.step_idx > playhead && states[step.step_idx - 1] !== 'pending'}
           reduced={reduced}
         />
       ))}
+      {/* How far the replay has been scrubbed, as a mark rather than as faded text. */}
+      <span className="absolute inset-x-0 bottom-0 h-px bg-line-strong" />
+      <motion.span
+        className="absolute bottom-0 left-0 h-0.5 origin-left bg-measure"
+        style={{ width: geometry.contentWidth }}
+        initial={false}
+        animate={{ scaleX: (geometry.x(playhead) + geometry.bandWidth) / geometry.contentWidth }}
+        transition={springTransition('settle', reduced)}
+      />
     </div>
   )
 }

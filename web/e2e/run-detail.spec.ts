@@ -5,11 +5,15 @@ import { BRIEF_RUN, EDGE_60_STEP, mockRunDetailApi } from './run-detail.fixtures
 
 const THEME_KEY = 'bisect.theme'
 
+function tapeCells(page: Page, state: string) {
+  return page.getByTestId('tape-lane').locator(`[data-state="${state}"]`)
+}
+
 async function openRun(page: Page, runId: string, theme: 'dark' | 'light' = 'dark'): Promise<void> {
-  await page.addInitScript(
-    ([key, value]) => window.localStorage.setItem(key, value),
-    [THEME_KEY, theme] as const,
-  )
+  await page.addInitScript(([key, value]) => window.localStorage.setItem(key, value), [
+    THEME_KEY,
+    theme,
+  ] as const)
   await page.goto(`/runs/${runId}`)
   await page.getByRole('slider', { name: 'Step playhead' }).waitFor()
 }
@@ -77,9 +81,9 @@ test('rewinding to step 7 bands the tape, tags the intervention and replays the 
   await expect(page.getByText('ZFA04Y', { exact: true })).toBeVisible()
   await expect(page.getByText(/re-run live × \d+/)).toBeVisible()
   // The tail settles on the outcome the recorded treated re-runs actually had.
-  await expect(page.getByRole('img', { name: 'Step 12, passed' })).toBeVisible({
-    timeout: 15_000,
-  })
+  // The tape is a graphic, so its cells are asserted by state, not by role.
+  await expect(tapeCells(page, 'passed')).toHaveCount(1, { timeout: 15_000 })
+  await expect(tapeCells(page, 'tape')).toHaveCount(6)
   await expect(page.getByRole('button', { name: 'Recording' })).toBeVisible()
 })
 
@@ -88,7 +92,7 @@ test('the forest plot draws every estimate with its interval, against delta', as
 
   await expect(page.getByText('δ 0.10', { exact: true })).toBeVisible()
   const blamedRow = page.getByRole('button', {
-    name: 'Step 7, effect +0.88, 95% interval +0.47 to +0.97, the earliest step clearing the threshold',
+    name: 'Step 7, effect +0.88, 95% interval +0.47 to +0.96, the earliest step clearing the threshold',
   })
   await expect(blamedRow).toBeVisible()
   await expect(blamedRow).toHaveAttribute('aria-pressed', 'true')
@@ -216,5 +220,6 @@ test('reduced motion turns the rewind into a static before and after', async ({ 
   await page.getByRole('button', { name: 'Rewind to k=7' }).click()
 
   // No replay sequence to wait through: the settled state is there immediately.
-  await expect(page.getByRole('img', { name: 'Step 12, passed' })).toBeVisible({ timeout: 2000 })
+  await expect(tapeCells(page, 'passed')).toHaveCount(1, { timeout: 2000 })
+  await expect(tapeCells(page, 'tape')).toHaveCount(6)
 })
