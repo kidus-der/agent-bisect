@@ -13,6 +13,8 @@ import { RunBlame, RunBlameStripe, RunOutcome } from '@/features/runs/cells'
 import { useRunSampleQuery } from '@/features/runs/api'
 
 const STRIP_LIMIT = 5
+/** One shared stripe width, so blame position is comparable down the column. */
+const STRIPE_TARGET_PX = 232
 
 function StripSkeleton() {
   return (
@@ -57,17 +59,24 @@ export function RunsStrip() {
               <Link
                 to="/runs/$runId"
                 params={{ runId: run.run_id }}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-step py-2.5 hover:text-ink"
+                // Fixed tracks, not `auto`: each row is its own grid, so an
+                // `auto` column would resolve to a different width per row and
+                // the stripes would no longer share one step-1 origin.
+                className="grid grid-cols-[11rem_minmax(0,1fr)] items-center gap-x-6 gap-y-1.5 rounded-step py-2.5 hover:text-ink sm:grid-cols-[11rem_minmax(0,1fr)_15rem_9.5rem_5rem]"
               >
-                <span className="min-w-0 flex-1 truncate num font-medium text-ink">
-                  {run.run_id}
+                {/* The id never truncates: at 390 the task gives way instead. */}
+                <span className="num font-medium whitespace-nowrap text-ink">{run.run_id}</span>
+                <span className="min-w-0 truncate text-small text-ink-muted">{run.task_id}</span>
+                {/* Fixed column, left-aligned: step 1 sits at the same x on every row. */}
+                <span className="col-span-2 flex justify-start sm:col-span-1">
+                  <RunBlameStripe run={run} targetPx={STRIPE_TARGET_PX} />
                 </span>
-                <span className="hidden truncate text-small text-ink-muted sm:block sm:flex-1">
-                  {run.task_id}
+                <span className="justify-self-start">
+                  <RunBlame run={run} />
                 </span>
-                <RunBlameStripe run={run} />
-                <RunBlame run={run} />
-                <RunOutcome run={run} />
+                <span className="justify-self-start sm:justify-self-end">
+                  <RunOutcome run={run} />
+                </span>
               </Link>
             </li>
           ))}
