@@ -157,6 +157,11 @@ class ReplayResult:
     termination_reason: str
     tape_llm_calls: int
     live_llm_calls: int
+    #: Prefix responses served to a request the recording does not match.
+    #: Always 0 unless the run was driven `unsafe_positional`, and the
+    #: measure of how far the re-run-live baseline drifted from its own
+    #: recording -- which is the point of that baseline.
+    unguarded_llm_calls: int = 0
 
     @property
     def aborted_infra(self) -> bool:
@@ -203,11 +208,18 @@ class Tau2Replayer:
         tool_mode: ToolMode = "verify",
         intervention: Intervention | None = None,
         live_completion: Callable[..., Any] | None = None,
+        unsafe_positional: bool = False,
     ) -> None:
         self._environment = environment
         self._snapshotter = Tau2Snapshotter(environment)
         self._cursor = TapeCursor(steps)
-        self._llm = TapeLLM(self._cursor, store.get_json)
+        # `unsafe_positional` drops ONLY the request-hash guard, and only
+        # for the CAR-style re-run-live baseline of P5, whose prefix drifts
+        # by construction once a tool answers differently. It is never a
+        # fallback: see `core.replay.TapeLLM`.
+        self._llm = TapeLLM(
+            self._cursor, store.get_json, unsafe_positional=unsafe_positional
+        )
         self._tools = TapeTools(
             self._cursor, store.get_json, volatile_fields=VOLATILE_MESSAGE_FIELDS
         )
@@ -225,6 +237,16 @@ class Tau2Replayer:
     @property
     def tape_llm_calls(self) -> int:
         return self._llm.calls_served
+
+    @property
+    def unguarded_llm_calls(self) -> int:
+        """Prefix responses served to a request the recording does not match.
+
+        Always 0 unless the replayer was built `unsafe_positional`; the
+        measure of how far the re-run-live baseline drifted from its own
+        recording.
+        """
+        return self._llm.unguarded_calls
 
     @property
     def live_llm_calls(self) -> int:
@@ -418,6 +440,7 @@ def replay_run(
         termination_reason=termination,
         tape_llm_calls=replayer.tape_llm_calls,
         live_llm_calls=replayer.live_llm_calls,
+        unguarded_llm_calls=replayer.unguarded_llm_calls,
     )
 
 
@@ -438,12 +461,14 @@ class Tau2ForkDriver:
         reader: TapeReader,
         tape: TapeWriter,
         live_completion: Callable[..., Any],
+        unsafe_positional: bool = False,
     ) -> None:
         self._spec = spec
         self._store = store
         self._reader = reader
         self._tape = tape
         self._live_completion = live_completion
+        self._unsafe_positional = unsafe_positional
         self._fork_step = spec.fork_step
         self._intervention: Intervention = NoOpIntervention()
         self.result: ReplayResult | None = None
@@ -495,6 +520,7 @@ class Tau2ForkDriver:
             tool_mode="snapshot" if self._spec.prefix_tools == "snapshot" else "rerun_live",
             intervention=self._intervention,
             live_completion=self._live_completion,
+            unsafe_positional=self._unsafe_positional,
         )
         with _driving(replayer, orchestrator.environment, recorder):
             simulation = _run(orchestrator)
@@ -514,6 +540,7 @@ class Tau2ForkDriver:
             termination_reason=termination,
             tape_llm_calls=replayer.tape_llm_calls,
             live_llm_calls=replayer.live_llm_calls,
+            unguarded_llm_calls=replayer.unguarded_llm_calls,
         )
         if outcome is None:
             raise InfraAbortError(
