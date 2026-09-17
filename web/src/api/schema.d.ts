@@ -679,14 +679,48 @@ export interface components {
             /** Step Idx */
             step_idx: number;
         };
-        /** JobStatus */
+        /**
+         * JobStatus
+         * @description A long-running job's status. `state` and `progress`/`started_at`/
+         *     `finished_at`/`error` must agree -- a job can't be "queued" with 77%
+         *     progress, or "done" without a `finished_at` -- enforced below rather
+         *     than left to whoever constructs one (the fixture simulator, or a
+         *     parsed real-mode `runs/<phase>/status.json`) to get right by hand.
+         *
+         *     Every field past `state` is optional/nullable: fixture mode always
+         *     fills what a real job of that kind plausibly would; real mode reports
+         *     exactly what the job's own status file says, `None` for anything it
+         *     doesn't -- never invented.
+         */
         JobStatus: {
+            /** Calls Spent */
+            calls_spent?: number | null;
+            /** Error */
+            error?: string | null;
+            /** Eta Seconds */
+            eta_seconds?: number | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Items Done */
+            items_done?: number | null;
+            /** Items Total */
+            items_total?: number | null;
             /** Job Id */
             job_id: string;
             /** Kind */
             kind: string;
+            /** Label */
+            label?: string | null;
+            /** Last Checkpoint At */
+            last_checkpoint_at?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Phase */
+            phase?: string | null;
             /** Progress */
             progress: number;
+            /** Started At */
+            started_at?: string | null;
             /**
              * State
              * @enum {string}
@@ -1082,7 +1116,7 @@ export interface components {
              * Actor
              * @enum {string}
              */
-            actor: "agent" | "user" | "tool";
+            actor: "agent" | "user" | "tool" | "evaluator";
             /** Latency Ms */
             latency_ms: number | null;
             /** Step Idx */
@@ -1146,7 +1180,7 @@ export interface components {
              * Actor
              * @enum {string}
              */
-            actor: "agent" | "user" | "tool";
+            actor: "agent" | "user" | "tool" | "evaluator";
             /** From Tape */
             from_tape: boolean;
             /** State Changed */
@@ -1390,6 +1424,8 @@ export interface operations {
                 outcome?: string | null;
                 status?: string | null;
                 model?: string | null;
+                fault_type?: string | null;
+                q?: string | null;
                 sort?: string;
                 page?: number;
                 limit?: number;
