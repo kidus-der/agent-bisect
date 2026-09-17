@@ -146,8 +146,15 @@ def test_list_runs_calls_is_real_once_the_ledger_attributes_them(one_run_dir):
     # never be attributed to a run it didn't happen for.
     ledger.record(
         CallRecord(
-            ts=time.time(), phase="p0", model="m", purpose="probe",
-            status="ok", tokens_in=1, tokens_out=1, latency_ms=1.0, run_id=None,
+            ts=time.time(),
+            phase="p0",
+            model="m",
+            purpose="probe",
+            status="ok",
+            tokens_in=1,
+            tokens_out=1,
+            latency_ms=1.0,
+            run_id=None,
         )
     )
 
@@ -165,8 +172,15 @@ def test_list_runs_calls_is_none_for_a_run_with_no_ledger_rows(one_run_dir):
     ledger = BudgetLedger(db_path=one_run_dir / "ledger.sqlite")
     ledger.record(
         CallRecord(
-            ts=time.time(), phase="p1", model="m", purpose="agent", status="ok",
-            tokens_in=1, tokens_out=1, latency_ms=1.0, run_id="some-other-run",
+            ts=time.time(),
+            phase="p1",
+            model="m",
+            purpose="agent",
+            status="ok",
+            tokens_in=1,
+            tokens_out=1,
+            latency_ms=1.0,
+            run_id="some-other-run",
         )
     )
 
@@ -770,3 +784,118 @@ def test_rerun_steps_stay_unavailable_even_with_a_stored_blame_result(one_run_di
 
     with pytest.raises(DataNotAvailable):
         repo.rerun_steps("real-run-1", "real-run-1-t5-abc")
+
+
+# --- PR checks (P7's `runs/gate/<check_id>/result.json` convention) -------
+
+
+def _write_gate_result(
+    runs_dir: Path,
+    check_id: str,
+    *,
+    base_ref: str = "main",
+    head_ref: str = "feature-x",
+    is_regression: bool = True,
+    base_value: float = 0.9167,
+    base_n: int = 24,
+    head_value: float = 0.625,
+    head_n: int = 24,
+    p_value: float = 0.0162,
+    decisive_step_head: int | None = 7,
+    scenarios: list[dict] | None = None,
+) -> None:
+    """`agent_bisect.gate.action.to_result_json`'s documented shape --
+    `ci_low`/`ci_high` are `null` on disk today; the repository is expected
+    to compute a real Wilson interval from `value`/`n` instead."""
+    check_dir = runs_dir / "gate" / check_id
+    check_dir.mkdir(parents=True)
+    result = {
+        "base_ref": base_ref,
+        "head_ref": head_ref,
+        "suite": "demo",
+        "runs_per_scenario": 4,
+        "is_regression": is_regression,
+        "base_pass_rate": {"value": base_value, "ci_low": None, "ci_high": None, "n": base_n},
+        "head_pass_rate": {"value": head_value, "ci_low": None, "ci_high": None, "n": head_n},
+        "p_value": p_value,
+        "decisive_step_base": None,
+        "decisive_step_head": decisive_step_head,
+        "scenarios": scenarios
+        if scenarios is not None
+        else [
+            {
+                "scenario": "reschedule_flight_change",
+                "base_pass_rate": 0.75,
+                "head_pass_rate": 0.25,
+                "n": 4,
+            },
+            # a scenario new-in-head: no base run to compare against.
+            {
+                "scenario": "new_in_head_scenario",
+                "base_pass_rate": None,
+                "head_pass_rate": 1.0,
+                "n": 4,
+            },
+        ],
+        "comment_markdown": "Bisect · agent regression detected\ndetails -> bisect serve",
+    }
+    (check_dir / "result.json").write_text(json.dumps(result))
+
+
+def test_pr_checks_lists_stored_gate_results(tmp_path):
+    runs_dir = tmp_path / "runs"
+    _write_gate_result(runs_dir, "abc123")
+    repo = RealRepository(runs_dir=runs_dir)
+
+    checks = repo.pr_checks()
+
+    assert len(checks) == 1
+    check = checks[0]
+    assert check.check_id == "abc123"
+    assert check.pr_number is None
+    assert check.title == "main → feature-x"
+    assert check.is_regression is True
+    assert check.base_pass_rate == 0.9167
+    assert check.head_pass_rate == 0.625
+    assert check.p_value == 0.0162
+
+
+def test_pr_check_detail_reads_the_stored_result(tmp_path):
+    runs_dir = tmp_path / "runs"
+    _write_gate_result(runs_dir, "abc123")
+    repo = RealRepository(runs_dir=runs_dir)
+
+    detail = repo.pr_check_detail("abc123")
+
+    assert detail.check_id == "abc123"
+    assert detail.pr_number is None
+    assert detail.decisive_step_base is None
+    assert detail.decisive_step_head == 7
+    assert detail.base_pass_rate.value == 0.9167
+    assert (
+        detail.base_pass_rate.ci_low < detail.base_pass_rate.value < detail.base_pass_rate.ci_high
+    )
+    assert detail.scenarios[0].base_pass_rate == 0.75
+    assert detail.scenarios[1].base_pass_rate is None
+    assert "regression detected" in detail.comment_markdown
+
+
+def test_pr_check_detail_unknown_check_id_is_key_error(tmp_path):
+    runs_dir = tmp_path / "runs"
+    (runs_dir / "gate").mkdir(parents=True)
+    repo = RealRepository(runs_dir=runs_dir)
+    with pytest.raises(KeyError):
+        repo.pr_check_detail("nope")
+
+
+def test_pr_checks_skips_a_malformed_result_file(tmp_path):
+    runs_dir = tmp_path / "runs"
+    _write_gate_result(runs_dir, "good")
+    bad_dir = runs_dir / "gate" / "bad"
+    bad_dir.mkdir(parents=True)
+    (bad_dir / "result.json").write_text("{not json")
+    repo = RealRepository(runs_dir=runs_dir)
+
+    checks = repo.pr_checks()
+
+    assert [c.check_id for c in checks] == ["good"]
