@@ -59,7 +59,8 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
     <section
       aria-label="Key figures"
       className={cn(
-        'grid grid-cols-2 overflow-hidden rounded-kpi border border-line bg-surface',
+        // Secondary to the headline panel: one fill step up, stronger hairline (as Panel's kpi variant).
+        'grid grid-cols-2 overflow-hidden rounded-kpi border border-line-strong bg-elevated',
         'divide-x divide-y divide-line lg:grid-cols-1 lg:divide-x-0',
         className,
       )}
