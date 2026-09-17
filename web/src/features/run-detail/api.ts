@@ -50,6 +50,44 @@ export const runDetailKeys = {
   rerunSteps: (runId: string, rerunId: string) => ['run', runId, 'rerun', rerunId] as const,
 } as const
 
+function asArray<T>(value: unknown): readonly T[] {
+  return Array.isArray(value) ? (value as readonly T[]) : []
+}
+
+/**
+ * The generated types promise these arrays, the network does not. Normalising
+ * here means no component has to guard a `.map` on a malformed payload.
+ */
+export function normalizeRunDetail(raw: RunDetail): RunDetail {
+  const estimate = raw.estimate
+  const judge = raw.judge
+  return {
+    ...raw,
+    steps: asArray<StepView>(raw.steps) as StepView[],
+    estimate: estimate
+      ? { ...estimate, step_effects: asArray<StepEffect>(estimate.step_effects) as StepEffect[] }
+      : null,
+    judge: judge
+      ? {
+          all_at_once: asArray<JudgeRankEntry>(judge.all_at_once) as JudgeRankEntry[],
+          step_by_step: asArray<JudgeRankEntry>(judge.step_by_step) as JudgeRankEntry[],
+        }
+      : null,
+  }
+}
+
+export function normalizeStepPayload(raw: StepPayload): StepPayload {
+  return {
+    ...raw,
+    messages: asArray<Record<string, string>>(raw.messages) as Record<string, string>[],
+  }
+}
+
+export function normalizeStateDiff(raw: StateDiff | NotAvailable): StateDiff | NotAvailable {
+  if (isNotAvailable(raw)) return raw
+  return { ...raw, entries: asArray<DiffEntry>(raw.entries) as DiffEntry[] }
+}
+
 /** The server answers `not_available` rather than inventing a number. */
 export function isNotAvailable(value: unknown): value is NotAvailable {
   return (
@@ -70,6 +108,7 @@ export function useRunDetailQuery(runId: string): Query<RunDetail> {
   return useQuery<ApiResult<RunDetail>, ApiError>({
     queryKey: runDetailKeys.detail(runId),
     queryFn: ({ signal }) => apiFetch<RunDetail>(runDetailPaths.detail(runId), { signal }),
+    select: (result) => ({ ...result, data: normalizeRunDetail(result.data) }),
   })
 }
 
@@ -78,6 +117,7 @@ export function useStepQuery(runId: string, stepIdx: number | null): Query<StepP
     queryKey: runDetailKeys.step(runId, stepIdx ?? -1),
     queryFn: ({ signal }) =>
       apiFetch<StepPayload>(runDetailPaths.step(runId, stepIdx ?? -1), { signal }),
+    select: (result) => ({ ...result, data: normalizeStepPayload(result.data) }),
     enabled: stepIdx !== null,
   })
 }
@@ -106,6 +146,7 @@ export function useStateDiffQuery(
       apiFetch<StateDiff | NotAvailable>(runDetailPaths.stateDiff(runId, stepIdx ?? -1), {
         signal,
       }),
+    select: (result) => ({ ...result, data: normalizeStateDiff(result.data) }),
     enabled: stepIdx !== null,
   })
 }
@@ -119,6 +160,12 @@ export function useRerunsQuery(runId: string): Query<RerunPage | NotAvailable> {
     queryKey: runDetailKeys.reruns(runId),
     queryFn: ({ signal }) =>
       apiFetch<RerunPage | NotAvailable>(runDetailPaths.reruns(runId), { signal }),
+    select: (result) => ({
+      ...result,
+      data: isNotAvailable(result.data)
+        ? result.data
+        : { reruns: asArray<RerunRow>(result.data?.reruns) },
+    }),
   })
 }
 
@@ -132,5 +179,9 @@ export function useRerunStepsQuery(
       apiFetch<readonly StepView[] | NotAvailable>(runDetailPaths.rerunSteps(runId, rerunId), {
         signal,
       }),
+    select: (result) => ({
+      ...result,
+      data: isNotAvailable(result.data) ? result.data : asArray<StepView>(result.data),
+    }),
   })
 }

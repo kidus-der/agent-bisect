@@ -77,6 +77,8 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
   const summary = interventionSummary(
     intervention.data ? availableOrNull(intervention.data.data) : null,
   )
+  // `!= null` on purpose: a payload that omits `estimate` must not crash the page.
+  const bisected = detail.estimate != null
   const blamedStep = detail.estimate?.blamed_step ?? null
   const states = tapeStepStates({
     nSteps,
@@ -88,7 +90,12 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <RunDetailHeader run={detail} verdict={verdict} simulated={run.data.meta.simulated} />
+      <RunDetailHeader
+        runId={runId}
+        run={detail}
+        verdict={verdict}
+        simulated={run.data.meta.simulated}
+      />
 
       <Panel
         variant="canvas"
@@ -116,18 +123,18 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
             verdict={verdict}
             delta={DELTA}
             testedSteps={effects.length}
-            bisected={detail.estimate !== null}
+            bisected={bisected}
           />
         </div>
       </Panel>
 
-      {detail.estimate === null ? (
+      {!bisected ? (
         <Panel variant="card">
           <NotBisected runId={runId} />
         </Panel>
       ) : null}
 
-      {detail.estimate !== null && detail.estimate.blamed_step === null ? (
+      {bisected && blamedStep === null ? (
         <NoStepBlamed tested={effects.length} delta={DELTA} />
       ) : null}
 

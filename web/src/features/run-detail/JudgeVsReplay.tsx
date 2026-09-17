@@ -90,7 +90,7 @@ export function JudgeVsReplay({
 }: JudgeVsReplayProps) {
   const [protocol, setProtocol] = useState<JudgeProtocol>('all_at_once')
   const [rationale, setRationale] = useState<string | null>(null)
-  const ranking = judge[protocol]
+  const ranking = judge[protocol] ?? []
   const measured = measuredOrder(ranking, effects, blamedStep)
   const missed = judgeMissed(ranking, blamedStep)
   const topStep = ranking[0]?.step ?? null

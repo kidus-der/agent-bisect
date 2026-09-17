@@ -11,6 +11,8 @@ import type { RunDetail } from './api'
 import type { BlameVerdict } from './blame'
 
 interface RunDetailHeaderProps {
+  /** The id the page asked for; the payload's own id may be missing. */
+  readonly runId: string
   readonly run: RunDetail
   readonly verdict: BlameVerdict | null
   readonly simulated: boolean
@@ -26,13 +28,14 @@ function Fact({ label, value }: { readonly label: string; readonly value: string
 }
 
 /** Everything true about this run, above the tape. */
-export function RunDetailHeader({ run, verdict, simulated }: RunDetailHeaderProps) {
+export function RunDetailHeader({ runId, run, verdict, simulated }: RunDetailHeaderProps) {
   const transition = useSpringTransition('glide')
   const recording = run.status === 'recording'
+  const id = run.run_id || runId
 
   return (
     <header className="flex flex-col gap-3">
-      <title>{`${run.run_id} · Bisect`}</title>
+      <title>{`${id} · Bisect`}</title>
       <Link
         to="/runs"
         className="inline-flex w-fit items-center gap-1.5 text-small text-ink-muted hover:text-ink"
@@ -43,11 +46,11 @@ export function RunDetailHeader({ run, verdict, simulated }: RunDetailHeaderProp
 
       {/* The Runs row morphs into this strip. */}
       <motion.div
-        layoutId={layoutIds.runRow(run.run_id)}
+        layoutId={layoutIds.runRow(id)}
         transition={transition}
         className="flex flex-wrap items-center gap-x-3 gap-y-2"
       >
-        <h1 className="font-mono text-h1 text-ink">{run.run_id}</h1>
+        <h1 className="font-mono text-h1 text-ink">{id}</h1>
         <span className="text-h3 text-ink-muted">{run.task_id}</span>
         {recording ? (
           <span className="inline-flex h-6 items-center gap-1.5 rounded-pill border border-measure/40 bg-measure-tint px-2 text-small text-measure">

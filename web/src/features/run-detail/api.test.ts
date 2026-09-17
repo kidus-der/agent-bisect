@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { availableOrNull, isNotAvailable, runDetailKeys, runDetailPaths } from './api'
+import {
+  availableOrNull,
+  isNotAvailable,
+  normalizeRunDetail,
+  normalizeStateDiff,
+  normalizeStepPayload,
+  runDetailKeys,
+  runDetailPaths,
+} from './api'
 
 describe('runDetailPaths', () => {
   it('encodes the run id so a hostile id cannot escape the path', () => {
@@ -47,5 +55,56 @@ describe('availableOrNull', () => {
     expect(availableOrNull({ status: 'not_available', reason: 'x' })).toBeNull()
     expect(availableOrNull(payload)).toBe(payload)
     expect(availableOrNull(null)).toBeNull()
+  })
+})
+
+describe('normalizeRunDetail', () => {
+  it('turns a payload missing its arrays into one every component can map over', () => {
+    // Arrange: what a wrong-shaped 200 looks like.
+    const raw = { run_id: 'r1' } as unknown as Parameters<typeof normalizeRunDetail>[0]
+
+    // Act
+    const detail = normalizeRunDetail(raw)
+
+    // Assert
+    expect(detail.steps).toEqual([])
+    expect(detail.estimate).toBeNull()
+    expect(detail.judge).toBeNull()
+  })
+
+  it('keeps real arrays untouched and fills only the missing ones', () => {
+    const raw = {
+      run_id: 'r1',
+      steps: [{ step_idx: 1 }],
+      estimate: { blamed_step: 7 },
+      judge: { all_at_once: [{ step: 7 }] },
+    } as unknown as Parameters<typeof normalizeRunDetail>[0]
+
+    const detail = normalizeRunDetail(raw)
+
+    expect(detail.steps).toHaveLength(1)
+    expect(detail.estimate?.blamed_step).toBe(7)
+    expect(detail.estimate?.step_effects).toEqual([])
+    expect(detail.judge?.all_at_once).toHaveLength(1)
+    expect(detail.judge?.step_by_step).toEqual([])
+  })
+})
+
+describe('normalizeStepPayload', () => {
+  it('always yields a messages array', () => {
+    const raw = { step_idx: 3 } as unknown as Parameters<typeof normalizeStepPayload>[0]
+    expect(normalizeStepPayload(raw).messages).toEqual([])
+  })
+})
+
+describe('normalizeStateDiff', () => {
+  it('always yields an entries array', () => {
+    const raw = { step_idx: 3 } as unknown as Parameters<typeof normalizeStateDiff>[0]
+    expect(normalizeStateDiff(raw)).toEqual({ step_idx: 3, entries: [] })
+  })
+
+  it('passes not_available through untouched', () => {
+    const raw = { status: 'not_available', reason: 'no recordings yet' } as const
+    expect(normalizeStateDiff(raw)).toBe(raw)
   })
 })
