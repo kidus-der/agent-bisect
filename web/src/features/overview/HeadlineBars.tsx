@@ -162,7 +162,7 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
   return (
     <section
       aria-labelledby="headline-result"
-      className="relative flex flex-col gap-6 border border-line-strong border-dashed bg-ground p-5 blueprint-dots sm:p-6 lg:p-8"
+      className="relative flex flex-col gap-6 border border-dashed border-line-strong bg-ground blueprint-dots p-5 sm:p-6 lg:p-8"
     >
       <header className="flex flex-col gap-3">
         <InstrumentLabel>
@@ -170,7 +170,8 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
             ? 'result · step accuracy'
             : `result · step accuracy · n=${sampleSize}`}
         </InstrumentLabel>
-        <h2 id="headline-result" className="max-w-[24ch] text-display text-balance text-ink">
+        {/* The page's h1: the Overview leads with its result, not with its own name. */}
+        <h1 id="headline-result" className="max-w-[24ch] text-display text-balance text-ink">
           Replay beats the judge by{' '}
           <span className="text-measure">
             <span className="sr-only">{formatPoints(gap.points)}</span>
@@ -180,12 +181,12 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
               initial={reduced ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={springTransition('ticker', reduced)}
-              className="num inline-block"
+              className="inline-block num"
             >
               {formatPoints(gap.points)}
             </motion.span>
           </span>
-        </h2>
+        </h1>
         <p className="max-w-prose text-pretty text-ink-muted">
           Share of failures whose decisive step the method names correctly. Each bar carries its own
           95% interval; no interval is reported for the gap itself, so none is shown.

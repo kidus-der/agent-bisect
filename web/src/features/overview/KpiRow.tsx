@@ -53,7 +53,7 @@ function kpiSpecs(kpis: Kpis): readonly KpiSpec[] {
 
 export function KpiRow({ kpis }: KpiRowProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3">
       {kpiSpecs(kpis).map((spec) => (
         <Panel key={spec.id} variant="kpi">
           <StatTicker

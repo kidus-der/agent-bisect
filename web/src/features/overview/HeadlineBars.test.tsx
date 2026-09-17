@@ -19,7 +19,7 @@ describe('HeadlineBars', () => {
 
   test('states the gap in percentage points', () => {
     render(<HeadlineBars headline={HEADLINE} simulated={false} />)
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/\+9\.3 pts/)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/\+9\.3 pts/)
   })
 
   test('shows each estimate with its own 95% interval', () => {
@@ -30,9 +30,7 @@ describe('HeadlineBars', () => {
 
   test('says plainly that no interval is reported for the gap itself', () => {
     render(<HeadlineBars headline={HEADLINE} simulated={false} />)
-    expect(
-      screen.getByText(/no interval is reported for the gap itself/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/no interval is reported for the gap itself/i)).toBeInTheDocument()
   })
 
   test('admits simulated data in the hero when the API is serving fixtures', () => {
