@@ -631,3 +631,132 @@ outcome, step count, hatched stripe, `0 of 14 steps tested`.
 | 1 | Light theme: secondary panels are still `#FFFFFF` on `#F5F6F8`. Moving them to `elevated` `#FBFBFD` is the single change that would lift the light theme's colour score on Overview, Runs and Benchmark at once. | [polish] |
 | 2 | The error and 404 cards are centred horizontally but pinned near the top with ~440px of blank page below. Centre them in the remaining content height. | [polish] |
 | 3 | The ⌘K list still groups only `RUNS` for a run-shaped query; `Pages` / `Commands` / `Copy CLI command` exist but never surface alongside results. Show at least one non-run group for any query that matches one. | [polish] |
+
+---
+
+## Round 4 — 2026-09-17
+
+Reduced scope: only the five pages still below 8.5 were scored. Run detail and
+Global carry their round-3 scores forward and were swept once per theme at 1440
+— both intact, nothing reported.
+
+**Capture method corrected, and it invalidates part of rounds 1–3.**
+`page.screenshot({ fullPage: true })` resizes the viewport under the running page
+to stitch, and visx's `ParentSize` re-measures mid-capture, so charts were
+recorded at roughly a third of the width the browser actually drew. The script
+now opens the viewport to the page's own height and takes an ordinary shot. Two
+earlier complaints are withdrawn as artefacts: the Overview scatter and the
+Benchmark position chart were never as narrow as rounds 1–3 showed them. The
+motion sequences were also wrong: sampling began *after* a settle, so a fast
+entrance and a missing one looked identical. Frames now start at the trigger —
+the click, or the scroll that reveals a once-only entrance. Round 3's motion
+scores were therefore pessimistic, and several "missing" animations turn out to
+exist.
+
+### Scores
+
+| Page | hierarchy | type | colour | motion | data | polish | orig. | **score** | Δ |
+|---|---|---|---|---|---|---|---|---|---|
+| Overview | 8.5 | 8.5 | 8.0 | 8.5 | 8.5 | 8.5 | 8.5 | **8.4** | 0.0 |
+| Runs | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | **8.5** | +0.1 |
+| Benchmark | 8.5 | 8.5 | 8.5 | 8.0 | 8.5 | 8.5 | 8.5 | **8.4** | +0.1 |
+| Live | 8.5 | 8.5 | 8.5 | 8.0 | 8.5 | 8.5 | 8.5 | **8.4** | +0.1 |
+| PR checks | 8.5 | 8.5 | 8.5 | 8.0 | 8.0 | 8.0 | 8.5 | **8.3** | +0.1 |
+| Run detail | — | — | — | — | — | — | — | **8.7** | carried |
+| Global | — | — | — | — | — | — | — | **8.6** | carried |
+
+**At or above 8.5: Runs (8.5), Run detail (8.7), Global (8.6).** Overview,
+Benchmark and Live are each 0.1 short and each held there by exactly one
+criterion; PR checks is 0.2 short on three.
+
+### Verification of round-3 [blocking-8.5] items
+
+| Page | Item | Result |
+|---|---|---|
+| Overview | 1 scatter labels ambiguous at 1440 | fixed — numbered points with a two-column legend, at every width |
+| Overview | 2 light KPI rail / provenance on near-white | **not fixed** |
+| Overview | 3 KPI tickers and hero bars arrive formed | **partly** — the bars now draw from 0 (caught at 67% and 15% of final in frame f01); the KPI numbers still fade in already at their final value |
+| Runs | 1 list→detail morph does not happen | fixed — frame f02 catches the status pill, the `Simulated data` pill and the blame chip all in transit to their header positions |
+| Runs | 2 rows enter all at once | fixed — f01 shows rows 1–6 painted, 7–8 fading, the rest absent |
+| Benchmark | 1 axis last tick outside the plot | fixed |
+| Benchmark | 2 two segmented controls styled alike | fixed — `Matrix / Table` is now a text toggle against the bordered method pills |
+| Benchmark | 3 two right-alignment axes, nothing between | fixed — `ACCURACY` and `COST` column headers justify the second axis |
+| Live | 1 event feed carries one row of information | fixed — phase chip, `×3` grouping and a relative-age column (`now`, `16s ago`) |
+| Live | 2 job cards are generic progress bars | fixed — `step-by-step blame search · BLAME_ P5 · DONE 15/16 · CALLS 120 · ETA 59s`; the product's own vocabulary |
+| Live | 3 no shared time cursor across the traces | **not fixed** |
+| PR checks | 1 scenario bars not anchored on zero | **partly** — a `SCALE_` legend was added to the panel header, but the column still has no zero rule and the legend's centre tick (x≈1060) does not line up with the bars' anchor (x≈823) |
+| PR checks | 2 forest zero line unlabelled | fixed — `0` above the line |
+| PR checks | 3 forest rows arrive fully drawn | **partly** — frame f00 shows the three flagged whiskers drawn with no point estimates yet, so dots do follow whiskers; but there is no row stagger and the whole entrance is over inside one 70 ms sample |
+| PR checks | 4 values column 350px from its marks | **not fixed** |
+
+### Rule guards
+
+All six pass, in both themes and at both widths. Newly checked this round: Live's
+headroom ring turns coral at `36.1 rpm in use` but carries the word `tight`
+beside it, so the state is not colour-alone.
+
+---
+
+### Overview — 8.4 (0.0)
+
+**One criterion short: colour (8.0).** Everything else is at 8.5. In light theme
+the KPI rail and `PROVENANCE_` are `#FFFFFF` on `#F5F6F8` with a `#DEE2E9`
+hairline, so the right third of the fold reads as two empty white boxes — the
+same finding as rounds 2 and 3, still open. Fixing it is the whole gap.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | Light theme: give the KPI rail and `PROVENANCE_` the `elevated` `#FBFBFD` fill so the fill step actually steps (§2). This one change is what stands between the page and 8.5. | [blocking-8.5] |
+| 2 | `features/overview/KpiRow.tsx` — the four numbers fade in already at their final value. Run them through `useNumberTicker` on the `ticker` spring so they count, the way the hero bars now draw (§7.2). | [blocking-8.5] |
+| 3 | `features/overview/HeadlineBars.tsx` — the remainder track is a lighter block butted against the fill, so 96.5% reads as two segments. Drop it to `line` at 40%. | [polish] |
+
+### Runs — 8.5 (+0.1) — at the bar
+
+The morph is real: frame f02 catches the status pill, the simulated-data pill and
+the blame chip mid-flight between the row and the detail header, and the rows
+stagger in top-to-bottom. With the fixed stripe track, the per-run legend and the
+chevron, every criterion is now at 8.5. Only two polish items remain (`SHAPE` and
+`EFFECT PER STEP` on different tracks; sort carets missing from `TASK` and
+`DECISIVE`), and neither is worth spending on.
+
+### Benchmark — 8.4 (+0.1)
+
+**One criterion short: motion (8.0).** The three round-3 items are fixed and
+hierarchy, colour, data and polish are all at the bar. No chart on this page was
+observed entering: the panels are settled in every frame, so the "charts build in
+on scroll-into-view" character the direction takes from Bklit (§2) is not
+demonstrated anywhere on the densest chart page in the product.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | Give the method bars, the heatmap cells and the cost histogram a scroll-into-view entrance on `drift`: bars growing from 0, heatmap cells fading in by row, histogram bars rising. That is the whole gap to 8.5. | [blocking-8.5] |
+| 2 | `features/benchmark/BlameFlowSankey.tsx` — the `· none · 3` node is still ~6px tall and cannot be hovered. Minimum node height 12px. | [polish] |
+
+### Live — 8.4 (+0.1)
+
+**One criterion short: motion (8.0).** The job cards and the event feed both
+became product-specific this round — `DONE 15/16 · CALLS 120 · ETA 59s`, and a
+feed with phase chips, `×3` grouping and relative ages — which is what lifted
+originality and data clarity to the bar. What is missing is the one interaction a
+live page needs.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/live/CallsPerModel.tsx` — the two traces are stacked on a shared 0–40 axis with no shared cursor, so a spike in one cannot be read against the other at the same instant. One hover crosshair spanning both, with both values in the label. That is the gap to 8.5. | [blocking-8.5] |
+| 2 | The budget gauge and headroom ring appear fully drawn. Sweep them in on `drift` the first time they mount. | [polish] |
+
+### PR checks — 8.3 (+0.1)
+
+**Three criteria short: data clarity (8.0), polish (8.0), motion (8.0).** The
+gate-history forest plot is the right idea and its zero tick is now labelled, but
+the page still asks the reader to do work the marks should do: match a bar to a
+scale printed somewhere else, and carry a value 350px across empty space to its
+own interval.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/pr-checks/ScenarioTable.tsx` — the bars are anchored at x≈823 while the header's `SCALE_` centre tick is at x≈1060, so nothing on screen says where zero is. Draw a 1px zero rule down the column at the bars' anchor and align the header legend to the same x. | [blocking-8.5] |
+| 2 | `features/pr-checks/GateSummaryPanel.tsx` — the per-check values are right-aligned at x≈1390 while the plot ends at x≈1035. Move them to the plot's right edge so a row's number sits beside its interval. | [blocking-8.5] |
+| 3 | `features/pr-checks/GateSummaryPanel.tsx` — the entrance completes inside one 70 ms sample. Add the 60 ms row stagger and let the whiskers draw outward from the estimate on `settle`, flagged rows last (§7.3). | [blocking-8.5] |
+| 4 | The detail page's `DECISIVE_STEP_` panel is 540px for two chips and two lines against a 790px comment preview. Give the comment the wider share. | [polish] |
+| 5 | Copy: "however their point estimate reads" → "whatever their point estimate reads". | [polish] |
