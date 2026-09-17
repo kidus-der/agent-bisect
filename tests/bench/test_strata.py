@@ -25,9 +25,13 @@ def test_the_thirds_are_thirds():
     ]
 
 
-def test_a_short_run_still_has_an_early_and_a_late():
+def test_a_run_too_short_for_three_buckets_fills_them_in_order():
+    """Thirds of a two-step run are the first and the second third; there
+    is no late stratum to put anything in, and inventing one by calling
+    the last step "late" would make the strata disagree with the counts
+    the dataset card reports."""
     assert [bucket_of(index, 3) for index in range(3)] == ["early", "middle", "late"]
-    assert [bucket_of(index, 2) for index in range(2)] == ["early", "late"]
+    assert [bucket_of(index, 2) for index in range(2)] == ["early", "middle"]
     assert bucket_of(0, 1) == "early"
 
 
