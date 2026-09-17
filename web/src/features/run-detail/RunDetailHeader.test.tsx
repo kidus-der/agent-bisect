@@ -1,9 +1,12 @@
-import { createMemoryHistory } from '@tanstack/react-router'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from '@tanstack/react-router'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-
-import { createAppRouter } from '@/app/router'
-import { RouterProvider } from '@tanstack/react-router'
 
 import type { RunDetail } from './api'
 import { RunDetailHeader } from './RunDetailHeader'
@@ -29,22 +32,28 @@ const RUN = {
 
 const VERDICT = { step: 7, effect: 0.875, low: 0.4743, high: 0.965 }
 
-/** The header renders links, so it needs the router around it. */
-function renderHeader(run: RunDetail | null): HTMLElement {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: ['/runs/brief-12-step'] }))
-  const { container } = render(
-    <RouterProvider
-      router={router}
-      defaultComponent={() => (
-        <RunDetailHeader
-          runId="brief-12-step"
-          run={run}
-          verdict={run ? VERDICT : null}
-          simulated={run !== null}
-        />
-      )}
-    />,
-  )
+/** The header renders a Link, so it needs a router around it and nothing else. */
+async function renderHeader(run: RunDetail | null): Promise<HTMLElement> {
+  const rootRoute = createRootRoute()
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/',
+    component: () => (
+      <RunDetailHeader
+        runId="brief-12-step"
+        run={run}
+        verdict={run ? VERDICT : null}
+        simulated={run !== null}
+      />
+    ),
+  })
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([indexRoute]),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  // RouterProvider renders nothing until the first match resolves.
+  await router.load()
+  const { container } = render(<RouterProvider router={router as never} />)
   return container
 }
 
@@ -52,9 +61,9 @@ function renderHeader(run: RunDetail | null): HTMLElement {
 const MORPH_TARGETS = ['id', 'blame', 'status'] as const
 
 describe('RunDetailHeader morph targets', () => {
-  it('carries all three targets once the run has loaded', () => {
+  it('carries all three targets once the run has loaded', async () => {
     // Arrange / Act
-    const container = renderHeader(RUN)
+    const container = await renderHeader(RUN)
 
     // Assert
     for (const target of MORPH_TARGETS) {
@@ -62,24 +71,24 @@ describe('RunDetailHeader morph targets', () => {
     }
   })
 
-  it('carries the same targets while the run is still loading', () => {
+  it('carries the same targets while the run is still loading', async () => {
     // The Runs row unmounts on navigation: if the targets only appear once the
     // fetch resolves, the morph lands on nothing and nothing travels.
-    const container = renderHeader(null)
+    const container = await renderHeader(null)
 
     for (const target of MORPH_TARGETS) {
       expect(container.querySelectorAll(`[data-morph="${target}"]`)).toHaveLength(1)
     }
   })
 
-  it('shows the run id from the route before the payload arrives', () => {
-    renderHeader(null)
+  it('shows the run id from the route before the payload arrives', async () => {
+    await renderHeader(null)
 
     expect(screen.getByRole('heading', { level: 1, name: 'brief-12-step' })).toBeInTheDocument()
   })
 
-  it('does not claim an outcome or a blame it has not loaded', () => {
-    renderHeader(null)
+  it('does not claim an outcome or a blame it has not loaded', async () => {
+    await renderHeader(null)
 
     expect(screen.queryByText('Fail')).not.toBeInTheDocument()
     expect(screen.queryByText(/\+0\.88|\+0\.87/)).not.toBeInTheDocument()

@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 
 import { BlameBadge } from '@/components/primitives/BlameBadge'
 import { PassFailPill } from '@/components/primitives/PassFailPill'
+import { Skeleton } from '@/components/primitives/Skeleton'
 import { layoutIds, useSpringTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
 
@@ -13,7 +14,8 @@ import type { BlameVerdict } from './blame'
 interface RunDetailHeaderProps {
   /** The id the page asked for; the payload's own id may be missing. */
   readonly runId: string
-  readonly run: RunDetail
+  /** Null while the run is still loading: the morph targets render regardless. */
+  readonly run: RunDetail | null
   readonly verdict: BlameVerdict | null
   readonly simulated: boolean
 }
@@ -27,11 +29,20 @@ function Fact({ label, value }: { readonly label: string; readonly value: string
   )
 }
 
-/** Everything true about this run, above the tape. */
+/**
+ * Everything true about this run, above the tape.
+ *
+ * The id chip, the blame badge and the status pill are the three elements the
+ * Runs row morphs into (`layoutIds.runIdChip` / `runBlameStripe` / `runStatus`).
+ * They render from the first frame — before the payload arrives — because the
+ * row unmounts the moment the route changes: a target that appears only once
+ * the fetch resolves has nothing left to travel from. While loading they hold
+ * placeholders rather than claiming an outcome nobody has read yet.
+ */
 export function RunDetailHeader({ runId, run, verdict, simulated }: RunDetailHeaderProps) {
   const transition = useSpringTransition('glide')
-  const recording = run.status === 'recording'
-  const id = run.run_id || runId
+  const recording = run?.status === 'recording'
+  const id = run?.run_id || runId
 
   return (
     <header className="flex flex-col gap-3">
@@ -44,22 +55,37 @@ export function RunDetailHeader({ runId, run, verdict, simulated }: RunDetailHea
         Runs
       </Link>
 
-      {/* The Runs row morphs into this strip. */}
-      <motion.div
-        layoutId={layoutIds.runRow(id)}
-        transition={transition}
-        className="flex flex-wrap items-center gap-x-3 gap-y-2"
-      >
-        <h1 className="font-mono text-h1 text-ink">{id}</h1>
-        <span className="text-h3 text-ink-muted">{run.task_id}</span>
-        {recording ? (
-          <span className="inline-flex h-6 items-center gap-1.5 rounded-pill border border-measure/40 bg-measure-tint px-2 text-small text-measure">
-            <Radio aria-hidden="true" className="size-3.5" />
-            Recording
-          </span>
-        ) : run.outcome ? (
-          <PassFailPill outcome={run.outcome} />
-        ) : null}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <motion.h1
+          layoutId={layoutIds.runIdChip(id)}
+          transition={transition}
+          data-morph="id"
+          className="font-mono text-h1 text-ink"
+        >
+          {id}
+        </motion.h1>
+        {run ? (
+          <span className="text-h3 text-ink-muted">{run.task_id}</span>
+        ) : (
+          <Skeleton className="h-5 w-48" />
+        )}
+        <motion.span
+          layoutId={layoutIds.runStatus(id)}
+          transition={transition}
+          data-morph="status"
+          className="inline-flex"
+        >
+          {recording ? (
+            <span className="inline-flex h-6 items-center gap-1.5 rounded-pill border border-measure/40 bg-measure-tint px-2 text-small text-measure">
+              <Radio aria-hidden="true" className="size-3.5" />
+              Recording
+            </span>
+          ) : run?.outcome ? (
+            <PassFailPill outcome={run.outcome} />
+          ) : (
+            <Skeleton className="h-6 w-16 rounded-pill" />
+          )}
+        </motion.span>
         {simulated ? (
           <span
             data-testid="run-simulated-flag"
@@ -69,28 +95,47 @@ export function RunDetailHeader({ runId, run, verdict, simulated }: RunDetailHea
             Simulated data
           </span>
         ) : null}
-      </motion.div>
+      </div>
 
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small">
-        <Fact label="domain" value={run.domain} />
-        <Fact label="model" value={run.agent_model} />
-        <Fact label="steps" value={String(run.steps.length)} />
-        <Fact
-          label="reward"
-          value={run.reward === null ? 'not scored yet' : formatNumber(run.reward, { decimals: 2 })}
-        />
-        {run.seed === null ? null : <Fact label="seed" value={String(run.seed)} />}
+        {run ? (
+          <>
+            <Fact label="domain" value={run.domain} />
+            <Fact label="model" value={run.agent_model} />
+            <Fact label="steps" value={String(run.steps.length)} />
+            <Fact
+              label="reward"
+              value={
+                run.reward === null ? 'not scored yet' : formatNumber(run.reward, { decimals: 2 })
+              }
+            />
+            {run.seed === null ? null : <Fact label="seed" value={String(run.seed)} />}
+          </>
+        ) : (
+          <Skeleton className="h-4 w-96 max-w-full" />
+        )}
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        {verdict ? (
-          <BlameBadge
-            step={verdict.step}
-            effect={verdict.effect}
-            interval={[verdict.low, verdict.high]}
-          />
-        ) : null}
-        {run.planted_step !== null && run.fault_type !== null ? (
+        <motion.span
+          layoutId={layoutIds.runBlameStripe(id)}
+          transition={transition}
+          data-morph="blame"
+          className="inline-flex"
+        >
+          {verdict ? (
+            <BlameBadge
+              step={verdict.step}
+              effect={verdict.effect}
+              interval={[verdict.low, verdict.high]}
+            />
+          ) : run ? null : (
+            <Skeleton className="h-6 w-56 rounded-pill" />
+          )}
+        </motion.span>
+        {run?.planted_step !== undefined &&
+        run?.planted_step !== null &&
+        run?.fault_type !== null ? (
           <span className="inline-flex h-6 items-center gap-1.5 rounded-pill border border-line-strong bg-elevated px-2 font-mono text-[11px] text-ink-muted">
             planted fault · {run.fault_type} at step {run.planted_step}
           </span>
