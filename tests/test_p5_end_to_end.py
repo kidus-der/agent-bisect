@@ -15,18 +15,24 @@ from pathlib import Path
 
 import pytest
 from agent_bisect.adapters.tau2 import RunSpec, record_run, recording_session
+from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
+from agent_bisect.adapters.tau2_fault_injector import FaultSpec
 from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
 from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, USER_MODEL
 from agent_bisect.adapters.tau2_task import task_text
 from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
 from agent_bisect.attribution.estimate import ControlMode, SequentialConfig
-from agent_bisect.attribution.interventions import ReplaceToolResult
+from agent_bisect.attribution.interventions import (
+    ReplaceToolResult,
+    TruthfulToolResult,
+)
 from agent_bisect.attribution.search import RerunRequest
 from agent_bisect.bench.baselines import BaselineConfig
 from agent_bisect.bench.eval_run import evaluate_dataset, outcome_rows, outcomes_from_rows
 from agent_bisect.bench.evaluate import build_report, score_outcomes
 from agent_bisect.bench.manifest import DatasetItem
 from agent_bisect.core.replay import NoOpIntervention
+from agent_bisect.core.runner import ForkSpec, run_fork
 from agent_bisect.core.tape import TapeReader, TapeWriter
 from tests.p5_offline import (
     DOMAIN,
@@ -538,3 +544,145 @@ def test_a_manifest_item_carries_the_label_the_report_scores_against(planted):
     assert item.planted_step == planted["planted_step"]
     assert item.fault_type == "wrong_value"
     assert datetime.now(UTC) is not None
+
+
+# ---- decision 0016: a standing fault restores the shared control ----
+
+
+def _standing_fault(planted) -> FaultSpec:
+    """The same `business` -> `economy` lie, as a faulty tool rather than an edit."""
+    store = planted["store"]
+    step = store.reader.get_step(BASE_RUN, planted["planted_step"])
+    payload = _faulted_payload(store, BASE_RUN, planted["planted_step"])
+    return FaultSpec(
+        tool_name=step.tool_name or "",
+        tool_args=dict(step.tool_args or {}),
+        content=str(payload["content"]),
+        error=False,
+        step_idx=planted["planted_step"],
+        fault_type="wrong_value",
+    )
+
+
+@pytest.fixture(scope="module")
+def standing(planted) -> dict:
+    """Re-record the item with the fault standing in the world, not the tape."""
+    store = planted["store"]
+    spec = ForkSpec(
+        parent_run_id=BASE_RUN,
+        run_id="standing-1",
+        fork_step=0,
+        prefix_tools="snapshot",
+        seed=None,
+    )
+    with _session(store, planted["agent"]):
+        # The router, not the raw scripted model: a fork's live suffix must
+        # go through `route_tau2_llm` or its LLM steps are never recorded
+        # and the tape comes out with the tool rows and none of the turns.
+        import tau2.utils.llm_utils as llm_utils
+
+        driver = FaultedForkDriver(
+            spec,
+            store=store.blobs,
+            reader=store.reader,
+            tape=store.tape,
+            live_completion=llm_utils.completion,
+            fault=_standing_fault(planted),
+        )
+        outcome = run_fork(driver, spec, NoOpIntervention())
+    return {"outcome": outcome, "run_id": "standing-1"}
+
+
+def test_a_standing_fault_still_fails_the_run(planted, standing):
+    # Arrange / Act / Assert
+    assert standing["outcome"].passed is False
+
+
+def test_the_standing_fault_rides_in_the_forked_runs_manifest(planted, standing):
+    # Arrange / Act
+    params = planted["store"].reader.get_manifest("standing-1").params
+
+    # Assert
+    assert "fault_injector" in params
+
+
+def test_a_control_forked_before_a_standing_fault_still_reproduces_the_failure(
+    planted, standing
+):
+    """Decision 0016, measured: the fix for `docs/findings/p5-control-fork.md`.
+
+    The same probe that passed 4/4 against a one-shot fault must now fail,
+    because the tool itself lies every time it is executed rather than the
+    recording having been edited once.
+    """
+    # Arrange
+    store = planted["store"]
+    executor = Tau2ForkExecutor(
+        store=store.blobs, reader=store.reader, tape=store.tape
+    )
+
+    # Act
+    with _session(store, planted["agent"]):
+        before = executor.run(
+            RerunRequest(
+                parent_run_id="standing-1",
+                run_id="standing-control-0",
+                fork_step=0,
+                arm="control",
+                intervention=NoOpIntervention(),
+                seed=5,
+                prefix_tools="snapshot",
+                unsafe_positional=False,
+            )
+        )
+
+    # Assert
+    assert before.passed is False, (
+        "a standing fault is part of the world, so a fork taken before it "
+        "must still hit it -- that is what makes the shared control valid"
+    )
+
+
+def test_the_truthful_fix_still_beats_a_standing_fault(planted, standing):
+    # Arrange: the truth resolver runs on its own clean environment, which
+    # never carries the injector, so it recovers the real value.
+    store = planted["store"]
+    executor = Tau2ForkExecutor(
+        store=store.blobs, reader=store.reader, tape=store.tape
+    )
+    # The standing run is its own recording, so the culprit is its own
+    # get_reservation_details step, not the base run's index.
+    culprit = _reservation_step(store, "standing-1")
+    resolver = Tau2TruthResolver(DOMAIN, TASK_ID, store.blobs)
+
+    # Act
+    with _session(store, planted["agent"]):
+        treated = executor.run(
+            RerunRequest(
+                parent_run_id="standing-1",
+                run_id="standing-treated",
+                fork_step=culprit,
+                arm="treated",
+                intervention=TruthfulToolResult(step=culprit).with_truth(resolver),
+                seed=6,
+                prefix_tools="snapshot",
+                unsafe_positional=False,
+            )
+        )
+
+    # Assert
+    assert treated.passed is True
+
+
+def test_no_bisect_fork_ever_serves_a_response_past_the_hash_guard(planted):
+    # Arrange
+    culprit = planted["planted_step"]
+    judge = FakeJudge(answers={"item-1": [culprit]})
+
+    # Act
+    run, _ = _run_pipeline(planted, judge, seed=31)
+    blame = next(o.blame for o in run.outcomes if o.method == "bisect")
+
+    # Assert
+    assert blame is not None
+    assert blame.unguarded_calls == 0

@@ -42,6 +42,7 @@ def _summary(
             "resamples": 10_000,
         },
         "flaky_ablation": None,
+        "integrity": {"bisect_unguarded_calls": 0},
     }
     if with_flaky:
         document["flaky_ablation"] = {
@@ -204,7 +205,28 @@ def test_the_gate_never_writes_anything(tmp_path):
     assert sorted(entry.name for entry in tmp_path.iterdir()) == before
 
 
-@pytest.mark.parametrize("criterion", ["split", "accuracy gap", "gap interval", "flaky ablation"])
+def test_a_bisect_arm_that_ran_past_the_hash_guard_fails_the_gate():
+    # Arrange
+    summary = _summary()
+    summary["integrity"]["bisect_unguarded_calls"] = 3
+
+    # Act / Assert
+    assert _names(run_gate(summary))["replay integrity"] is False
+
+
+def test_a_summary_that_cannot_show_the_guard_was_on_fails_the_gate():
+    # Arrange
+    summary = _summary()
+    del summary["integrity"]
+
+    # Act / Assert
+    assert _names(run_gate(summary))["replay integrity"] is False
+
+
+@pytest.mark.parametrize(
+    "criterion",
+    ["split", "accuracy gap", "gap interval", "flaky ablation", "replay integrity"],
+)
 def test_all_four_criteria_are_always_reported(criterion):
     # Arrange / Act
     criteria = run_gate(_summary())
