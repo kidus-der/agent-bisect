@@ -760,3 +760,81 @@ own interval.
 | 3 | `features/pr-checks/GateSummaryPanel.tsx` — the entrance completes inside one 70 ms sample. Add the 60 ms row stagger and let the whiskers draw outward from the estimate on `settle`, flagged rows last (§7.3). | [blocking-8.5] |
 | 4 | The detail page's `DECISIVE_STEP_` panel is 540px for two chips and two lines against a 790px comment preview. Give the comment the wider share. | [polish] |
 | 5 | Copy: "however their point estimate reads" → "whatever their point estimate reads". | [polish] |
+
+---
+
+## Round 5 — 2026-09-17
+
+Four pages scored. Runs (8.5), Run detail (8.7) and Global (8.6) carry forward
+and were not captured. 56 captures in `docs/screenshots/round5/eval/`, taken with
+the corrected method against a real `--fixture` server, frame sequences sampled
+from the trigger at 50 ms for 1.2 s.
+
+### Scores
+
+| Page | hierarchy | type | colour | motion | data | polish | orig. | **score** | Δ |
+|---|---|---|---|---|---|---|---|---|---|
+| Overview | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | **8.5** | +0.1 |
+| Benchmark | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | **8.5** | +0.1 |
+| Live | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | **8.5** | +0.1 |
+| PR checks | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.0 | 8.5 | **8.4** | +0.1 |
+| Runs | — | — | — | — | — | — | — | **8.5** | carried |
+| Run detail | — | — | — | — | — | — | — | **8.7** | carried |
+| Global | — | — | — | — | — | — | — | **8.6** | carried |
+
+**Six of seven pages are at or above 8.5.** PR checks is 0.1 short, on polish
+alone, for two copy defects that are visible in the shipped UI.
+
+### Verification of round-4 [blocking-8.5] items
+
+| Page | Item | Result |
+|---|---|---|
+| Overview | 1 light KPI rail / provenance invisible | fixed — the new light-only `recessed` fill gives both panels a visible ground; my `#FBFBFD` prescription was wrong and the measurement that replaced it (1.136:1 vs 1.046:1) is the right way to have settled it |
+| Overview | 2 KPI numbers fade in at final value | fixed — frame f03 catches all four mid-count (`258→266`, `76→86`, `56,029→86,490`, `$0.27→$1.52`) |
+| Benchmark | 1 no chart observed entering | fixed — f04 catches the method bars building left-to-right with rows 4–5 not yet present, so the stagger is real and no longer runs underneath the route transition |
+| Live | 1 no shared time cursor | fixed — a resting cursor at `now` on both traces, with each trace's value chip beside it and the shared x tick emphasised |
+| PR checks | 1 scenario bars not anchored on a visible zero | fixed — a full-column rule at the bars' anchor; the header axis that disagreed with it was removed |
+| PR checks | 2 values 350px from their marks | fixed — the gate plot's axis is now bounded by the widest interval (±48, so #1002's CI is no longer clipped), which also closed the gap to the values |
+| PR checks | 3 forest entrance completes inside one sample | fixed in shape — frame f00 shows the three flagged rows with whiskers drawn and no point estimates while the clean rows are already complete, so §7.3's order (whisker, then dot, flagged last) is there. It is still faster than the 60 ms-per-row stagger the direction specifies, but the moment reads. |
+
+### Rule guards
+
+All six pass. Newly checked: the budget gauge turns coral at `97% spent · 403
+left` and the headroom ring at `tight`, both with the number and the word beside
+them, so neither state is carried by colour alone.
+
+---
+
+### Overview — 8.5 (+0.1) — at the bar
+
+Both round-4 items closed. The light theme finally has three legible surfaces on
+the fold, and the four KPI numbers count up as the rail enters. Two polish items
+remain and neither is worth spending on: the hero bars' remainder track still
+reads as a second segment, and the blueprint dots still run through the hero
+paragraph.
+
+### Benchmark — 8.5 (+0.1) — at the bar
+
+The densest chart page in the product now demonstrates its own measurements
+instead of presenting them finished. One polish item remains: the sankey's
+`· none · 3` node is still about 6px tall.
+
+### Live — 8.5 (+0.1) — at the bar
+
+The shared cursor was the last gap and it is a good implementation — resting at
+`now` rather than requiring a hover, so the comparison is available before the
+reader does anything. With the job cards and the grouped feed from round 4, the
+page now reads as this product's live view rather than a generic monitor.
+
+### PR checks — 8.4 (+0.1)
+
+**One criterion short: polish (8.0).** Every other criterion is at the bar: the
+zero rule makes the scenario bars readable, the widened axis stopped clipping
+#1002's interval and brought the values next to their marks, and the forest
+entrance now has its whisker-then-dot order. What is left is two pieces of copy
+that ship to the screen.
+
+| # | Fix | Tag |
+|---|---|---|
+| 1 | `features/pr-checks/ScenarioTable.tsx:74` — the scale key renders `SCALE_ ±67 pts pts · zero at the rule`. `extent` already carries its unit, so the literal ` pts` in `±{extent} pts` duplicates it. | [blocking-8.5] |
+| 2 | `features/pr-checks/GateSummaryPanel.tsx` — "The rest are inside the noise of a 96-run suite, however their point estimate reads" should be "whatever their point estimate reads". | [blocking-8.5] |

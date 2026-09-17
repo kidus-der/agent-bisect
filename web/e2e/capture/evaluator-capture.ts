@@ -36,20 +36,26 @@ const VIEWPORTS: readonly Viewport[] = [DESKTOP, MOBILE]
 
 /** Charts animate in on first view; give every entrance time to resolve. */
 const SETTLE_MS = 2200
-/** One frame of a signature moment, sampled fast enough to read the easing. */
-const FRAME_MS = 70
-const FRAME_COUNT = 10
+/**
+ * One frame of a signature moment, sampled fast enough to read the easing and
+ * long enough to cover a spring that takes most of a second to settle.
+ */
+const FRAME_MS = 50
+const FRAME_COUNT = 24
 /** Milliseconds after the rewind click at which the tape is worth a still. */
 const REWIND_SAMPLE_MS = [250, 600, 1200, 2400] as const
 /** Room for the page to grow into once the viewport is opened to its height. */
 const TALL_MARGIN_PX = 40
 
 /**
- * `full` captures everything; `pages` drops the views a round has already
- * signed off, so a later round only re-shoots what can still change.
+ * `full` captures everything. Otherwise EVAL_SCOPE is a comma-separated list of
+ * page names still being scored, so a later round only re-shoots what can still
+ * change and a page already at the bar stops costing anything.
  */
 const SCOPE = process.env.EVAL_SCOPE ?? 'full'
 const isFullScope = SCOPE === 'full'
+const SCOPED_PAGES = new Set(SCOPE.split(',').map((name) => name.trim()))
+const inScope = (name: string): boolean => isFullScope || SCOPED_PAGES.has(name)
 
 /** Runs chosen for what they make the UI do, not for their contents. */
 const RUNS = {
@@ -154,25 +160,25 @@ async function captureEntrance(page: Page, stem: string, target: Locator): Promi
 
 /** Every page that is worth seeing in both themes at both widths. */
 const PAGES = [
-  { name: 'overview', path: '/', scored: true },
-  { name: 'runs', path: '/runs', scored: true },
+  { name: 'overview', path: '/', page: 'overview' },
+  { name: 'runs', path: '/runs', page: 'runs' },
   {
     name: 'runs-filtered',
     path: '/runs?outcome=fail&domain=airline&fault=wrong_value',
-    scored: true,
+    page: 'runs',
   },
-  { name: 'run-detail-brief', path: `/runs/${RUNS.brief}`, scored: false },
-  { name: 'benchmark', path: '/benchmark', scored: true },
-  { name: 'pr-checks', path: '/pr-checks', scored: true },
-  { name: 'pr-check-regression', path: `/pr-checks/${PR_REGRESSION}`, scored: true },
-  { name: 'pr-check-clean', path: `/pr-checks/${PR_CLEAN}`, scored: true },
+  { name: 'run-detail-brief', path: `/runs/${RUNS.brief}`, page: 'run-detail' },
+  { name: 'benchmark', path: '/benchmark', page: 'benchmark' },
+  { name: 'pr-checks', path: '/pr-checks', page: 'pr-checks' },
+  { name: 'pr-check-regression', path: `/pr-checks/${PR_REGRESSION}`, page: 'pr-checks' },
+  { name: 'pr-check-clean', path: `/pr-checks/${PR_CLEAN}`, page: 'pr-checks' },
 ] as const
 
 for (const theme of THEMES) {
   for (const viewport of VIEWPORTS) {
     for (const target of PAGES) {
-      // A page already signed off is swept once at 1440, not re-shot in full.
-      if (!isFullScope && !target.scored) continue
+      // A page already at the bar is not re-shot; it costs nothing this round.
+      if (!inScope(target.page)) continue
       test(`${target.name} ${theme} ${viewport.name}`, async ({ page }) => {
         await open(page, theme, viewport, target.path)
         await shootBoth(page, `${target.name}-${theme}-${viewport.name}`, viewport)
@@ -195,31 +201,22 @@ for (const theme of THEMES) {
     }
 
     /** Live only tells the truth once the stream has pushed more than once. */
-    test(`live ${theme} ${viewport.name}`, async ({ page }) => {
-      await open(page, theme, viewport, '/live')
-      await page
-        .getByText(/\b([2-9]|\d{2,}) updates\b/)
-        .first()
-        .waitFor({ timeout: 40_000 })
-      await page.waitForTimeout(600)
-      await shootBoth(page, `live-${theme}-${viewport.name}`, viewport)
-    })
-  }
-
-  /** Regression sweep for the pages already at the bar: one fold shot each. */
-  if (!isFullScope) {
-    test(`sweep ${theme} 1440`, async ({ page }) => {
-      for (const [name, path] of [
-        ['run-detail', `/runs/${RUNS.brief}`],
-        ['shell-runs', '/runs'],
-      ] as const) {
-        await open(page, theme, DESKTOP, path)
-        await shoot(page, `sweep-${name}-${theme}-1440`)
-      }
-    })
+    if (inScope('live')) {
+      test(`live ${theme} ${viewport.name}`, async ({ page }) => {
+        await open(page, theme, viewport, '/live')
+        await page
+          .getByText(/\b([2-9]|\d{2,}) updates\b/)
+          .first()
+          .waitFor({ timeout: 40_000 })
+        await page.waitForTimeout(600)
+        await shootBoth(page, `live-${theme}-${viewport.name}`, viewport)
+      })
+    }
   }
 
   // ------------------------------------------------------------ overlays
+  // Shell chrome and the non-happy states belong to the `global` page.
+  if (!inScope('global')) continue
 
   test(`palette ${theme} 1440`, async ({ page }) => {
     await open(page, theme, DESKTOP, '/runs')
@@ -312,58 +309,62 @@ for (const theme of THEMES) {
 // ---------------------------------------------------------------- the rewind
 
 /** The rewind, caught while it plays: three frames plus a frame strip. */
-test('rewind sequence dark 1440', async ({ page }) => {
-  await open(page, 'dark', DESKTOP, `/runs/${RUNS.brief}`, { reduced: false })
-  const tape = page.getByTestId('tape-lane')
-  await tape.scrollIntoViewIfNeeded()
-  await page.getByRole('button', { name: /Rewind to k=/ }).click()
-  // Milliseconds since the click, and the wait that gets from the previous one to it.
-  let elapsedMs = 0
-  for (const sinceClickMs of REWIND_SAMPLE_MS) {
-    await page.waitForTimeout(sinceClickMs - elapsedMs)
-    elapsedMs = sinceClickMs
-    await shoot(page, `rewind-dark-1440-t${sinceClickMs}`)
-  }
-  await page.reload()
-  await page.getByRole('heading', { level: 1 }).waitFor()
-  await page.waitForTimeout(SETTLE_MS)
-  await page.getByRole('button', { name: /Rewind to k=/ }).click()
-  await captureFrames(page, 'motion-rewind-dark-1440', tape)
-})
+if (inScope('run-detail'))
+  test('rewind sequence dark 1440', async ({ page }) => {
+    await open(page, 'dark', DESKTOP, `/runs/${RUNS.brief}`, { reduced: false })
+    const tape = page.getByTestId('tape-lane')
+    await tape.scrollIntoViewIfNeeded()
+    await page.getByRole('button', { name: /Rewind to k=/ }).click()
+    // Milliseconds since the click, and the wait that gets from the previous one to it.
+    let elapsedMs = 0
+    for (const sinceClickMs of REWIND_SAMPLE_MS) {
+      await page.waitForTimeout(sinceClickMs - elapsedMs)
+      elapsedMs = sinceClickMs
+      await shoot(page, `rewind-dark-1440-t${sinceClickMs}`)
+    }
+    await page.reload()
+    await page.getByRole('heading', { level: 1 }).waitFor()
+    await page.waitForTimeout(SETTLE_MS)
+    await page.getByRole('button', { name: /Rewind to k=/ }).click()
+    await captureFrames(page, 'motion-rewind-dark-1440', tape)
+  })
 
-test('rewind sequence light 390', async ({ page }) => {
-  await open(page, 'light', MOBILE, `/runs/${RUNS.brief}`, { reduced: false })
-  await page.getByRole('button', { name: /Rewind to k=/ }).click()
-  for (const delay of [400, 1400]) {
-    await page.waitForTimeout(delay === 400 ? 400 : 1000)
-    await shoot(page, `rewind-light-390-t${delay}`)
-  }
-})
+if (inScope('run-detail'))
+  test('rewind sequence light 390', async ({ page }) => {
+    await open(page, 'light', MOBILE, `/runs/${RUNS.brief}`, { reduced: false })
+    await page.getByRole('button', { name: /Rewind to k=/ }).click()
+    for (const delay of [400, 1400]) {
+      await page.waitForTimeout(delay === 400 ? 400 : 1000)
+      await shoot(page, `rewind-light-390-t${delay}`)
+    }
+  })
 
 /** Reduced motion must land on the final state with no interstitial frames. */
-test('rewind reduced motion dark 1440', async ({ page }) => {
-  await open(page, 'dark', DESKTOP, `/runs/${RUNS.brief}`)
-  await page.getByRole('button', { name: /Rewind to k=/ }).click()
-  await page.waitForTimeout(120)
-  await shoot(page, 'rewind-reduced-dark-1440-t120')
-  await page.waitForTimeout(2000)
-  await shoot(page, 'rewind-reduced-dark-1440-settled')
-})
+if (inScope('run-detail'))
+  test('rewind reduced motion dark 1440', async ({ page }) => {
+    await open(page, 'dark', DESKTOP, `/runs/${RUNS.brief}`)
+    await page.getByRole('button', { name: /Rewind to k=/ }).click()
+    await page.waitForTimeout(120)
+    await shoot(page, 'rewind-reduced-dark-1440-t120')
+    await page.waitForTimeout(2000)
+    await shoot(page, 'rewind-reduced-dark-1440-settled')
+  })
 
 /** A treated re-run, and the control it is measured against, at both widths. */
-test('rerun view', async ({ page }) => {
-  for (const theme of THEMES) {
-    for (const viewport of VIEWPORTS) {
-      for (const [arm, rerunId] of [
-        ['treated', `${RUNS.brief}-t7-0`],
-        ['control', `${RUNS.brief}-c-0`],
-      ] as const) {
-        await open(page, theme, viewport, `/runs/${RUNS.brief}/reruns/${rerunId}`)
-        await shootBoth(page, `rerun-${arm}-${theme}-${viewport.name}`, viewport)
+if (inScope('run-detail'))
+  test('rerun view', async ({ page }) => {
+    for (const theme of THEMES) {
+      for (const viewport of VIEWPORTS) {
+        for (const [arm, rerunId] of [
+          ['treated', `${RUNS.brief}-t7-0`],
+          ['control', `${RUNS.brief}-c-0`],
+        ] as const) {
+          await open(page, theme, viewport, `/runs/${RUNS.brief}/reruns/${rerunId}`)
+          await shootBoth(page, `rerun-${arm}-${theme}-${viewport.name}`, viewport)
+        }
       }
     }
-  }
-})
+  })
 
 // ---------------------------------------------------------------- motion strips
 
@@ -376,52 +377,64 @@ async function openMoving(page: Page, path: string, theme: Theme = 'dark'): Prom
   await page.getByRole('heading', { level: 1 }).waitFor()
 }
 
-test('motion: run-detail forest entrance', async ({ page }) => {
-  await openMoving(page, `/runs/${RUNS.brief}`)
-  await captureEntrance(page, 'motion-forest-dark-1440', page.getByText('Effect per tested step'))
-})
+if (inScope('run-detail'))
+  test('motion: run-detail forest entrance', async ({ page }) => {
+    await openMoving(page, `/runs/${RUNS.brief}`)
+    await captureEntrance(page, 'motion-forest-dark-1440', page.getByText('Effect per tested step'))
+  })
 
-test('motion: PR gate-history forest entrance', async ({ page }) => {
-  await openMoving(page, '/pr-checks')
-  await captureEntrance(
-    page,
-    'motion-pr-forest-dark-1440',
-    page.getByText('What the gate has caught'),
-  )
-})
+if (inScope('pr-checks'))
+  test('motion: PR gate-history forest entrance', async ({ page }) => {
+    await openMoving(page, '/pr-checks')
+    await captureEntrance(
+      page,
+      'motion-pr-forest-dark-1440',
+      page.getByText('What the gate has caught'),
+    )
+  })
 
-test('motion: overview hero bars and KPI tickers', async ({ page }) => {
-  await openMoving(page, '/')
-  await captureFrames(page, 'motion-hero-dark-1440')
-})
+if (inScope('benchmark'))
+  test('motion: benchmark chart entrance', async ({ page }) => {
+    await openMoving(page, '/benchmark')
+    await captureFrames(page, 'motion-benchmark-dark-1440')
+  })
 
-test('motion: runs row stagger', async ({ page }) => {
-  await openMoving(page, '/runs')
-  await captureFrames(page, 'motion-runs-stagger-dark-1440')
-})
+if (inScope('overview'))
+  test('motion: overview hero bars and KPI tickers', async ({ page }) => {
+    await openMoving(page, '/')
+    await captureFrames(page, 'motion-hero-dark-1440')
+  })
+
+if (inScope('runs'))
+  test('motion: runs row stagger', async ({ page }) => {
+    await openMoving(page, '/runs')
+    await captureFrames(page, 'motion-runs-stagger-dark-1440')
+  })
 
 /**
  * The list -> detail morph, both ways. All three `layoutId` targets (the id
  * chip, the blame stripe, the status pill) travel in one transition, so the
  * whole viewport is sampled rather than any one of them.
  */
-test('motion: runs row to run detail and back', async ({ page }) => {
-  await openMoving(page, '/runs')
-  await page.waitForTimeout(SETTLE_MS)
-  // Rows navigate on click rather than being links, so the row itself is the target.
-  await page.getByRole('row').filter({ hasText: RUNS.brief }).first().click()
-  await captureFrames(page, 'motion-list-to-detail-dark-1440')
-  await page.waitForTimeout(SETTLE_MS)
-  await page.getByRole('link', { name: 'Runs' }).first().click()
-  await captureFrames(page, 'motion-detail-to-list-dark-1440')
-})
+if (inScope('runs'))
+  test('motion: runs row to run detail and back', async ({ page }) => {
+    await openMoving(page, '/runs')
+    await page.waitForTimeout(SETTLE_MS)
+    // Rows navigate on click rather than being links, so the row itself is the target.
+    await page.getByRole('row').filter({ hasText: RUNS.brief }).first().click()
+    await captureFrames(page, 'motion-list-to-detail-dark-1440')
+    await page.waitForTimeout(SETTLE_MS)
+    await page.getByRole('link', { name: 'Runs' }).first().click()
+    await captureFrames(page, 'motion-detail-to-list-dark-1440')
+  })
 
-test('motion: palette open', async ({ page }) => {
-  await openMoving(page, '/runs')
-  await page.waitForTimeout(SETTLE_MS)
-  await page.keyboard.press('ControlOrMeta+k')
-  await captureFrames(page, 'motion-palette-dark-1440')
-})
+if (inScope('global'))
+  test('motion: palette open', async ({ page }) => {
+    await openMoving(page, '/runs')
+    await page.waitForTimeout(SETTLE_MS)
+    await page.keyboard.press('ControlOrMeta+k')
+    await captureFrames(page, 'motion-palette-dark-1440')
+  })
 
 /** Reduced motion must land every entrance on its final state, instantly. */
 test('motion: reduced-motion pass', async ({ page }) => {
