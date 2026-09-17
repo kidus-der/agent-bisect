@@ -2,6 +2,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { EmptyState } from '@/components/primitives/EmptyState'
+import { HeatLegend } from '@/components/primitives/HeatLegend'
 import { ErrorState } from '@/components/primitives/ErrorState'
 import { Panel } from '@/components/primitives/Panel'
 import { StatePanel } from '@/components/primitives/StatePanel'
@@ -27,6 +28,8 @@ import {
   toSearchParams,
   validateRunsSearch,
 } from '@/features/runs/runsSearch'
+
+import { formatEffect } from '@/lib/format'
 
 import { PageHeader } from './PageHeader'
 import { TableSkeletonPage } from './skeletons'
@@ -150,8 +153,10 @@ export function RunsPage() {
       <div className="flex flex-col gap-4">
         {/* Toolbar and table are one instrument: the filters sit inside the panel they narrow. */}
         <Panel variant="card" className="p-0" bodyClassName="min-w-0">
-          <div className="border-b border-line px-4 py-3">
+          <div className="flex flex-col gap-2.5 border-b border-line px-4 py-3">
             <RunsFilters search={search} facets={facets} onChange={apply} summary={summary} />
+            {/* Once per table, not per row. Each row's ramp is its own run's. */}
+            {narrowed.rows.length > 0 ? <HeatLegend perRun format={formatEffect} /> : null}
           </div>
 
           {narrowed.rows.length === 0 ? (
