@@ -44,6 +44,12 @@ export interface SankeyChartProps {
   nodeWidth?: number;
   /** Node padding in pixels. Default: 24 */
   nodePadding?: number;
+  /**
+   * Local addition: floor for a node's drawn height. A node holding 3 of 86
+   * units lays out a few pixels tall and can be neither seen nor hovered. Only
+   * the node rect grows; the ribbons keep their proportional endpoints.
+   */
+  minNodeHeight?: number;
   /** Additional class name for the container */
   className?: string;
   /** Child components (SankeyNode, SankeyLink, SankeyTooltip) */
@@ -66,6 +72,7 @@ interface SankeyChartInnerProps {
   revealSignature?: string;
   nodeWidth: number;
   nodePadding: number;
+  minNodeHeight: number;
   children: ReactNode;
   hoveredNodeIndexProp?: number | null;
   onNodeHoverChange?: (index: number | null) => void;
@@ -91,6 +98,7 @@ const SankeyChartCore = memo(function SankeyChartCore({
   revealSignature = "",
   nodeWidth,
   nodePadding,
+  minNodeHeight,
   children,
   hoveredNodeIndexProp,
   onNodeHoverChange,
@@ -152,8 +160,23 @@ const SankeyChartCore = memo(function SankeyChartCore({
       nodes: data.nodes.map((node) => ({ ...node })),
       links: data.links.map((link) => ({ ...link })),
     };
-    return sankeyGenerator(clonedData);
-  }, [data, sankeyGenerator]);
+    const laidOut = sankeyGenerator(clonedData);
+    if (minNodeHeight > 0) {
+      // d3 hands back its own mutable layout objects, created just above and
+      // owned by this memo, so growing them in place is contained.
+      for (const node of laidOut.nodes) {
+        const top = node.y0 ?? 0;
+        const bottom = node.y1 ?? 0;
+        if (bottom - top >= minNodeHeight) {
+          continue;
+        }
+        const grown = Math.min(innerHeight, Math.max(minNodeHeight, bottom + (minNodeHeight - (bottom - top)) / 2));
+        node.y1 = grown;
+        node.y0 = grown - minNodeHeight;
+      }
+    }
+    return laidOut;
+  }, [data, sankeyGenerator, minNodeHeight, innerHeight]);
 
   const createPath = useCallback(
     // biome-ignore lint/suspicious/noExplicitAny: d3-sankey types are complex
@@ -234,6 +257,7 @@ export function SankeyChart({
   aspectRatio = "2 / 1",
   nodeWidth = 16,
   nodePadding = 24,
+  minNodeHeight = 0,
   className = "",
   children,
   hoveredNodeIndex,
@@ -253,6 +277,7 @@ export function SankeyChart({
             hoveredNodeIndexProp={hoveredNodeIndex}
             margin={margin}
             nodePadding={nodePadding}
+            minNodeHeight={minNodeHeight}
             nodeWidth={nodeWidth}
             onNodeHoverChange={onNodeHoverChange}
             revealSignature={revealSignature}

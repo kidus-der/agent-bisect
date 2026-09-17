@@ -46,6 +46,8 @@ const NARROW_QUERY = '(max-width: 640px)'
 
 const NODE_WIDTH = 10
 const NODE_PADDING = 16
+/** A node holding 3 of 86 failures is otherwise a few pixels tall. */
+const MIN_NODE_HEIGHT = 12
 const LINK_OPACITY = 0.38
 const FADED_OPACITY = 0.08
 const NO_MOTION = { duration: 0 } as const
@@ -103,6 +105,7 @@ export function BlameFlowSankey({ rows }: BlameFlowSankeyProps) {
         margin={narrow ? NARROW_MARGIN : WIDE_MARGIN}
         nodeWidth={NODE_WIDTH}
         nodePadding={NODE_PADDING}
+        minNodeHeight={MIN_NODE_HEIGHT}
         animationDuration={reduced ? 0 : ENTER_DURATION_MS}
         enterTransition={reduced ? NO_MOTION : undefined}
       >
