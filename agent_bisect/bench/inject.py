@@ -74,6 +74,7 @@ FUNNEL_COUNTS = (
     "kept",
     "rejected_not_flipped",
     "rejected_unplantable",
+    "rejected_repeated_call",
     "rejected_infra",
     "infra_retries",
 )
@@ -160,7 +161,10 @@ class InjectRunner(Protocol):
         *,
         run_id: str,
         step_idx: int,
+        tool_name: str,
+        tool_args: Mapping[str, Any],
         faulted_result: Mapping[str, Any],
+        fault_type: str,
         seed: int,
     ) -> RerunResult: ...
 
@@ -218,6 +222,7 @@ class _Collector:
         self._counts: dict[str, int] = dict.fromkeys(FUNNEL_COUNTS, 0)
         self._items: list[dict[str, Any]] = []
         self._balancer = FaultBalancer(_kept_by_fault_type(journal))
+        self._repeated: set[int] = set()
 
     # -- the loop ----------------------------------------------------------
 
@@ -328,7 +333,9 @@ class _Collector:
     # -- stage 3: candidates ------------------------------------------------
 
     def _candidates_for(self, base: BaseRun) -> None:
-        steps = {step.step_idx: step for step in self._runner.tool_steps(base.run_id)}
+        found = self._runner.tool_steps(base.run_id)
+        self._repeated = {step.step_idx for step in found if _repeats_before(found, step)}
+        steps = {step.step_idx: step for step in found}
         order = attempt_order(
             bucketed(sorted(steps)),
             seed=derive_seed(self._config.seed, base.run_id),
@@ -359,6 +366,16 @@ class _Collector:
     def _measure_candidate(
         self, base: BaseRun, step: ToolStep, bucket: PositionBucket, key: str
     ) -> dict[str, Any]:
+        if step.step_idx in self._repeated:
+            # A standing fault would rewrite the prefix as well as the step
+            # (`docs/decisions/0016-persistent-planted-fault.md`), so the
+            # recording would no longer be the base run's.
+            return self._rejected(
+                key, "repeated_call",
+                "this exact call already occurred before k, so a standing fault would "
+                "rewrite the prefix too",
+                base, step, bucket,
+            )
         faulted = self._plant(base, step)
         if faulted is None:
             return self._rejected(key, "unplantable", "no fault type can be planted here",
@@ -405,7 +422,9 @@ class _Collector:
         results = []
         for index, seed in enumerate(seeds):
             stem = f"{base.run_id}-k{step.step_idx}-{fault_type}"
-            results.append(self._with_retries(base, step, mutated, stem, index, seed))
+            results.append(
+                self._with_retries(base, step, mutated, fault_type, stem, index, seed)
+            )
         return results
 
     def _with_retries(
@@ -413,6 +432,7 @@ class _Collector:
         base: BaseRun,
         step: ToolStep,
         mutated: Mapping[str, Any],
+        fault_type: str,
         stem: str,
         index: int,
         seed: int,
@@ -431,7 +451,8 @@ class _Collector:
                 return self._guarded(
                     lambda r=run_id: self._runner.fault_fork(
                         base.run_id, run_id=r, step_idx=step.step_idx,
-                        faulted_result=dict(mutated), seed=seed,
+                        tool_name=step.tool_name, tool_args=dict(step.tool_args),
+                        faulted_result=dict(mutated), fault_type=fault_type, seed=seed,
                     )
                 )
             except _Infra as failure:
@@ -535,6 +556,21 @@ class _Collector:
 
 class _Infra(Exception):
     """An infrastructure failure: retried, and never scored as a run failure."""
+
+
+def _repeats_before(steps: Sequence[ToolStep], step: ToolStep) -> bool:
+    """Was this exact `(tool, args)` call already made earlier in the run?
+
+    A standing fault matches by call, not by step, so faulting a repeated
+    call would corrupt its earlier occurrences too — rewriting the prefix
+    the item is supposed to share with its base run.
+    """
+    return any(
+        other.step_idx < step.step_idx
+        and other.tool_name == step.tool_name
+        and dict(other.tool_args) == dict(step.tool_args)
+        for other in steps
+    )
 
 
 def _kept_by_fault_type(journal: Journal) -> dict[str, int]:

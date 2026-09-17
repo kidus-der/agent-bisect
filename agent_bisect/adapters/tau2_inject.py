@@ -29,7 +29,8 @@ from typing import Any
 
 from agent_bisect.adapters.tau2 import RunSpec, record_run
 from agent_bisect.adapters.tau2_batch import BatchItem, free_run_id
-from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
+from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
+from agent_bisect.adapters.tau2_fault_injector import FaultSpec
 from agent_bisect.attribution.interventions import (
     ReplaceToolResult,
     Resample,
@@ -151,20 +152,42 @@ class Tau2InjectRunner:
         *,
         run_id: str,
         step_idx: int,
+        tool_name: str,
+        tool_args: Mapping[str, Any],
         faulted_result: Mapping[str, Any],
+        fault_type: str,
         seed: int,
     ) -> RerunResult:
-        """Fork at k showing the agent `faulted_result`; the world is untouched."""
+        """Fork at k with the fault standing in the world; the DB is untouched.
+
+        The intervention still replaces the result *at* k, because a
+        snapshot prefix serves the recorded result there and never
+        executes the tool. The injector covers everything the
+        intervention cannot: later repeats of the same call, and any fork
+        of this item taken before k
+        (`docs/decisions/0016-persistent-planted-fault.md`).
+        """
         return self._fork(
             base_run_id,
             run_id=run_id,
             fork_step=step_idx,
             intervention=ReplaceToolResult(step=step_idx, new_result=dict(faulted_result)),
             seed=seed,
+            fault=FaultSpec.from_mutation(
+                tool_name=tool_name, tool_args=tool_args, mutated=faulted_result,
+                step_idx=step_idx, fault_type=fault_type,
+            ),
         )
 
     def _fork(
-        self, base_run_id: str, *, run_id: str, fork_step: int, intervention: Any, seed: int
+        self,
+        base_run_id: str,
+        *,
+        run_id: str,
+        fork_step: int,
+        intervention: Any,
+        seed: int,
+        fault: FaultSpec | None = None,
     ) -> RerunResult:
         # The fork keeps its parent's run seed, and `seed` does not reach
         # the model. tau2 puts the run seed into every model request, so:
@@ -188,12 +211,13 @@ class Tau2InjectRunner:
             seed=None,
         )
         reference = self.store.put_json(intervention.to_ref())
-        driver = Tau2ForkDriver(
+        driver = FaultedForkDriver(
             spec,
             store=self.store,
             reader=self.reader,
             tape=self.tape,
             live_completion=shaped_completion(intervention, self._live()),
+            fault=fault,
         )
         outcome = run_fork(driver, spec, intervention)
         return RerunResult(run_id=run_id, passed=outcome.passed, intervention_ref=reference)

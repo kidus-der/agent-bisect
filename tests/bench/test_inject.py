@@ -11,6 +11,7 @@ dropped silently. Driving it against tau2's real orchestrator is
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 from agent_bisect.bench.inject import (
@@ -31,13 +32,16 @@ def tool_step(step_idx: int) -> ToolStep:
     return ToolStep(
         step_idx=step_idx,
         tool_name="get_reservation_details",
-        tool_args={"reservation_id": "HATHAT"},
+        # Distinct arguments per step: a standing fault matches by call,
+        # so two identical calls in one run cannot both be candidates.
+        tool_args={"reservation_id": f"HAT{step_idx:03d}"},
         result={"id": f"c{step_idx}", "role": "tool", "requestor": "assistant",
                 "error": False,
-                "content": json.dumps({"reservation_id": "HATHAT", "status": "confirmed",
+                "content": json.dumps({"reservation_id": f"HAT{step_idx:03d}",
+                                       "status": "confirmed",
                                        "total_baggages": 2, "price": 122})},
         result_ref=f"{step_idx:064d}",
-        downstream="the agent quotes HATHAT back",
+        downstream=f"the agent quotes HAT{step_idx:03d} back",
     )
 
 
@@ -80,7 +84,8 @@ class FakeRunner:
     def tool_steps(self, base_run_id: str) -> list[ToolStep]:
         return [tool_step(index * 2 + 1) for index in range(self.tool_steps_per_run)]
 
-    def fault_fork(self, base_run_id, *, run_id, step_idx, faulted_result, seed) -> RerunResult:
+    def fault_fork(self, base_run_id, *, run_id, step_idx, tool_name, tool_args,
+                   faulted_result, fault_type, seed) -> RerunResult:
         if self.infra_failures > 0:
             self.infra_failures -= 1
             raise RuntimeError("infrastructure_error: the provider hung up")
@@ -207,8 +212,24 @@ def test_the_funnel_counts_add_up(tmp_path):
 
     assert result.counts["candidates"] == (
         result.counts["kept"] + result.counts["rejected_not_flipped"]
-        + result.counts.get("rejected_unplantable", 0)
+        + result.counts["rejected_unplantable"] + result.counts["rejected_repeated_call"]
     )
+
+
+def test_a_call_that_already_happened_earlier_is_never_faulted(tmp_path):
+    """A standing fault matches by call, so faulting a repeated call would
+    corrupt its earlier occurrences and rewrite the prefix
+    (`docs/decisions/0016-persistent-planted-fault.md`)."""
+
+    class SameCallTwice(FakeRunner):
+        def tool_steps(self, base_run_id):
+            return [replace(tool_step(index * 2 + 1), tool_args={"reservation_id": "SAME"})
+                    for index in range(6)]
+
+    result = run(tmp_path, SameCallTwice())
+
+    assert result.counts["rejected_repeated_call"] > 0
+    assert {item["planted_step"] for item in result.items} <= {1}
 
 
 # ---- resume ----
