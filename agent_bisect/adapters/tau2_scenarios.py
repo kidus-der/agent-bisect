@@ -32,6 +32,19 @@ USER_MODEL = "fake/user-model"
 STOP = "###STOP###"
 
 
+#: tau2's own NL-assertion judge model
+#: (`tau2.config.DEFAULT_LLM_NL_ASSERTIONS`). Scripting it is what lets the
+#: offline suite exercise a recorded *evaluator* step.
+JUDGE_MODEL = "gpt-4.1-2025-04-14"
+
+#: The judge answers with JSON its caller parses
+#: (`evaluator/evaluator_nl_assertions.py`: `json.loads(...)["results"]`).
+JUDGED_ASSERTION = "Agent should tell the user that there are 10 t-shirt options available."
+_JUDGE_VERDICT = (
+    '{"results": [{"expectedOutcome": "' + JUDGED_ASSERTION + '", '
+    '"reasoning": "The agent said so.", "metExpectation": true}]}'
+)
+
 @dataclass(frozen=True)
 class Scenario:
     """One scripted run: which task, and what each participant says."""
@@ -42,9 +55,15 @@ class Scenario:
     agent: tuple[ScriptedTurn, ...]
     user: tuple[ScriptedTurn, ...]
 
+    #: Turns for tau2's NL-assertion judge, for tasks whose reward needs one.
+    judge: tuple[ScriptedTurn, ...] = ()
+
     @property
     def scripts(self) -> dict[str, list[ScriptedTurn]]:
-        return {AGENT_MODEL: list(self.agent), USER_MODEL: list(self.user)}
+        scripts = {AGENT_MODEL: list(self.agent), USER_MODEL: list(self.user)}
+        if self.judge:
+            scripts[JUDGE_MODEL] = list(self.judge)
+        return scripts
 
 
 def _call(call_id: str, name: str, **arguments: object) -> ScriptedToolCall:
@@ -164,6 +183,26 @@ RETAIL_WRITES = Scenario(
         ScriptedTurn(content="Please update my address and cancel my pending order."),
         ScriptedTurn(content=STOP),
     ),
+)
+
+#: Retail task 2 carries NL_ASSERTION in its `reward_basis`, so computing
+#: its reward makes an LLM call. That call goes through the same
+#: `llm_utils.completion` seam as the agent's and the user's, so it is
+#: recorded and replayed like any other step -- under actor `evaluator`.
+RETAIL_JUDGED = Scenario(
+    name="retail-judged",
+    domain="retail",
+    task_id="2",
+    agent=(
+        ScriptedTurn(tool_calls=(_call("c1", "list_all_product_types"),)),
+        ScriptedTurn(content="There are 10 t-shirt options available."),
+        ScriptedTurn(content="Happy to help."),
+    ),
+    user=(
+        ScriptedTurn(content="How many t-shirt options do you have?"),
+        ScriptedTurn(content=STOP),
+    ),
+    judge=(ScriptedTurn(content=_JUDGE_VERDICT),),
 )
 
 #: Every scenario the offline suite runs. Airline first so a failure in
