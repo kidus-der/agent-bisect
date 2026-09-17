@@ -26,6 +26,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from agent_bisect.attribution.blame_store import load_blame
 from agent_bisect.core.limits import load_limiter_settings
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step
@@ -46,8 +47,11 @@ from agent_bisect.server.schemas_pr import PrCheckDetail, PrCheckSummary
 from agent_bisect.server.schemas_runs import (
     BlameCell,
     InterventionDiff,
+    JudgePanel,
     RerunPage,
+    RerunRow,
     RunDetail,
+    RunEstimateView,
     RunSummary,
     SparkPoint,
     StateDiff,
@@ -158,6 +162,7 @@ class RealRepository:
         outcome: Outcome | None,
         steps: list[Step],
         calls: int | None,
+        blame: dict[str, Any] | None,
     ) -> RunSummary:
         sparkline = tuple(
             SparkPoint(
@@ -168,8 +173,21 @@ class RealRepository:
             )
             for step in steps
         )
+        # `effects` is empty (every cell untested) unless P5 has written a
+        # blame result *with* an estimate -- a judge that never answered
+        # bought no re-runs, so there is nothing to mark tested either.
+        effects: dict[int, float] = {}
+        if blame is not None and blame["estimate"] is not None:
+            effects = {
+                effect["step"]: effect["effect"] for effect in blame["estimate"]["step_effects"]
+            }
         blame_stripe = tuple(
-            BlameCell(step_idx=step.step_idx, effect=None, tested=False) for step in steps
+            BlameCell(
+                step_idx=step.step_idx,
+                effect=effects.get(step.step_idx),
+                tested=step.step_idx in effects,
+            )
+            for step in steps
         )
         return RunSummary(
             run_id=manifest.run_id,
@@ -180,7 +198,7 @@ class RealRepository:
             # `None` while still recording -- never a fabricated "fail".
             outcome=None if outcome is None else ("pass" if outcome.passed else "fail"),
             n_steps=len(steps),
-            decisive_step=None,
+            decisive_step=blame["blamed_step"] if blame is not None else None,
             fault_type=None,
             planted_step=None,
             # cost_usd: not 0.0 -- no per-model USD price exists anywhere in
@@ -190,6 +208,16 @@ class RealRepository:
             sparkline=sparkline,
             blame_stripe=blame_stripe,
         )
+
+    def _load_blame_doc(self, run_id: str) -> dict[str, Any] | None:
+        """`runs/blame/<run_id>.json` (P5's primary "bisect" result), or
+        `None` if that run has never been diagnosed. `blame_store.load_blame`
+        only checks the file exists and reads it -- safe read-only access,
+        unlike the constructors this module otherwise avoids."""
+        try:
+            return load_blame(self._runs_dir, run_id)
+        except FileNotFoundError:
+            return None
 
     def _calls_per_run(self, conn: sqlite3.Connection) -> dict[str, int]:
         """Real per-run call counts from the ledger's `run_id` column (P1b),
@@ -228,7 +256,8 @@ class RealRepository:
                 # "fail" (`_run_summary` handles both null-outcome states).
                 steps = self._steps_for(conn, manifest.run_id)
                 calls = calls_by_run.get(manifest.run_id)
-                summary = self._run_summary(manifest, outcome, steps, calls)
+                blame = self._load_blame_doc(manifest.run_id)
+                summary = self._run_summary(manifest, outcome, steps, calls, blame)
                 tool_names = tuple(sorted({s.tool_name for s in steps if s.tool_name}))
                 rows.append(RunSearchRow(summary=summary, tool_names=tool_names))
         finally:
@@ -271,6 +300,7 @@ class RealRepository:
             )
             for step in steps
         )
+        estimate, judge = self._blame_views(run_id)
         return RunDetail(
             run_id=manifest.run_id,
             domain=manifest.domain,
@@ -287,9 +317,27 @@ class RealRepository:
             steps=step_views,
             planted_step=None,
             fault_type=None,
-            estimate=None,  # no attribution result has been persisted anywhere yet
-            judge=None,  # no judge output has been persisted anywhere yet
+            estimate=estimate,
+            judge=judge,
         )
+
+    def _blame_views(self, run_id: str) -> tuple[RunEstimateView | None, JudgePanel | None]:
+        """`estimate`/`judge` for `RunDetail`, read straight off P5's stored
+        document -- its field names mirror these DTOs exactly (see
+        `blame_store.py`), so nothing here reshapes or re-derives a
+        statistic. `estimate` stays `None` when the judge never answered and
+        no re-run was bought: a real outcome ("no step blamed"), not a
+        fabricated zero. Both stay `None` when the run has never been
+        diagnosed at all."""
+        blame = self._load_blame_doc(run_id)
+        if blame is None:
+            return None, None
+        estimate = (
+            RunEstimateView.model_validate(blame["estimate"])
+            if blame["estimate"] is not None
+            else None
+        )
+        return estimate, JudgePanel.model_validate(blame["judge"])
 
     def _blob_store(self) -> BlobStore | None:
         return BlobStore(self._runs_dir) if self._blobs_dir.exists() else None
@@ -365,10 +413,18 @@ class RealRepository:
         return StateDiff(step_idx=step_idx, entries=tuple(entries))
 
     def reruns(self, run_id: str) -> RerunPage:
-        raise DataNotAvailable("no re-run matrix has been recorded for any run yet")
+        blame = self._load_blame_doc(run_id)
+        if blame is None:
+            raise DataNotAvailable("no re-run matrix has been recorded for any run yet")
+        # An empty tuple here is honest: the diagnosis ran but the judge
+        # never answered, so no re-run was bought -- not "no data".
+        return RerunPage(reruns=tuple(RerunRow.model_validate(row) for row in blame["reruns"]))
 
     def rerun_steps(self, run_id: str, rerun_id: str) -> tuple[StepView, ...]:
-        raise DataNotAvailable("no re-run matrix has been recorded for any run yet")
+        # `blame_store` records each re-run's outcome (arm/step/seed/passed/
+        # calls), not its step-by-step trace -- there is nothing yet for
+        # this endpoint to read, with or without a stored blame result.
+        raise DataNotAvailable("no re-run step trace has been recorded for any run yet")
 
     def benchmark(self) -> BenchmarkSummary:
         raise DataNotAvailable("no benchmark evaluation has been run yet (bench/evaluate.py)")
