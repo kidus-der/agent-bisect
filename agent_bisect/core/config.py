@@ -18,7 +18,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pydantic import BaseModel, ConfigDict, SecretStr
 
 DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
@@ -70,7 +70,17 @@ def _settings_from_env() -> Settings:
 def get_settings() -> Settings:
     """Load `.env` (if present) and return the cached process-wide settings.
 
+    `usecwd=True` is load-bearing. Bare `load_dotenv()` resolves the file
+    relative to the *calling module's* directory, so it walks up from
+    `agent_bisect/core/` and finds the repo's own `.env` no matter what the
+    working directory is. That made it impossible for a test to isolate
+    itself from the real key — a test pointed at an empty temp directory
+    still loaded the live key and could print it in an assertion diff.
+    Resolving from the working directory means `chdir` isolates properly,
+    and it is also the behaviour a CLI should have: the `.env` belongs to
+    the project you are standing in.
+
     Call `get_settings.cache_clear()` in tests that mutate the environment.
     """
-    load_dotenv(override=False)
+    load_dotenv(dotenv_path=find_dotenv(usecwd=True), override=False)
     return _settings_from_env()

@@ -62,7 +62,21 @@ def test_settings_loads_dotenv_file(isolated_env):
 
     assert settings.has_nvidia_key is True
     assert settings.nvidia_api_key is not None
-    assert settings.nvidia_api_key.get_secret_value() == FAKE_KEY
+    # Never assert on the value directly: a mismatch would print whatever was
+    # actually loaded, and that could be the developer's real key.
+    assert settings.nvidia_api_key.get_secret_value() == FAKE_KEY, "loaded a different .env"
+
+
+def test_an_isolated_working_directory_never_picks_up_an_outside_dotenv(isolated_env):
+    """Regression: bare load_dotenv() resolved .env relative to core/config.py, so it
+    found the repo's real key however the test chdir'd. usecwd=True fixes that."""
+    outside = isolated_env.parent / "outside"
+    outside.mkdir(exist_ok=True)
+    (outside / ".env").write_text(f"NVIDIA_API_KEY={FAKE_KEY}\n")
+
+    settings = get_settings()
+
+    assert settings.has_nvidia_key is False
 
 
 def test_redact_masks_key_in_text():
