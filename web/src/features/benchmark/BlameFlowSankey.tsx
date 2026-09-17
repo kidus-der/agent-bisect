@@ -24,10 +24,10 @@ const ENTER_DURATION_MS = 1100
  * they scale with the available width between a readable floor and that ceiling.
  */
 const MARGIN_Y = 12
-const MIN_LEFT = 70
+const MIN_LEFT = 88
 const MAX_LEFT = 104
-const MIN_RIGHT = 78
-const MAX_RIGHT = 132
+const MIN_RIGHT = 96
+const MAX_RIGHT = 118
 
 const WIDE_MARGIN = {
   top: MARGIN_Y,
@@ -58,7 +58,9 @@ interface BlameFlowSankeyProps {
 export function BlameFlowSankey({ rows }: BlameFlowSankeyProps) {
   const reduced = useReducedMotion() === true
   const narrow = useMediaQuery(NARROW_QUERY)
-  const graph = useMemo(() => buildBlameFlow(rows, narrow), [rows, narrow])
+  // Short names at every width: the count appended to each label is what the
+  // long name used to carry, and together they no longer fit the side margin.
+  const graph = useMemo(() => buildBlameFlow(rows, true), [rows])
   const exact = rows.reduce((sum, row) => sum + (row.label === 'exact' ? row.count : 0), 0)
 
   // The chart's `data` prop is typed mutable and carries no role, so it gets a copy.
