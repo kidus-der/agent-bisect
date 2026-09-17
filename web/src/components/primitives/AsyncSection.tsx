@@ -7,6 +7,7 @@ import { type NotAvailable, splitNotAvailable } from '@/api/payload'
 import { ErrorState } from './ErrorState'
 import { NotMeasuredState } from './NotMeasuredState'
 import { Panel } from './Panel'
+import { StatePanel } from './StatePanel'
 import { LoadingRegion } from './Skeleton'
 
 interface NotMeasuredCopy {
@@ -43,14 +44,14 @@ export function AsyncSection<T>({
   }
   if (query.isError) {
     return (
-      <Panel variant="card">
+      <StatePanel>
         <ErrorState
           title={`Cannot load ${subject}`}
           message={query.error.message}
           code={query.error.code}
           onRetry={() => void query.refetch()}
         />
-      </Panel>
+      </StatePanel>
     )
   }
   const { payload, reason } = splitNotAvailable<T>(query.data.data)
