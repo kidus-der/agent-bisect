@@ -343,3 +343,32 @@ def _contains(path, key: str) -> bool:
         # <root>/blobs/<aa>/<bb>/<digest>.zst
         return key.encode() in BlobStore(path.parents[3]).get_bytes(path.stem)
     return key.encode() in path.read_bytes()
+
+
+# ---- per-run call attribution ----
+
+
+def test_every_call_a_run_makes_is_attributed_to_it(store):
+    """The ledger can say what each recorded run cost."""
+    from agent_bisect.core.budget import BudgetLedger
+
+    checkpoints = _run_batch(store, items_for("airline", ["0", "1"]))
+
+    ledger = BudgetLedger(store.root / "ledger.sqlite")
+    per_run = ledger.totals_per_run()
+
+    assert sorted(per_run) == sorted(checkpoint.run_id for checkpoint in checkpoints)
+    assert sum(per_run.values()) == ledger.total_calls()
+
+
+def test_concurrent_runs_do_not_mix_up_whose_calls_are_whose(store):
+    from agent_bisect.core.budget import BudgetLedger
+
+    _run_batch(store, items_for("airline", ["0", "1", "2", "3"]), concurrency=4)
+
+    per_run = BudgetLedger(store.root / "ledger.sqlite").totals_per_run()
+
+    assert len(per_run) == 4
+    # Every run of the same script costs the same number of calls, so a
+    # thread picking up another thread's run id would show up here.
+    assert len(set(per_run.values())) == 1
