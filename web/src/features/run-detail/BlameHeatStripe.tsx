@@ -47,9 +47,11 @@ function BlameHeatStripeImpl({
         >
           <line x1={0} y1={0} x2={0} y2={HATCH_SIZE} stroke="var(--bx-tape)" strokeWidth={1.5} />
         </pattern>
+        {/* The vivid fill pair, not the AA-constrained text amber: at full fill
+            the light text amber reads brick, which is the fail role. */}
         <linearGradient id={blameId} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--bx-blame)" />
-          <stop offset="1" stopColor="var(--bx-blame-coral)" />
+          <stop offset="0" stopColor="var(--bx-blame-fill)" />
+          <stop offset="1" stopColor="var(--bx-blame-coral-fill)" />
         </linearGradient>
       </defs>
       {cells.map((cell) => {
@@ -70,7 +72,7 @@ function BlameHeatStripeImpl({
             height={height - 1}
             rx={CELL_RADIUS}
             fill={fill}
-            stroke={blamed ? 'var(--bx-blame)' : 'var(--bx-line-strong)'}
+            stroke={blamed ? 'var(--bx-blame-fill)' : 'var(--bx-line-strong)'}
             onPointerEnter={() => onHoverStep?.(cell.step)}
           >
             <title>

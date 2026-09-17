@@ -74,7 +74,7 @@ function TimelineMinimapImpl({
               marginRight: TICK_GAP,
               background:
                 cell.step === blamedStep && cell.tested
-                  ? 'linear-gradient(90deg, var(--bx-blame), var(--bx-blame-coral))'
+                  ? 'linear-gradient(90deg, var(--bx-blame-fill), var(--bx-blame-coral-fill))'
                   : cell.tested
                     ? heatBucket(cell.effect ?? 0)
                     : undefined,
