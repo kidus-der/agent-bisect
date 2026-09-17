@@ -1068,6 +1068,58 @@
         "title": "ErrorInfo",
         "type": "object"
       },
+      "EstimatorConfig": {
+        "description": "The sampling plan that produced this blame result, taken verbatim from\nthe `attribution.estimate.SequentialConfig` instance actually used --\nnever hand-typed -- so a client (e.g. the Run detail page) never has to\nhard-code delta or any other threshold.",
+        "properties": {
+          "batch": {
+            "title": "Batch",
+            "type": "integer"
+          },
+          "conf": {
+            "title": "Conf",
+            "type": "number"
+          },
+          "control_mode": {
+            "enum": [
+              "shared",
+              "per_step"
+            ],
+            "title": "Control Mode",
+            "type": "string"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "number"
+          },
+          "efficacy_boundary": {
+            "enum": [
+              "obf",
+              "none"
+            ],
+            "title": "Efficacy Boundary",
+            "type": "string"
+          },
+          "max_n": {
+            "title": "Max N",
+            "type": "integer"
+          },
+          "shortlist_m": {
+            "title": "Shortlist M",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delta",
+          "batch",
+          "max_n",
+          "conf",
+          "efficacy_boundary",
+          "control_mode",
+          "shortlist_m"
+        ],
+        "title": "EstimatorConfig",
+        "type": "object"
+      },
       "FlakyAblation": {
         "properties": {
           "arms": {
@@ -2042,6 +2094,9 @@
             ],
             "title": "Blamed Step"
           },
+          "config": {
+            "$ref": "#/components/schemas/EstimatorConfig"
+          },
           "control_fork_step": {
             "anyOf": [
               {
@@ -2089,7 +2144,8 @@
           "control_fork_step",
           "treated_reruns",
           "control_reruns",
-          "sampler_calls"
+          "sampler_calls",
+          "config"
         ],
         "title": "RunEstimateView",
         "type": "object"
