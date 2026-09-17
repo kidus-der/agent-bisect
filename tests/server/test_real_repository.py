@@ -107,12 +107,67 @@ def test_list_runs_reads_real_recording(one_run_dir):
     assert all(cell.tested is False for cell in runs[0].blame_stripe)
 
 
-def test_list_runs_cost_and_calls_are_unknown_in_real_mode(one_run_dir):
-    """The ledger has no run_id column yet (P1b), so per-run cost/calls genuinely
-    aren't knowable -- `None`, never a fake `0`/`0.0` that would read as "free"."""
+def test_list_runs_cost_and_calls_are_unknown_without_a_ledger(one_run_dir):
+    """No `runs/ledger.sqlite` at all (this fixture never writes one) -- both
+    genuinely unknown, `None`, never a fake `0`/`0.0` that would read as
+    "free". `cost_usd` stays `None` even once `calls` is attributable
+    (below): there's still no per-model USD price anywhere in this codebase
+    to multiply by."""
     repo = RealRepository(runs_dir=one_run_dir)
     runs, _ = repo.list_runs(RunFilter())
     assert runs[0].cost_usd is None
+    assert runs[0].calls is None
+
+
+def test_list_runs_calls_is_real_once_the_ledger_attributes_them(one_run_dir):
+    """The ledger's `calls.run_id` column (P1b) lets per-run calls be served
+    for real -- no longer the `None` above once there's something to count."""
+    ledger = BudgetLedger(db_path=one_run_dir / "ledger.sqlite")
+    for _ in range(3):
+        ledger.record(
+            CallRecord(
+                ts=time.time(),
+                phase="p1",
+                model="nvidia/llama-3.1-nemotron-70b-instruct",
+                purpose="agent",
+                status="ok",
+                tokens_in=10,
+                tokens_out=5,
+                latency_ms=100.0,
+                run_id="real-run-1",
+            )
+        )
+    # A call belonging to no run (a rate-limit ramp, a model probe) must
+    # never be attributed to a run it didn't happen for.
+    ledger.record(
+        CallRecord(
+            ts=time.time(), phase="p0", model="m", purpose="probe",
+            status="ok", tokens_in=1, tokens_out=1, latency_ms=1.0, run_id=None,
+        )
+    )
+
+    repo = RealRepository(runs_dir=one_run_dir)
+    runs, _ = repo.list_runs(RunFilter())
+    assert runs[0].calls == 3
+    assert runs[0].cost_usd is None  # still no per-model USD price anywhere
+
+
+def test_list_runs_calls_is_none_for_a_run_with_no_ledger_rows(one_run_dir):
+    """A second run recorded before the ledger's run_id column existed (or
+    simply never called anything, e.g. still-recording) genuinely has no
+    attributable calls -- `None`, not `0`, even though the ledger file
+    itself now exists and has rows for a different run."""
+    ledger = BudgetLedger(db_path=one_run_dir / "ledger.sqlite")
+    ledger.record(
+        CallRecord(
+            ts=time.time(), phase="p1", model="m", purpose="agent", status="ok",
+            tokens_in=1, tokens_out=1, latency_ms=1.0, run_id="some-other-run",
+        )
+    )
+
+    repo = RealRepository(runs_dir=one_run_dir)
+    runs, _ = repo.list_runs(RunFilter())
+    assert runs[0].run_id == "real-run-1"
     assert runs[0].calls is None
 
 
