@@ -25,9 +25,11 @@ test('the method comparison names every method with its interval and its cost', 
   await expect(page.getByText('[90.2%, 98.8%]').first()).toBeVisible()
   await expect(page.getByText('$1.56').first()).toBeVisible()
   await expect(page.getByText('780 calls').first()).toBeVisible()
-  // The pre-registered bar is reported at its real value, above 100%.
-  await expect(page.getByText(/not met · 102\.2%/)).toBeVisible()
-  await expect(page.getByText(/pre-registered bar 102\.2%/)).toBeVisible()
+  // The pre-registered bar is reported at the value the rule produces from the
+  // measured judges — best judge + 15 points — met or not, never rounded to a
+  // friendlier number.
+  await expect(page.getByText(/(met|not met) · 96\.4%/)).toBeVisible()
+  await expect(page.getByText(/pre-registered bar 96\.4%/)).toBeVisible()
 })
 
 test('the accuracy matrix draws every cell and swaps to a table', async ({ page }) => {

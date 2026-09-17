@@ -87,7 +87,7 @@
           "n": 23
         },
         {
-          "accuracy": 0.7826,
+          "accuracy": 0.7391,
           "fault_type": "missing_field",
           "method": "judge_step_by_step",
           "n": 23
@@ -117,7 +117,7 @@
           "n": 21
         },
         {
-          "accuracy": 1.0,
+          "accuracy": 0.8571,
           "fault_type": "stale_record",
           "method": "judge_step_by_step",
           "n": 21
@@ -177,7 +177,7 @@
           "n": 24
         },
         {
-          "accuracy": 0.75,
+          "accuracy": 0.7083,
           "fault_type": "wrong_value",
           "method": "judge_step_by_step",
           "n": 24
@@ -218,9 +218,9 @@
         },
         {
           "accuracy": {
-            "ci_high": 0.9271,
-            "ci_low": 0.7853,
-            "value": 0.8721
+            "ci_high": 0.8821,
+            "ci_low": 0.7189,
+            "value": 0.814
           },
           "mean_calls": 19.79,
           "mean_cost_usd": 0.5937,
@@ -861,360 +861,393 @@
     "data": {
       "budget": {
         "cap": 12000,
-        "used": 4954
+        "used": 1230
       },
       "calls_series": [
         {
-          "calls_per_minute": 32.8,
+          "calls_per_minute": 28.6,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:10:00+00:00"
+          "ts": "2026-09-17T18:47:00+00:00"
         },
         {
-          "calls_per_minute": 6.5,
+          "calls_per_minute": 34.4,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:10:00+00:00"
+          "ts": "2026-09-17T18:47:00+00:00"
         },
         {
-          "calls_per_minute": 30.4,
+          "calls_per_minute": 22.9,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:11:00+00:00"
-        },
-        {
-          "calls_per_minute": 7.2,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:11:00+00:00"
-        },
-        {
-          "calls_per_minute": 28.2,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:12:00+00:00"
-        },
-        {
-          "calls_per_minute": 14.0,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:12:00+00:00"
-        },
-        {
-          "calls_per_minute": 5.8,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:13:00+00:00"
-        },
-        {
-          "calls_per_minute": 10.1,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:13:00+00:00"
-        },
-        {
-          "calls_per_minute": 5.9,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:14:00+00:00"
-        },
-        {
-          "calls_per_minute": 9.6,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:14:00+00:00"
-        },
-        {
-          "calls_per_minute": 22.5,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:15:00+00:00"
+          "ts": "2026-09-17T18:48:00+00:00"
         },
         {
           "calls_per_minute": 10.8,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:15:00+00:00"
+          "ts": "2026-09-17T18:48:00+00:00"
         },
         {
-          "calls_per_minute": 10.7,
+          "calls_per_minute": 13.1,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:16:00+00:00"
+          "ts": "2026-09-17T18:49:00+00:00"
         },
         {
-          "calls_per_minute": 6.0,
+          "calls_per_minute": 14.4,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:16:00+00:00"
+          "ts": "2026-09-17T18:49:00+00:00"
         },
         {
-          "calls_per_minute": 21.2,
+          "calls_per_minute": 24.4,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:17:00+00:00"
+          "ts": "2026-09-17T18:50:00+00:00"
         },
         {
-          "calls_per_minute": 32.9,
+          "calls_per_minute": 16.0,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:17:00+00:00"
+          "ts": "2026-09-17T18:50:00+00:00"
+        },
+        {
+          "calls_per_minute": 25.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T18:51:00+00:00"
+        },
+        {
+          "calls_per_minute": 34.2,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T18:51:00+00:00"
+        },
+        {
+          "calls_per_minute": 2.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T18:52:00+00:00"
+        },
+        {
+          "calls_per_minute": 15.3,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T18:52:00+00:00"
+        },
+        {
+          "calls_per_minute": 16.5,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T18:53:00+00:00"
         },
         {
           "calls_per_minute": 6.7,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:18:00+00:00"
-        },
-        {
-          "calls_per_minute": 25.2,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:18:00+00:00"
+          "ts": "2026-09-17T18:53:00+00:00"
         },
         {
-          "calls_per_minute": 2.9,
+          "calls_per_minute": 19.7,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:19:00+00:00"
+          "ts": "2026-09-17T18:54:00+00:00"
         },
         {
-          "calls_per_minute": 8.0,
+          "calls_per_minute": 21.6,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:19:00+00:00"
+          "ts": "2026-09-17T18:54:00+00:00"
         },
         {
-          "calls_per_minute": 27.1,
+          "calls_per_minute": 30.9,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:20:00+00:00"
+          "ts": "2026-09-17T18:55:00+00:00"
         },
         {
-          "calls_per_minute": 31.7,
+          "calls_per_minute": 8.8,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:20:00+00:00"
+          "ts": "2026-09-17T18:55:00+00:00"
         },
         {
-          "calls_per_minute": 31.6,
+          "calls_per_minute": 31.9,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:21:00+00:00"
+          "ts": "2026-09-17T18:56:00+00:00"
         },
         {
-          "calls_per_minute": 29.2,
+          "calls_per_minute": 20.6,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:21:00+00:00"
+          "ts": "2026-09-17T18:56:00+00:00"
+        },
+        {
+          "calls_per_minute": 16.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T18:57:00+00:00"
+        },
+        {
+          "calls_per_minute": 32.6,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T18:57:00+00:00"
+        },
+        {
+          "calls_per_minute": 24.4,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T18:58:00+00:00"
+        },
+        {
+          "calls_per_minute": 9.0,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T18:58:00+00:00"
+        },
+        {
+          "calls_per_minute": 28.3,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T18:59:00+00:00"
+        },
+        {
+          "calls_per_minute": 12.2,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T18:59:00+00:00"
+        },
+        {
+          "calls_per_minute": 3.0,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:00:00+00:00"
+        },
+        {
+          "calls_per_minute": 31.4,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:00:00+00:00"
+        },
+        {
+          "calls_per_minute": 30.6,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:01:00+00:00"
+        },
+        {
+          "calls_per_minute": 22.5,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:01:00+00:00"
+        },
+        {
+          "calls_per_minute": 14.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:02:00+00:00"
+        },
+        {
+          "calls_per_minute": 6.6,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:02:00+00:00"
+        },
+        {
+          "calls_per_minute": 25.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:03:00+00:00"
+        },
+        {
+          "calls_per_minute": 24.3,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:03:00+00:00"
+        },
+        {
+          "calls_per_minute": 34.1,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:04:00+00:00"
+        },
+        {
+          "calls_per_minute": 29.3,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:04:00+00:00"
         },
         {
           "calls_per_minute": 20.6,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:22:00+00:00"
+          "ts": "2026-09-17T19:05:00+00:00"
         },
         {
-          "calls_per_minute": 24.7,
+          "calls_per_minute": 20.6,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:22:00+00:00"
+          "ts": "2026-09-17T19:05:00+00:00"
         },
         {
-          "calls_per_minute": 34.8,
+          "calls_per_minute": 15.6,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:23:00+00:00"
+          "ts": "2026-09-17T19:06:00+00:00"
         },
         {
-          "calls_per_minute": 27.6,
+          "calls_per_minute": 3.9,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:23:00+00:00"
+          "ts": "2026-09-17T19:06:00+00:00"
         },
         {
-          "calls_per_minute": 29.3,
+          "calls_per_minute": 30.0,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:24:00+00:00"
-        },
-        {
-          "calls_per_minute": 8.4,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:24:00+00:00"
-        },
-        {
-          "calls_per_minute": 24.7,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:25:00+00:00"
-        },
-        {
-          "calls_per_minute": 2.8,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:25:00+00:00"
-        },
-        {
-          "calls_per_minute": 8.8,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:26:00+00:00"
-        },
-        {
-          "calls_per_minute": 16.6,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:26:00+00:00"
-        },
-        {
-          "calls_per_minute": 31.6,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:27:00+00:00"
-        },
-        {
-          "calls_per_minute": 32.9,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:27:00+00:00"
-        },
-        {
-          "calls_per_minute": 4.8,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:28:00+00:00"
-        },
-        {
-          "calls_per_minute": 13.8,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:28:00+00:00"
-        },
-        {
-          "calls_per_minute": 26.3,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:29:00+00:00"
-        },
-        {
-          "calls_per_minute": 29.1,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:29:00+00:00"
-        },
-        {
-          "calls_per_minute": 28.6,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:30:00+00:00"
+          "ts": "2026-09-17T19:07:00+00:00"
         },
         {
           "calls_per_minute": 4.9,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:30:00+00:00"
+          "ts": "2026-09-17T19:07:00+00:00"
         },
         {
-          "calls_per_minute": 32.0,
+          "calls_per_minute": 7.9,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:31:00+00:00"
+          "ts": "2026-09-17T19:08:00+00:00"
         },
         {
-          "calls_per_minute": 28.9,
+          "calls_per_minute": 17.6,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:31:00+00:00"
+          "ts": "2026-09-17T19:08:00+00:00"
         },
         {
-          "calls_per_minute": 11.1,
+          "calls_per_minute": 17.2,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:32:00+00:00"
+          "ts": "2026-09-17T19:09:00+00:00"
         },
         {
-          "calls_per_minute": 22.0,
+          "calls_per_minute": 20.4,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:32:00+00:00"
+          "ts": "2026-09-17T19:09:00+00:00"
         },
         {
-          "calls_per_minute": 34.0,
+          "calls_per_minute": 18.3,
           "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:33:00+00:00"
-        },
-        {
-          "calls_per_minute": 29.3,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:33:00+00:00"
-        },
-        {
-          "calls_per_minute": 31.2,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:34:00+00:00"
-        },
-        {
-          "calls_per_minute": 30.2,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:34:00+00:00"
-        },
-        {
-          "calls_per_minute": 14.9,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:35:00+00:00"
-        },
-        {
-          "calls_per_minute": 7.4,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:35:00+00:00"
-        },
-        {
-          "calls_per_minute": 15.5,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:36:00+00:00"
-        },
-        {
-          "calls_per_minute": 19.0,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:36:00+00:00"
-        },
-        {
-          "calls_per_minute": 14.0,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:37:00+00:00"
-        },
-        {
-          "calls_per_minute": 33.9,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:37:00+00:00"
-        },
-        {
-          "calls_per_minute": 33.7,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:38:00+00:00"
-        },
-        {
-          "calls_per_minute": 3.0,
-          "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:38:00+00:00"
-        },
-        {
-          "calls_per_minute": 23.6,
-          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
-          "ts": "2026-09-17T10:39:00+00:00"
+          "ts": "2026-09-17T19:10:00+00:00"
         },
         {
           "calls_per_minute": 5.7,
           "model": "meta/llama-3.3-70b-instruct",
-          "ts": "2026-09-17T10:39:00+00:00"
+          "ts": "2026-09-17T19:10:00+00:00"
+        },
+        {
+          "calls_per_minute": 11.2,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:11:00+00:00"
+        },
+        {
+          "calls_per_minute": 34.1,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:11:00+00:00"
+        },
+        {
+          "calls_per_minute": 22.8,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:12:00+00:00"
+        },
+        {
+          "calls_per_minute": 28.3,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:12:00+00:00"
+        },
+        {
+          "calls_per_minute": 18.1,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:13:00+00:00"
+        },
+        {
+          "calls_per_minute": 26.9,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:13:00+00:00"
+        },
+        {
+          "calls_per_minute": 13.7,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:14:00+00:00"
+        },
+        {
+          "calls_per_minute": 5.8,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:14:00+00:00"
+        },
+        {
+          "calls_per_minute": 24.3,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:15:00+00:00"
+        },
+        {
+          "calls_per_minute": 27.7,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:15:00+00:00"
+        },
+        {
+          "calls_per_minute": 26.9,
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "ts": "2026-09-17T19:16:00+00:00"
+        },
+        {
+          "calls_per_minute": 19.4,
+          "model": "meta/llama-3.3-70b-instruct",
+          "ts": "2026-09-17T19:16:00+00:00"
         }
       ],
       "events": [
         {
           "level": "info",
-          "message": "simulated: blame batch 29827360 progressed",
-          "ts": "2026-09-17T10:40:41.888528+00:00"
+          "message": "simulated: blame batch 29827877 progressed",
+          "ts": "2026-09-17T19:17:13.766097+00:00"
         },
         {
           "level": "info",
-          "message": "simulated: eval batch 29827359 progressed",
-          "ts": "2026-09-17T10:40:26.888528+00:00"
+          "message": "simulated: eval batch 29827876 progressed",
+          "ts": "2026-09-17T19:16:58.766097+00:00"
         },
         {
           "level": "warn",
-          "message": "simulated: record batch 29827358 progressed",
-          "ts": "2026-09-17T10:40:11.888528+00:00"
+          "message": "simulated: record batch 29827875 progressed",
+          "ts": "2026-09-17T19:16:43.766097+00:00"
         },
         {
           "level": "info",
-          "message": "simulated: blame batch 29827357 progressed",
-          "ts": "2026-09-17T10:39:56.888528+00:00"
+          "message": "simulated: blame batch 29827874 progressed",
+          "ts": "2026-09-17T19:16:28.766097+00:00"
         },
         {
           "level": "info",
-          "message": "simulated: eval batch 29827356 progressed",
-          "ts": "2026-09-17T10:39:41.888528+00:00"
+          "message": "simulated: eval batch 29827873 progressed",
+          "ts": "2026-09-17T19:16:13.766097+00:00"
         }
       ],
       "jobs": [
         {
+          "calls_spent": 56,
+          "error": null,
+          "eta_seconds": 366.7,
+          "finished_at": null,
+          "items_done": 7,
+          "items_total": 16,
           "job_id": "job-0",
           "kind": "blame",
-          "progress": 0.2,
-          "state": "queued"
+          "label": "step-by-step blame search",
+          "last_checkpoint_at": "2026-09-17T19:17:13.766097+00:00",
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "phase": "P5",
+          "progress": 0.45,
+          "started_at": "2026-09-17T19:12:13.766097+00:00",
+          "state": "running"
         },
         {
+          "calls_spent": 784,
+          "error": null,
+          "eta_seconds": 118.5,
+          "finished_at": null,
+          "items_done": 98,
+          "items_total": 120,
           "job_id": "job-1",
           "kind": "eval",
-          "progress": 0.33,
-          "state": "done"
+          "label": "baseline evaluation",
+          "last_checkpoint_at": "2026-09-17T19:17:13.766097+00:00",
+          "model": "meta/llama-3.3-70b-instruct",
+          "phase": "P5",
+          "progress": 0.82,
+          "started_at": "2026-09-17T19:08:13.766097+00:00",
+          "state": "running"
         },
         {
+          "calls_spent": 16,
+          "error": null,
+          "eta_seconds": 606.7,
+          "finished_at": null,
+          "items_done": 2,
+          "items_total": 20,
           "job_id": "job-2",
           "kind": "record",
-          "progress": 0.46,
+          "label": "tau2 run recording",
+          "last_checkpoint_at": "2026-09-17T19:17:13.766097+00:00",
+          "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+          "phase": "P1",
+          "progress": 0.09,
+          "started_at": "2026-09-17T19:16:13.766097+00:00",
           "state": "running"
         }
       ],
       "rate_limit": {
-        "current_rpm": 25.2,
-        "headroom_rpm": 14.8,
+        "current_rpm": 21.2,
+        "headroom_rpm": 18.8,
         "limiter_rpm": 40
       }
     },
