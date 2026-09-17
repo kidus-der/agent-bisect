@@ -7,6 +7,7 @@ import { formatPercent } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 
 import type { JobState, JobStatus } from './api'
+import { jobFacts } from './jobDetail'
 
 interface StateCopy {
   readonly label: string
@@ -73,8 +74,17 @@ function JobTile({ job, index }: { readonly job: JobStatus; readonly index: numb
     <li className="flex min-w-0 flex-col gap-2.5 rounded-kpi border border-line bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate num text-h3 font-semibold text-ink">{job.job_id}</span>
-          <InstrumentLabel>{job.kind}</InstrumentLabel>
+          {/* What the job is doing, not just which queue it is in. */}
+          <span className="truncate text-h3 font-semibold text-ink">{job.label ?? job.kind}</span>
+          <span className="flex flex-wrap items-center gap-x-2">
+            <InstrumentLabel>{job.kind}</InstrumentLabel>
+            {job.phase ? (
+              <span className="rounded-step border border-line-strong bg-elevated px-1 label-instrument text-ink">
+                {job.phase}
+              </span>
+            ) : null}
+            <span className="num text-[11px] text-ink-muted">{job.job_id}</span>
+          </span>
         </span>
         <span
           className={cn(
@@ -107,6 +117,29 @@ function JobTile({ job, index }: { readonly job: JobStatus; readonly index: numb
           {progressLabel(job)}
         </span>
       </div>
+
+      {/* A field the server has not measured shows an em dash, never a zero. */}
+      <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-1">
+        {jobFacts(job).map((fact) => (
+          <div key={fact.label} className="flex items-baseline justify-between gap-2">
+            <dt className="label-instrument">{fact.label}</dt>
+            <dd
+              className={cn(
+                'm-0 min-w-0 truncate num text-[12px]',
+                fact.value === null ? 'text-ink-muted' : 'text-ink',
+              )}
+            >
+              {fact.value ?? '\u2014'}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {job.error ? (
+        <p className="text-[12px] text-pretty text-fail">
+          <span aria-hidden="true">✕</span> {job.error}
+        </p>
+      ) : null}
     </li>
   )
 }
