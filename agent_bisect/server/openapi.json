@@ -1804,8 +1804,15 @@
             "type": "number"
           },
           "pr_number": {
-            "title": "Pr Number",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Number"
           },
           "scenarios": {
             "items": {
@@ -1858,8 +1865,15 @@
             "type": "number"
           },
           "pr_number": {
-            "title": "Pr Number",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Number"
           },
           "title": {
             "title": "Title",
@@ -2466,8 +2480,15 @@
       "ScenarioRow": {
         "properties": {
           "base_pass_rate": {
-            "title": "Base Pass Rate",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Pass Rate"
           },
           "head_pass_rate": {
             "title": "Head Pass Rate",
