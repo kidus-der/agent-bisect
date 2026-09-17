@@ -137,10 +137,12 @@ export function PassRateCompare({ check }: PassRateCompareProps) {
             {check.scenarios.length} scenarios · {runs} runs
           </dd>
         </dl>
-        <p className="max-w-prose text-[12px] text-pretty text-ink-muted">
-          Head minus base on the same scenario suite, with a Newcombe 95% interval over {runs} runs
-          per ref. The p value is the server's two-proportion test.
-        </p>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+          <dt className="label-instrument">interval</dt>
+          <dd className="m-0 num text-small text-ink">Newcombe 95%</dd>
+          <dt className="label-instrument">test</dt>
+          <dd className="m-0 num text-small text-ink">two-proportion</dd>
+        </dl>
       </div>
 
       <ul className="m-0 flex list-none flex-col justify-center gap-6 p-0">
