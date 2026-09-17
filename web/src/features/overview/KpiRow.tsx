@@ -2,7 +2,6 @@
  * The four numbers the project is accountable for. Deltas are absent because
  * `/api/overview` reports none — a KPI never invents its own trend.
  */
-import { Panel } from '@/components/primitives/Panel'
 import { StatTicker } from '@/components/primitives/StatTicker'
 import { cn } from '@/lib/utils'
 
@@ -55,9 +54,18 @@ function kpiSpecs(kpis: Kpis): readonly KpiSpec[] {
 
 export function KpiRow({ kpis, className }: KpiRowProps) {
   return (
-    <div className={cn('grid grid-cols-2 gap-3', className)}>
+    // One rail, not four cards: a single 10px container divided by hairlines, so
+    // the fold carries one object instead of four competing ones.
+    <section
+      aria-label="Key figures"
+      className={cn(
+        'grid grid-cols-2 overflow-hidden rounded-kpi border border-line bg-surface',
+        'divide-x divide-y divide-line lg:grid-cols-1 lg:divide-x-0',
+        className,
+      )}
+    >
       {kpiSpecs(kpis).map((spec) => (
-        <Panel key={spec.id} variant="kpi" className="flex flex-col justify-center">
+        <div key={spec.id} className="flex min-h-22 flex-col justify-center px-4 py-3">
           <StatTicker
             label={spec.label}
             value={spec.value}
@@ -65,8 +73,8 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
             decimals={spec.decimals}
             prefix={spec.prefix}
           />
-        </Panel>
+        </div>
       ))}
-    </div>
+    </section>
   )
 }

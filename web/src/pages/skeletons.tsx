@@ -2,17 +2,19 @@
 import { Panel } from '@/components/primitives/Panel'
 import { Skeleton, TableSkeleton } from '@/components/primitives/Skeleton'
 
-const KPI_KEYS = ['n', 'delta', 'cost'] as const
+// Four slots, matching the real KPI rail, so nothing jumps on load.
+const KPI_KEYS = ['runs', 'diagnosed', 'calls', 'cost'] as const
 const TAPE_KEYS = Array.from({ length: 12 }, (_, index) => index)
 
 function KpiRow() {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 divide-x divide-y divide-line overflow-hidden rounded-kpi border border-line bg-surface lg:grid-cols-1 lg:divide-x-0">
       {KPI_KEYS.map((key) => (
-        <Panel key={key} variant="kpi">
-          <Skeleton className="h-3 w-12" />
-          <Skeleton className="mt-3 h-8 w-20" />
-        </Panel>
+        <div key={key} className="flex min-h-22 flex-col justify-center px-4 py-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="mt-2.5 h-8 w-24" />
+          <Skeleton className="mt-2 h-3 w-16" />
+        </div>
       ))}
     </div>
   )
