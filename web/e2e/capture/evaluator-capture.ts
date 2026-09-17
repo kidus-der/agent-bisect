@@ -41,6 +41,15 @@ const FRAME_MS = 70
 const FRAME_COUNT = 10
 /** Milliseconds after the rewind click at which the tape is worth a still. */
 const REWIND_SAMPLE_MS = [250, 600, 1200, 2400] as const
+/** Room for the page to grow into once the viewport is opened to its height. */
+const TALL_MARGIN_PX = 40
+
+/**
+ * `full` captures everything; `pages` drops the views a round has already
+ * signed off, so a later round only re-shoots what can still change.
+ */
+const SCOPE = process.env.EVAL_SCOPE ?? 'full'
+const isFullScope = SCOPE === 'full'
 
 /** Runs chosen for what they make the UI do, not for their contents. */
 const RUNS = {
@@ -83,22 +92,45 @@ async function open(
   await page.waitForTimeout(SETTLE_MS)
 }
 
-async function shoot(page: Page, name: string, fullPage = false): Promise<void> {
-  await page.screenshot({ path: `${OUT_DIR}${name}.png`, fullPage })
+async function shoot(page: Page, name: string): Promise<void> {
+  await page.screenshot({ path: `${OUT_DIR}${name}.png` })
+}
+
+/**
+ * Opens the viewport to the page's own height, then takes an ordinary shot.
+ *
+ * NOT `fullPage: true`: Playwright resizes the viewport underneath the running
+ * page to stitch that capture, and visx's `ParentSize` re-measures while it is
+ * happening — charts came out drawn at roughly a third of their real width, so
+ * rounds 1-3 partly reviewed a plot the browser never showed. Resizing first
+ * and letting it settle captures the chart at the width it was laid out for.
+ */
+async function shootWholePage(page: Page, name: string, width: number): Promise<void> {
+  const height = await page.evaluate(() => document.documentElement.scrollHeight)
+  await page.setViewportSize({ width, height: height + TALL_MARGIN_PX })
+  await page.waitForTimeout(SETTLE_MS)
+  await shoot(page, name)
 }
 
 /**
  * Above-the-fold AND whole-page, because the two answer different questions:
  * what greets you, and whether the page holds together all the way down.
  */
-async function shootBoth(page: Page, stem: string): Promise<void> {
-  await shoot(page, `${stem}-fold`, false)
-  // A full-page shot resizes the viewport; scroll back so the next shot is clean.
-  await shoot(page, `${stem}-full`, true)
+async function shootBoth(page: Page, stem: string, viewport: Viewport): Promise<void> {
+  await shoot(page, `${stem}-fold`)
+  await shootWholePage(page, `${stem}-full`, viewport.width)
+  // Growing the viewport leaves it tall; put it back for whatever comes next.
+  await page.setViewportSize({ width: viewport.width, height: viewport.height })
   await page.evaluate(() => window.scrollTo(0, 0))
 }
 
-/** A signature moment, sampled as a strip of frames while it plays. */
+/**
+ * A signature moment, sampled from the instant it is triggered.
+ *
+ * The first frame is taken before any wait: sampling late makes every entrance
+ * look like a cut, which is what made rounds 1-3 unable to tell a missing
+ * animation from a fast one.
+ */
 async function captureFrames(page: Page, stem: string, target?: Locator): Promise<void> {
   const shot = target ?? page
   for (let index = 0; index < FRAME_COUNT; index += 1) {
@@ -107,41 +139,60 @@ async function captureFrames(page: Page, stem: string, target?: Locator): Promis
   }
 }
 
+/**
+ * An entrance that only plays once, on scroll-into-view: the panel has to start
+ * below the fold, and sampling has to begin with the scroll that reveals it.
+ */
+async function captureEntrance(page: Page, stem: string, target: Locator): Promise<void> {
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(400)
+  await target.scrollIntoViewIfNeeded()
+  await captureFrames(page, stem)
+}
+
 // ---------------------------------------------------------------- static pages
 
 /** Every page that is worth seeing in both themes at both widths. */
 const PAGES = [
-  { name: 'overview', path: '/' },
-  { name: 'runs', path: '/runs' },
-  { name: 'runs-filtered', path: '/runs?outcome=fail&domain=airline&fault=wrong_value' },
-  { name: 'run-detail-brief', path: `/runs/${RUNS.brief}` },
-  { name: 'benchmark', path: '/benchmark' },
-  { name: 'pr-checks', path: '/pr-checks' },
-  { name: 'pr-check-regression', path: `/pr-checks/${PR_REGRESSION}` },
-  { name: 'pr-check-clean', path: `/pr-checks/${PR_CLEAN}` },
+  { name: 'overview', path: '/', scored: true },
+  { name: 'runs', path: '/runs', scored: true },
+  {
+    name: 'runs-filtered',
+    path: '/runs?outcome=fail&domain=airline&fault=wrong_value',
+    scored: true,
+  },
+  { name: 'run-detail-brief', path: `/runs/${RUNS.brief}`, scored: false },
+  { name: 'benchmark', path: '/benchmark', scored: true },
+  { name: 'pr-checks', path: '/pr-checks', scored: true },
+  { name: 'pr-check-regression', path: `/pr-checks/${PR_REGRESSION}`, scored: true },
+  { name: 'pr-check-clean', path: `/pr-checks/${PR_CLEAN}`, scored: true },
 ] as const
 
 for (const theme of THEMES) {
   for (const viewport of VIEWPORTS) {
     for (const target of PAGES) {
+      // A page already signed off is swept once at 1440, not re-shot in full.
+      if (!isFullScope && !target.scored) continue
       test(`${target.name} ${theme} ${viewport.name}`, async ({ page }) => {
         await open(page, theme, viewport, target.path)
-        await shootBoth(page, `${target.name}-${theme}-${viewport.name}`)
+        await shootBoth(page, `${target.name}-${theme}-${viewport.name}`, viewport)
       })
     }
 
     // Run-detail edge cases: the shapes of run that break a happy-path layout.
-    test(`run-detail edges ${theme} ${viewport.name}`, async ({ page }) => {
-      for (const [name, runId] of [
-        ['60step', RUNS.long],
-        ['no-clear', RUNS.noClear],
-        ['zero-tested', RUNS.zeroTested],
-        ['recording', RUNS.recording],
-      ] as const) {
-        await open(page, theme, viewport, `/runs/${runId}`)
-        await shootBoth(page, `run-detail-${name}-${theme}-${viewport.name}`)
-      }
-    })
+    if (isFullScope) {
+      test(`run-detail edges ${theme} ${viewport.name}`, async ({ page }) => {
+        for (const [name, runId] of [
+          ['60step', RUNS.long],
+          ['no-clear', RUNS.noClear],
+          ['zero-tested', RUNS.zeroTested],
+          ['recording', RUNS.recording],
+        ] as const) {
+          await open(page, theme, viewport, `/runs/${runId}`)
+          await shootBoth(page, `run-detail-${name}-${theme}-${viewport.name}`, viewport)
+        }
+      })
+    }
 
     /** Live only tells the truth once the stream has pushed more than once. */
     test(`live ${theme} ${viewport.name}`, async ({ page }) => {
@@ -151,7 +202,20 @@ for (const theme of THEMES) {
         .first()
         .waitFor({ timeout: 40_000 })
       await page.waitForTimeout(600)
-      await shootBoth(page, `live-${theme}-${viewport.name}`)
+      await shootBoth(page, `live-${theme}-${viewport.name}`, viewport)
+    })
+  }
+
+  /** Regression sweep for the pages already at the bar: one fold shot each. */
+  if (!isFullScope) {
+    test(`sweep ${theme} 1440`, async ({ page }) => {
+      for (const [name, path] of [
+        ['run-detail', `/runs/${RUNS.brief}`],
+        ['shell-runs', '/runs'],
+      ] as const) {
+        await open(page, theme, DESKTOP, path)
+        await shoot(page, `sweep-${name}-${theme}-1440`)
+      }
     })
   }
 
@@ -295,7 +359,7 @@ test('rerun view', async ({ page }) => {
         ['control', `${RUNS.brief}-c-0`],
       ] as const) {
         await open(page, theme, viewport, `/runs/${RUNS.brief}/reruns/${rerunId}`)
-        await shootBoth(page, `rerun-${arm}-${theme}-${viewport.name}`)
+        await shootBoth(page, `rerun-${arm}-${theme}-${viewport.name}`, viewport)
       }
     }
   }
@@ -303,55 +367,75 @@ test('rerun view', async ({ page }) => {
 
 // ---------------------------------------------------------------- motion strips
 
-test('motion: forest plot entrance', async ({ page }) => {
+/** Lands on `path` with motion left on, without the settle that eats entrances. */
+async function openMoving(page: Page, path: string, theme: Theme = 'dark'): Promise<void> {
   await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
   await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await setTheme(page, 'dark')
-  await page.goto(`/runs/${RUNS.brief}`)
+  await setTheme(page, theme)
+  await page.goto(path)
   await page.getByRole('heading', { level: 1 }).waitFor()
-  await captureFrames(page, 'motion-forest-dark-1440')
+}
+
+test('motion: run-detail forest entrance', async ({ page }) => {
+  await openMoving(page, `/runs/${RUNS.brief}`)
+  await captureEntrance(page, 'motion-forest-dark-1440', page.getByText('Effect per tested step'))
 })
 
-test('motion: overview hero bars and tickers', async ({ page }) => {
-  await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await setTheme(page, 'dark')
-  await page.goto('/')
-  await page.getByRole('heading', { level: 1 }).waitFor()
+test('motion: PR gate-history forest entrance', async ({ page }) => {
+  await openMoving(page, '/pr-checks')
+  await captureEntrance(
+    page,
+    'motion-pr-forest-dark-1440',
+    page.getByText('What the gate has caught'),
+  )
+})
+
+test('motion: overview hero bars and KPI tickers', async ({ page }) => {
+  await openMoving(page, '/')
   await captureFrames(page, 'motion-hero-dark-1440')
 })
 
+test('motion: runs row stagger', async ({ page }) => {
+  await openMoving(page, '/runs')
+  await captureFrames(page, 'motion-runs-stagger-dark-1440')
+})
+
+/**
+ * The list -> detail morph, both ways. All three `layoutId` targets (the id
+ * chip, the blame stripe, the status pill) travel in one transition, so the
+ * whole viewport is sampled rather than any one of them.
+ */
+test('motion: runs row to run detail and back', async ({ page }) => {
+  await openMoving(page, '/runs')
+  await page.waitForTimeout(SETTLE_MS)
+  // Rows navigate on click rather than being links, so the row itself is the target.
+  await page.getByRole('row').filter({ hasText: RUNS.brief }).first().click()
+  await captureFrames(page, 'motion-list-to-detail-dark-1440')
+  await page.waitForTimeout(SETTLE_MS)
+  await page.getByRole('link', { name: 'Runs' }).first().click()
+  await captureFrames(page, 'motion-detail-to-list-dark-1440')
+})
+
 test('motion: palette open', async ({ page }) => {
-  await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await setTheme(page, 'dark')
-  await page.goto('/runs')
-  await page.getByRole('heading', { level: 1 }).waitFor()
+  await openMoving(page, '/runs')
   await page.waitForTimeout(SETTLE_MS)
   await page.keyboard.press('ControlOrMeta+k')
   await captureFrames(page, 'motion-palette-dark-1440')
 })
 
-test('motion: runs row to run detail', async ({ page }) => {
-  await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await setTheme(page, 'dark')
-  await page.goto('/runs')
-  await page.getByRole('heading', { level: 1 }).waitFor()
-  await page.waitForTimeout(SETTLE_MS)
-  // Rows navigate on click rather than being links, so the row itself is the target.
-  await page.getByRole('row').filter({ hasText: RUNS.brief }).first().click()
-  await captureFrames(page, 'motion-list-to-detail-dark-1440')
-})
-
-/** The whole overview with motion left on, to confirm nothing ends mid-flight. */
-test('overview reduced-motion parity dark 1440', async ({ page }) => {
-  await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await setTheme(page, 'dark')
-  await page.goto('/')
-  await page.getByRole('heading', { level: 1 }).waitFor()
-  // No settle: reduced motion must have painted its final state already.
-  await page.waitForTimeout(250)
-  await shoot(page, 'reduced-overview-dark-1440-immediate')
+/** Reduced motion must land every entrance on its final state, instantly. */
+test('motion: reduced-motion pass', async ({ page }) => {
+  for (const [name, path] of [
+    ['overview', '/'],
+    ['runs', '/runs'],
+    ['pr-checks', '/pr-checks'],
+  ] as const) {
+    await page.setViewportSize({ width: DESKTOP.width, height: DESKTOP.height })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await setTheme(page, 'dark')
+    await page.goto(path)
+    await page.getByRole('heading', { level: 1 }).waitFor()
+    await page.waitForTimeout(250)
+    await shoot(page, `reduced-${name}-dark-1440-immediate`)
+  }
 })
