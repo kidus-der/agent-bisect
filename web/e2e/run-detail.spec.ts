@@ -34,6 +34,33 @@ test('the header states the run, its outcome and the step blame landed on', asyn
   await expect(page.getByText('planted fault · wrong_value at step 7')).toBeVisible()
 })
 
+test('the morph targets are on screen before the run resolves', async ({ page }) => {
+  // The Runs row unmounts the instant the route changes. If the id chip, the
+  // status pill and the blame stripe only appear once the fetch lands, the
+  // shared-layout morph has nothing to travel into and the page just cuts.
+  await page.route(
+    (url) => url.pathname === `/api/runs/${BRIEF_RUN}`,
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await route.fallback()
+    },
+  )
+  await page.goto(`/runs/${BRIEF_RUN}`)
+
+  const id = page.locator('[data-morph="id"]')
+  await expect(id).toHaveText(BRIEF_RUN)
+  await expect(page.locator('[data-morph="status"]')).toBeVisible()
+  await expect(page.locator('[data-morph="blame"]')).toBeVisible()
+  // Placeholders, not claims: nothing has read an outcome or a blame yet.
+  await expect(page.getByText('Fail', { exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('run-simulated-flag')).toHaveCount(0)
+
+  // And the same three survive the swap into content rather than remounting.
+  await page.getByRole('slider', { name: 'Step playhead' }).waitFor()
+  await expect(id).toHaveText(BRIEF_RUN)
+  await expect(page.getByText('Fail', { exact: true })).toBeVisible()
+})
+
 test('the blame rail reports the settings the estimate was produced with', async ({ page }) => {
   await openRun(page, BRIEF_RUN)
 
