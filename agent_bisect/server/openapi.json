@@ -1109,7 +1109,7 @@
         "type": "object"
       },
       "HeadlineResult": {
-        "description": "Bisect vs. the best judge, each with its own 95% CI.",
+        "description": "Bisect vs. the best judge, each with its own 95% CI, plus the gap\nbetween them with its own paired-bootstrap CI (never a Newcombe interval\nover the two accuracies -- they're measured on the same dataset).",
         "properties": {
           "best_judge": {
             "$ref": "#/components/schemas/CiValue"
@@ -1127,12 +1127,16 @@
           },
           "bisect": {
             "$ref": "#/components/schemas/CiValue"
+          },
+          "gap": {
+            "$ref": "#/components/schemas/CiValue"
           }
         },
         "required": [
           "bisect",
           "best_judge",
-          "best_judge_method"
+          "best_judge_method",
+          "gap"
         ],
         "title": "HeadlineResult",
         "type": "object"
