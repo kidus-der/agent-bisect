@@ -244,6 +244,13 @@ class Tau2Replayer:
         self._intervention = intervention or NoOpIntervention()
         self._live_completion = live_completion
         self._live_llm_calls = 0
+        # How many steps of THIS run have happened. Owned here rather than
+        # read off the sink: the sink only learns about a live call if the
+        # live completion tells it, which the router does and nothing else
+        # need. Reading it there meant a run that had already gone live
+        # still believed the tape governed it, and hash-checked every
+        # later request against a recording that no longer applied.
+        self._events = 0
 
     @property
     def cursor(self) -> TapeCursor:
@@ -269,7 +276,7 @@ class Tau2Replayer:
 
     @property
     def _step_idx(self) -> int:
-        return self._sink.next_step_idx
+        return self._events
 
     def _governed_by_tape(self) -> bool:
         return self._fork_step is None or self._step_idx <= self._fork_step
@@ -282,7 +289,7 @@ class Tau2Replayer:
     def completion(self, *, model: str, messages: Any, **kwargs: Any) -> Any:
         """The stand-in for `litellm.completion` inside `llm_utils`."""
         if not self._governed_by_tape():
-            return self._live(model=model, messages=messages, **kwargs)
+            return self._live_step(model=model, messages=messages, **kwargs)
         request = _request_of(model, messages, kwargs)
         step = self._cursor.peek()
         payload = self._llm.serve(request)
@@ -292,13 +299,23 @@ class Tau2Replayer:
         if self._at_fork():
             payload = self._intervention.apply(step, payload)
             if payload is LIVE:
-                return self._live(model=model, messages=messages, **kwargs)
+                # `Resample`, `EditPrompt` and `SwapModel` all land here.
+                # The recording is discarded for this step and the run is
+                # live from now on.
+                return self._live_step(model=model, messages=messages, **kwargs)
         response = rehydrate_response(payload)
         meta = _CallMeta.of(step)
         # The recorder stores the request verbatim, and the router's copy
         # carried the purpose; putting it back keeps a forked prefix row
         # identical to its parent's. It is not part of the request hash.
         self._sink.on_llm_call({**request, "purpose": meta.purpose}, response, meta, from_tape=True)
+        self._events += 1
+        return response
+
+    def _live_step(self, **payload: Any) -> Any:
+        """A live call, counted as a step of this run however it is recorded."""
+        response = self._live(**payload)
+        self._events += 1
         return response
 
     def _live(self, **payload: Any) -> Any:
@@ -321,6 +338,7 @@ class Tau2Replayer:
         if not self._governed_by_tape():
             tool_message = original(tool_call)
             self._sink.on_tool_call(tool_call, tool_message, from_tape=False)
+            self._events += 1
             return tool_message
 
         step = self._tools.take(tool_call.name, dict(tool_call.arguments or {}))
@@ -332,6 +350,7 @@ class Tau2Replayer:
             elif payload != tool_message.model_dump(mode="json"):
                 tool_message = rehydrate_tool_message(payload)
         self._sink.on_tool_call(tool_call, tool_message, from_tape=True)
+        self._events += 1
         return tool_message
 
     def _obtain(self, step: Step, original: Callable[[Any], Any], tool_call: Any) -> Any:
