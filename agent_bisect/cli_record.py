@@ -113,7 +113,9 @@ def record(
             f"(agent {template.agent_model}, user {template.user_model})"
         )
 
-    ledger = BudgetLedger(ledger_path, max_calls=max_calls)
+    # The cap is this phase's budget, not the file's: the same ledger
+    # already carries every call P0 spent.
+    ledger = BudgetLedger(ledger_path, max_calls=max_calls, cap_scope="phase")
     with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
         checkpoints = record_batch(
             items,
@@ -126,7 +128,11 @@ def record(
             on_done=None if json_output else _reporter(stdout),
         )
 
-    summary = {**summarise(checkpoints), "calls": ledger.total_calls()}
+    summary = {
+        **summarise(checkpoints),
+        "calls": ledger.totals_per_phase().get(phase, 0),
+        "calls_by_model": ledger.totals_per_model(),
+    }
     if json_output:
         typer.echo(json.dumps(summary, indent=2, sort_keys=True))
     else:
