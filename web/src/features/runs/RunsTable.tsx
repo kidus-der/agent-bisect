@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { DataTable, type DataTableColumn } from '@/components/primitives/DataTable'
 import type { SortState } from '@/components/primitives/dataTableSort'
 import { layoutIds } from '@/design/motion'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 
 import type { RunSummary, SortableRunField } from './api'
 import { RunBlame, RunBlameStripe, RunNumber, RunOutcome, RunSparkline } from './cells'
@@ -16,9 +17,11 @@ import type { RunsSearch } from './runsSearch'
 
 const ROW_HEIGHT = 52
 const COMPACT_ROW_HEIGHT = 92
-const CHROME_PX = 340
 const MIN_TABLE_HEIGHT = 320
 const DEFAULT_TABLE_HEIGHT = 560
+/** Room below the table: the panel edge, plus the bottom tab bar where it exists. */
+const BOTTOM_GUTTER_PX = { wide: 48, narrow: 96 } as const
+const WIDE_QUERY = '(min-width: 768px)'
 
 /** Column ids double as the API's sort keys, so a header click maps straight through. */
 const SORTABLE: ReadonlySet<string> = new Set<SortableRunField>([
@@ -30,15 +33,28 @@ const SORTABLE: ReadonlySet<string> = new Set<SortableRunField>([
   'calls',
 ])
 
-function useTableHeight(): number {
+/**
+ * Measured rather than guessed: how much page is above the table depends on how
+ * many rows of filter chips wrapped, which differs at every width.
+ */
+function useTableHeight(ref: React.RefObject<HTMLElement | null>, gutter: number): number {
   const [height, setHeight] = useState(DEFAULT_TABLE_HEIGHT)
   useEffect(() => {
-    const update = (): void =>
-      setHeight(Math.max(MIN_TABLE_HEIGHT, window.innerHeight - CHROME_PX))
+    const update = (): void => {
+      const top = ref.current?.getBoundingClientRect().top ?? 0
+      setHeight(Math.max(MIN_TABLE_HEIGHT, window.innerHeight - top - gutter))
+    }
     update()
     window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [])
+    // The filter chips only get their real height once the facets load, which
+    // moves the table down without any resize event firing.
+    const observer = new ResizeObserver(update)
+    observer.observe(document.body)
+    return () => {
+      window.removeEventListener('resize', update)
+      observer.disconnect()
+    }
+  }, [ref, gutter])
   return height
 }
 
@@ -170,14 +186,16 @@ interface RunsTableProps {
 }
 
 export function RunsTable({ rows, search, onSortChange, onOpen }: RunsTableProps) {
-  const height = useTableHeight()
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const wide = useMediaQuery(WIDE_QUERY)
+  const height = useTableHeight(containerRef, wide ? BOTTOM_GUTTER_PX.wide : BOTTOM_GUTTER_PX.narrow)
   const onKeyDown = useRowArrowKeys()
   const tableColumns = useRef(columns()).current
   const sort: SortState = { columnId: search.sort, direction: search.dir }
 
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the rows are the interactive elements; this only routes arrow keys between them
-    <div onKeyDown={onKeyDown}>
+    <div ref={containerRef} onKeyDown={onKeyDown}>
       <DataTable
         columns={tableColumns}
         rows={rows}
