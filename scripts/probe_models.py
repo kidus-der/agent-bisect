@@ -196,7 +196,9 @@ def run_one_task(
         simulation = run_single_task(
             config, task, seed=seed, evaluation_type=EvaluationType.ALL
         )
-    except BaseException as exc:  # noqa: BLE001 - infra failure, recorded not raised
+    except Exception as exc:  # noqa: BLE001 - infra failure, recorded not raised
+        # Exception, not BaseException: Ctrl+C must stop the probe rather than
+        # be written into a checkpoint as if it were a task-level failure.
         error = redact(f"{type(exc).__name__}: {exc}")[:400]
     finally:
         _local.collector = None

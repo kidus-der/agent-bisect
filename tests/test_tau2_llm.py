@@ -464,3 +464,32 @@ def test_structured_tool_calls_suppress_the_textual_heuristic():
     result = classify_tool_calls(tool_calls, content, set(AIRLINE_TOOLS), _schema_validator)
 
     assert (result.total, result.valid) == (1, 1)
+
+
+def test_a_keyboard_interrupt_is_not_swallowed_by_the_backoff(tmp_path):
+    """It has no status_code, so a BaseException catch would classify it retryable."""
+
+    class Interrupting:
+        calls = 0
+
+        def __call__(self, **_kwargs):
+            Interrupting.calls += 1
+            raise KeyboardInterrupt
+
+    router = make_router(tmp_path, Interrupting())
+
+    with pytest.raises(KeyboardInterrupt):
+        router.completion(model="m", messages=[])
+
+    assert Interrupting.calls == 1
+
+
+def test_credentials_passed_by_a_caller_never_reach_the_recording_hook(tmp_path):
+    seen: list[dict] = []
+    router = make_router(tmp_path, FakeCompletion(), on_call=lambda req, _r, _m: seen.append(req))
+
+    router.completion(model="m", messages=[], api_key="nvapi" + "-" + "Z" * 24, temperature=0.0)
+
+    assert "api_key" not in seen[0]
+    assert "api_base" not in seen[0]
+    assert seen[0]["temperature"] == 0.0

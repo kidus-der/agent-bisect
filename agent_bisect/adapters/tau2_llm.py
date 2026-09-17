@@ -56,6 +56,8 @@ DEFAULT_BASE_DELAY_S = 1.0
 DEFAULT_MAX_DELAY_S = 30.0
 DEFAULT_PURPOSE = "tau2"
 TEXTUAL_SCAN_WINDOW = 200
+#: Never copied into the recorded request handed to the on_call hook.
+SECRET_KWARGS = frozenset({"api_key", "api_base", "azure_ad_token", "aws_secret_access_key"})
 
 #: τ² module path -> the ledger purpose its `generate` calls belong to.
 PARTICIPANT_PURPOSE = {
@@ -127,7 +129,10 @@ class Tau2Router:
     def completion(self, *, model: str, messages: Any, **kwargs: Any) -> Any:
         """Rate-limited, retrying, ledgered stand-in for `litellm.completion`."""
         purpose = _purpose.get()
-        request = {"model": model, "messages": messages, "purpose": purpose, **kwargs}
+        # Defence in depth: whatever the caller passed, the recorded request
+        # never carries credentials into the hook (and so into P1's tape).
+        safe_kwargs = {k: v for k, v in kwargs.items() if k not in SECRET_KWARGS}
+        request = {"model": model, "messages": messages, "purpose": purpose, **safe_kwargs}
         # litellm's own retries would bypass our limiter and our ledger.
         payload = {
             **kwargs,
@@ -159,7 +164,11 @@ class Tau2Router:
             call_start = self._clock()
             try:
                 response = self._completion_fn(**payload)
-            except BaseException as exc:  # noqa: BLE001 - normalised and re-raised below
+            except Exception as exc:  # noqa: BLE001 - normalised and re-raised below
+                # Deliberately Exception, not BaseException: a KeyboardInterrupt
+                # has no status_code, so it would be classified as retryable and
+                # slept on until the elapsed budget ran out. Ctrl+C must stop a
+                # probe, not be swallowed by the backoff.
                 error = _as_transport_error(exc)
                 delay = self._delay_before_retry(error, model, purpose, call_start, start, attempt)
                 attempt += 1
