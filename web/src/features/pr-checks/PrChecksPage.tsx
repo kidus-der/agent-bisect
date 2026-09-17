@@ -1,135 +1,160 @@
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
 
 import { AsyncSection } from '@/components/primitives/AsyncSection'
+import { DataTable, type DataTableColumn } from '@/components/primitives/DataTable'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
-import { Skeleton } from '@/components/primitives/Skeleton'
-import { STAGGER_SECONDS, springTransition } from '@/design/motion'
-import { formatPValue, formatPercent, formatPoints } from '@/lib/stats'
+import { Skeleton, TableSkeleton } from '@/components/primitives/Skeleton'
+import { formatPValue, formatPercent, formatPoints, newcombeInterval } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/pages/PageHeader'
 
 import { GATE_COMMAND, type PrCheckSummary, usePrChecksQuery } from './api'
 
-const LIST_SKELETON_ROWS = [0, 1, 2, 3]
-/** Below this the change is a rounding artefact, not a direction. */
-const FLAT_CHANGE = 0.005
-const PERCENT = 100
+/** The list endpoint has no run count; the suite is 24 scenarios x 4 runs. */
+const RUNS_PER_REF = 96
+const TABLE_MAX_HEIGHT = 460
 
-interface RateSparkProps {
-  readonly base: number
-  readonly head: number
-  readonly regressed: boolean
+function change(check: PrCheckSummary): number {
+  return check.head_pass_rate - check.base_pass_rate
 }
 
-/** Two stacked rules on a shared 0-100% scale: base above, head below. */
-function RateSpark({ base, head, regressed }: RateSparkProps) {
+function VerdictChip({ check }: { readonly check: PrCheckSummary }) {
+  const regressed = check.is_regression
   return (
-    <span aria-hidden="true" className="hidden w-full shrink-0 flex-col gap-1.5 md:flex">
-      <span className="block h-1.5 rounded-pill bg-elevated">
-        <span
-          className="block h-full rounded-pill bg-tape"
-          style={{ width: `${Math.min(1, Math.max(0, base)) * PERCENT}%` }}
-        />
-      </span>
-      <span className="block h-1.5 rounded-pill bg-elevated">
-        <span
-          className={cn('block h-full rounded-pill', regressed ? 'bg-fail' : 'bg-pass')}
-          style={{ width: `${Math.min(1, Math.max(0, head)) * PERCENT}%` }}
-        />
-      </span>
+    <span
+      data-verdict={regressed ? 'regression' : 'clean'}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-pill border px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap',
+        regressed
+          ? 'border-fail/40 bg-fail-tint text-fail'
+          : 'border-pass/40 bg-pass-tint text-pass',
+      )}
+    >
+      <span aria-hidden="true">{regressed ? '✕' : '✓'}</span>
+      {regressed ? 'regression' : 'clean'}
     </span>
   )
 }
 
-function CheckCard({ check, index }: { readonly check: PrCheckSummary; readonly index: number }) {
-  const reduced = useReducedMotion() ?? false
-  const regressed = check.is_regression
-  const change = check.head_pass_rate - check.base_pass_rate
-  const flat = Math.abs(change) < FLAT_CHANGE
+/** An estimate never appears without its interval — including in a list. */
+function DeltaCell({ check }: { readonly check: PrCheckSummary }) {
+  const delta = change(check)
+  const interval = newcombeInterval(
+    check.head_pass_rate,
+    RUNS_PER_REF,
+    check.base_pass_rate,
+    RUNS_PER_REF,
+  )
+  // Colour is spent only when the interval excludes zero. A +4 point change
+  // whose interval runs from −7 to +15 is not an improvement worth colouring.
+  const decisive = interval !== null && (interval.low > 0 || interval.high < 0)
   return (
-    <motion.li
-      initial={reduced ? undefined : { opacity: 0, y: 8 }}
-      animate={reduced ? undefined : { opacity: 1, y: 0 }}
-      transition={{
-        ...springTransition('settle', reduced),
-        delay: reduced ? 0 : index * STAGGER_SECONDS.list,
-      }}
-    >
-      <Link
-        to="/pr-checks/$checkId"
-        params={{ checkId: check.check_id }}
+    <span className="inline-flex flex-col items-end">
+      <span
         className={cn(
-          'group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 rounded-card border bg-surface p-4',
-          'hover:border-line-strong sm:grid-cols-[minmax(0,1fr)_10rem_8rem_9rem_1.5rem]',
-          regressed ? 'border-fail/35' : 'border-line',
+          'num text-small',
+          !decisive ? 'text-ink-muted' : delta < 0 ? 'text-fail' : 'text-pass',
         )}
       >
-        <span className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-2">
-            <span className="num text-[12px] text-ink-muted">#{check.pr_number}</span>
-            <span
-              data-verdict={regressed ? 'regression' : 'clean'}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-pill border px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap',
-                regressed
-                  ? 'border-fail/40 bg-fail-tint text-fail'
-                  : 'border-pass/40 bg-pass-tint text-pass',
-              )}
-            >
-              <span aria-hidden="true">{regressed ? '✕' : '✓'}</span>
-              {regressed ? 'regression' : 'clean'}
-            </span>
-          </span>
-          <span className="truncate num text-h3 font-semibold text-ink">{check.title}</span>
+        {formatPoints(delta, 0)}
+      </span>
+      {interval ? (
+        <span className="num text-[11px] text-ink-muted">
+          <span className="sr-only">95% confidence interval </span>[{formatPoints(interval.low, 0)},{' '}
+          {formatPoints(interval.high, 0)}]
         </span>
-
-        <RateSpark base={check.base_pass_rate} head={check.head_pass_rate} regressed={regressed} />
-
-        <span className="flex items-baseline justify-end gap-2 num text-small">
-          <span className="text-ink-muted">{formatPercent(check.base_pass_rate, 0)}</span>
-          <span aria-hidden="true" className="text-ink-muted">
-            →
-          </span>
-          <span className={cn('text-h3', regressed ? 'text-fail' : 'text-ink')}>
-            {formatPercent(check.head_pass_rate, 0)}
-          </span>
-        </span>
-
-        <span className="col-span-2 flex items-baseline justify-end gap-4 sm:col-span-1">
-          <span
-            className={cn(
-              'num text-small',
-              flat ? 'text-ink-muted' : regressed ? 'text-fail' : 'text-pass',
-            )}
-          >
-            {formatPoints(change, 0)}
-          </span>
-          <span className="num text-[12px] text-ink-muted">p {formatPValue(check.p_value)}</span>
-        </span>
-
-        <ChevronRight
-          aria-hidden="true"
-          className="hidden size-4 text-ink-muted group-hover:text-ink sm:block"
-        />
-      </Link>
-    </motion.li>
+      ) : null}
+    </span>
   )
 }
 
+const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
+  {
+    id: 'pr',
+    header: 'pr',
+    width: '5.5rem',
+    sortValue: (row) => row.pr_number,
+    cell: (row) => (
+      <Link
+        to="/pr-checks/$checkId"
+        params={{ checkId: row.check_id }}
+        className="num text-measure underline-offset-2 hover:underline"
+      >
+        #{row.pr_number}
+      </Link>
+    ),
+  },
+  {
+    id: 'verdict',
+    header: 'verdict',
+    width: '8rem',
+    sortValue: (row) => (row.is_regression ? 0 : 1),
+    cell: (row) => <VerdictChip check={row} />,
+  },
+  {
+    id: 'suite',
+    header: 'scenario suite',
+    sortValue: (row) => row.title,
+    cell: (row) => <span className="num text-ink">{row.title}</span>,
+  },
+  {
+    id: 'base',
+    header: 'base',
+    numeric: true,
+    width: '5rem',
+    sortValue: (row) => row.base_pass_rate,
+    cell: (row) => (
+      <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
+    ),
+  },
+  {
+    id: 'head',
+    header: 'head',
+    numeric: true,
+    width: '5rem',
+    sortValue: (row) => row.head_pass_rate,
+    cell: (row) => (
+      <span className={cn('num', row.is_regression ? 'text-fail' : 'text-ink')}>
+        {formatPercent(row.head_pass_rate, 0)}
+      </span>
+    ),
+  },
+  {
+    id: 'delta',
+    header: 'change · 95% CI',
+    numeric: true,
+    width: '11rem',
+    sortValue: (row) => change(row),
+    cell: (row) => <DeltaCell check={row} />,
+  },
+  {
+    id: 'p',
+    header: 'p',
+    numeric: true,
+    width: '5rem',
+    hideOnMobile: true,
+    sortValue: (row) => row.p_value,
+    cell: (row) => <span className="num text-ink-muted">{formatPValue(row.p_value)}</span>,
+  },
+  {
+    id: 'open',
+    header: '',
+    width: '2.5rem',
+    cell: () => <ChevronRight aria-hidden="true" className="size-4 text-ink-muted" />,
+  },
+]
+
 function ListSkeleton() {
   return (
-    <div className="flex flex-col gap-3">
-      {LIST_SKELETON_ROWS.map((row) => (
-        <Panel key={row} variant="card">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-3 h-5 w-64 max-w-full" />
-        </Panel>
-      ))}
-    </div>
+    <Panel variant="card">
+      <Skeleton className="h-3 w-24" />
+      <div className="mt-4">
+        <TableSkeleton rows={6} />
+      </div>
+    </Panel>
   )
 }
 
@@ -148,23 +173,32 @@ function CheckList({ checks }: { readonly checks: readonly PrCheckSummary[] }) {
   }
   const regressions = checks.filter((check) => check.is_regression).length
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <span className="flex items-baseline gap-2">
-          <span className="num text-stat text-fail">{regressions}</span>
-          <InstrumentLabel>flagged</InstrumentLabel>
-        </span>
-        <span className="flex items-baseline gap-2">
-          <span className="num text-stat text-ink">{checks.length - regressions}</span>
-          <InstrumentLabel>clean</InstrumentLabel>
-        </span>
-      </div>
-      <ul className="m-0 flex list-none flex-col gap-3 p-0">
-        {checks.map((check, index) => (
-          <CheckCard key={check.check_id} check={check} index={index} />
-        ))}
-      </ul>
-    </div>
+    <Panel variant="card" bodyClassName="flex flex-col gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="flex flex-col gap-1">
+          <InstrumentLabel>gate_results</InstrumentLabel>
+          <h2 className="text-h2 text-ink">Every gated pull request</h2>
+        </div>
+        <div className="flex items-baseline gap-6">
+          <span className="flex items-baseline gap-2">
+            <span className="num text-stat text-fail">{regressions}</span>
+            <InstrumentLabel>flagged</InstrumentLabel>
+          </span>
+          <span className="flex items-baseline gap-2">
+            <span className="num text-stat text-ink">{checks.length - regressions}</span>
+            <InstrumentLabel>clean</InstrumentLabel>
+          </span>
+        </div>
+      </header>
+      <DataTable
+        columns={COLUMNS}
+        rows={checks}
+        getRowId={(row) => row.check_id}
+        caption="Gated pull requests: base and head pass rate on the same scenario suite, with the change and its 95% interval."
+        maxHeight={TABLE_MAX_HEIGHT}
+        initialSort={{ columnId: 'delta', direction: 'asc' }}
+      />
+    </Panel>
   )
 }
 
