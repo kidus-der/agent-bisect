@@ -102,13 +102,45 @@ export function availableOrNull<T>(value: T | NotAvailable | null): T | null {
   return value
 }
 
+interface RerunPage {
+  readonly reruns: readonly RerunRow[]
+}
+
 type Query<T> = UseQueryResult<ApiResult<T>, ApiError>
+
+// Module-level so the selector's identity is stable: an inline arrow makes
+// react-query re-run it on every render.
+const selectRunDetail = (result: ApiResult<RunDetail>): ApiResult<RunDetail> => ({
+  ...result,
+  data: normalizeRunDetail(result.data),
+})
+const selectStepPayload = (result: ApiResult<StepPayload>): ApiResult<StepPayload> => ({
+  ...result,
+  data: normalizeStepPayload(result.data),
+})
+const selectStateDiff = (
+  result: ApiResult<StateDiff | NotAvailable>,
+): ApiResult<StateDiff | NotAvailable> => ({ ...result, data: normalizeStateDiff(result.data) })
+const selectReruns = (
+  result: ApiResult<RerunPage | NotAvailable>,
+): ApiResult<RerunPage | NotAvailable> => ({
+  ...result,
+  data: isNotAvailable(result.data)
+    ? result.data
+    : { reruns: asArray<RerunRow>(result.data?.reruns) },
+})
+const selectRerunSteps = (
+  result: ApiResult<readonly StepView[] | NotAvailable>,
+): ApiResult<readonly StepView[] | NotAvailable> => ({
+  ...result,
+  data: isNotAvailable(result.data) ? result.data : asArray<StepView>(result.data),
+})
 
 export function useRunDetailQuery(runId: string): Query<RunDetail> {
   return useQuery<ApiResult<RunDetail>, ApiError>({
     queryKey: runDetailKeys.detail(runId),
     queryFn: ({ signal }) => apiFetch<RunDetail>(runDetailPaths.detail(runId), { signal }),
-    select: (result) => ({ ...result, data: normalizeRunDetail(result.data) }),
+    select: selectRunDetail,
   })
 }
 
@@ -117,7 +149,7 @@ export function useStepQuery(runId: string, stepIdx: number | null): Query<StepP
     queryKey: runDetailKeys.step(runId, stepIdx ?? -1),
     queryFn: ({ signal }) =>
       apiFetch<StepPayload>(runDetailPaths.step(runId, stepIdx ?? -1), { signal }),
-    select: (result) => ({ ...result, data: normalizeStepPayload(result.data) }),
+    select: selectStepPayload,
     enabled: stepIdx !== null,
   })
 }
@@ -146,13 +178,9 @@ export function useStateDiffQuery(
       apiFetch<StateDiff | NotAvailable>(runDetailPaths.stateDiff(runId, stepIdx ?? -1), {
         signal,
       }),
-    select: (result) => ({ ...result, data: normalizeStateDiff(result.data) }),
+    select: selectStateDiff,
     enabled: stepIdx !== null,
   })
-}
-
-interface RerunPage {
-  readonly reruns: readonly RerunRow[]
 }
 
 export function useRerunsQuery(runId: string): Query<RerunPage | NotAvailable> {
@@ -160,12 +188,7 @@ export function useRerunsQuery(runId: string): Query<RerunPage | NotAvailable> {
     queryKey: runDetailKeys.reruns(runId),
     queryFn: ({ signal }) =>
       apiFetch<RerunPage | NotAvailable>(runDetailPaths.reruns(runId), { signal }),
-    select: (result) => ({
-      ...result,
-      data: isNotAvailable(result.data)
-        ? result.data
-        : { reruns: asArray<RerunRow>(result.data?.reruns) },
-    }),
+    select: selectReruns,
   })
 }
 
@@ -179,9 +202,6 @@ export function useRerunStepsQuery(
       apiFetch<readonly StepView[] | NotAvailable>(runDetailPaths.rerunSteps(runId, rerunId), {
         signal,
       }),
-    select: (result) => ({
-      ...result,
-      data: isNotAvailable(result.data) ? result.data : asArray<StepView>(result.data),
-    }),
+    select: selectRerunSteps,
   })
 }

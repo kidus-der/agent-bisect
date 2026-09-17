@@ -87,7 +87,13 @@ function MatrixRow({ group, runId, selected, onSelectStep }: MatrixRowProps) {
         className="w-20 shrink-0 cursor-pointer truncate text-left num text-small whitespace-nowrap text-ink-muted hover:text-ink sm:w-32"
       >
         {group.arm === 'control' ? (
-          <span>control{group.shared ? ' · shared' : ` · k=${group.step}`}</span>
+          <span>
+            control
+            {/* The qualifier is the first thing to go when the column narrows. */}
+            <span className="hidden sm:inline">
+              {group.shared ? ' · shared' : ` · k=${group.step}`}
+            </span>
+          </span>
         ) : (
           <span className="text-ink">step {group.step}</span>
         )}
