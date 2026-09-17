@@ -32,13 +32,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent_bisect.attribution.judge_view import Protocol as JudgeProtocol
 from agent_bisect.core.llm import LLMClient, LLMRequest, LLMResponse, RecordBeforeUse
 from agent_bisect.core.store import BlobStore, canonical_json_bytes, sha256_hex
 
 #: Ledger purpose for every judge call, so `bisect eval`'s cost breakdown
-#: can split judge spend from replay spend without guessing.
+#: can split judge spend from replay spend without guessing. `repair`
+#: proposals use the same machinery under their own purpose, because
+#: `docs/brief/summary.md` §9 scores them in a separate table.
 JUDGE_PURPOSE = "judge"
+REPAIR_PURPOSE = "repair"
 
 DEFAULT_PHASE = "P5"
 DEFAULT_MAX_TOKENS = 1_200
@@ -101,7 +103,7 @@ class JudgeCallStore:
         *,
         key: str,
         item_id: str,
-        protocol: JudgeProtocol,
+        protocol: str,
         model: str,
         request: Any,
         response_text: str,
@@ -146,15 +148,17 @@ class LedgeredJudgeBackend:
         model: str,
         phase: str = DEFAULT_PHASE,
         max_tokens: int = DEFAULT_MAX_TOKENS,
+        purpose: str = JUDGE_PURPOSE,
     ) -> None:
         self._make_client = make_client
         self.store = store
         self.model = model
         self._phase = phase
         self._max_tokens = max_tokens
+        self._purpose = purpose
 
     def ask(
-        self, *, system: str, user: str, item_id: str, protocol: JudgeProtocol
+        self, *, system: str, user: str, item_id: str, protocol: str
     ) -> JudgeCall:
         """The judge's raw answer, from the record if it is already there."""
         if not system.strip() or not user.strip():
@@ -171,7 +175,7 @@ class LedgeredJudgeBackend:
                 {"role": "user", "content": user},
             ),
             max_tokens=self._max_tokens,
-            purpose=JUDGE_PURPOSE,
+            purpose=self._purpose,
         )
 
         async def record(asked: LLMRequest, answered: LLMResponse) -> None:
