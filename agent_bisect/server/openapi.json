@@ -1924,12 +1924,19 @@
             ]
           },
           "outcome": {
-            "enum": [
-              "pass",
-              "fail"
+            "anyOf": [
+              {
+                "enum": [
+                  "pass",
+                  "fail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Outcome",
-            "type": "string"
+            "title": "Outcome"
           },
           "planted_step": {
             "anyOf": [
@@ -1968,6 +1975,14 @@
             ],
             "title": "Seed"
           },
+          "status": {
+            "enum": [
+              "recording",
+              "complete"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/StepView"
@@ -1997,6 +2012,7 @@
           "seed",
           "tau2_commit",
           "created_at",
+          "status",
           "outcome",
           "reward",
           "steps",
@@ -2162,12 +2178,19 @@
             "type": "integer"
           },
           "outcome": {
-            "enum": [
-              "pass",
-              "fail"
+            "anyOf": [
+              {
+                "enum": [
+                  "pass",
+                  "fail"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Outcome",
-            "type": "string"
+            "title": "Outcome"
           },
           "planted_step": {
             "anyOf": [
@@ -2191,6 +2214,14 @@
             "title": "Sparkline",
             "type": "array"
           },
+          "status": {
+            "enum": [
+              "recording",
+              "complete"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
           "task_id": {
             "title": "Task Id",
             "type": "string"
@@ -2201,6 +2232,7 @@
           "domain",
           "task_id",
           "model",
+          "status",
           "outcome",
           "n_steps",
           "decisive_step",
@@ -2290,6 +2322,21 @@
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "recording",
+                  "complete"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
           },
           "subtitle": {
             "anyOf": [
@@ -2895,6 +2942,22 @@
                 }
               ],
               "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
             }
           },
           {
