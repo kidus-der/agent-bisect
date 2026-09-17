@@ -10,17 +10,25 @@ describe('axisTicks', () => {
     expect(axisTicks(1)).toEqual([0, 0.25, 0.5, 0.75, 1])
   })
 
-  test('adds a tick at the axis maximum once the bar pushes past 100%', () => {
-    // Arrange
+  test('does not label an axis maximum that would collide with 100%', () => {
+    // Arrange — the real bar puts the axis end about four points past 100%,
+    // which is closer than two mono labels can sit without overprinting.
     const axisMax = accuracyAxisMax(UNATTAINABLE_BAR)
 
     // Act
     const ticks = axisTicks(axisMax)
 
-    // Assert — the last tick is the track's right edge, so the axis and the
-    // bars agree about where the scale ends.
-    expect(ticks.at(-1)).toBe(axisMax)
-    expect(rateFraction(ticks.at(-1) ?? 0, axisMax)).toBe(1)
+    // Assert — 100% is the number that means something, so it is the one kept.
+    expect(ticks).toEqual([0, 0.25, 0.5, 0.75, 1])
+  })
+
+  test('labels the axis maximum once it is far enough past 100% to be legible', () => {
+    // Act — an axis half as long again as the rates it carries.
+    const ticks = axisTicks(1.5)
+
+    // Assert
+    expect(ticks.at(-1)).toBe(1.5)
+    expect(rateFraction(ticks.at(-1) ?? 0, 1.5)).toBe(1)
   })
 
   test('keeps 100% inside the track once the axis runs past it', () => {

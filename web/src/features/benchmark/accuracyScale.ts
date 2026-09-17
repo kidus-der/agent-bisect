@@ -13,14 +13,23 @@ const BASE_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
 export const AXIS_TICKS = BASE_TICKS
 
 /**
- * The ticks that actually span the drawn track.
+ * How much of the track two tick labels need between them to stay apart. The
+ * labels are mono and about six characters wide, so anything tighter overprints.
+ */
+const MIN_TICK_GAP = 0.08
+
+/**
+ * The ticks that span the drawn track.
  *
- * When the pre-registered bar pushes the axis past 100%, the quarters alone
- * stop short of the track's right edge, so the axis and the plot disagree about
- * where the scale ends. A final tick at the axis maximum closes that gap.
+ * When the pre-registered bar pushes the axis past 100%, the quarters stop short
+ * of the track's right edge, and a tick at the axis maximum would close that
+ * gap — but only if there is room to print it. A bar a few points above 100%
+ * puts the two labels on top of each other, and 100% is the one worth keeping;
+ * the bar's own marker already says where the axis ends and why.
  */
 export function axisTicks(axisMax: number): readonly number[] {
   if (axisMax <= MAX_RATE) return [...BASE_TICKS]
+  if ((axisMax - MAX_RATE) / axisMax < MIN_TICK_GAP) return [...BASE_TICKS]
   return [...BASE_TICKS, axisMax]
 }
 
