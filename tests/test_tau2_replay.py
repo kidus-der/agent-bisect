@@ -654,3 +654,26 @@ def test_the_recorded_judges_verdict_is_what_the_reward_reflects(store):
     assert check["met"] is True
     assert check["justification"] == "The agent said so."
     assert check["nl_assertion"] == JUDGED_ASSERTION
+
+
+# ---- the re-run-live baseline's escape hatch (P5) ----
+
+
+def test_a_guarded_replay_reports_no_unguarded_calls(store):
+    """The default: every prefix response matched its recorded request."""
+    _recorded(AIRLINE_READS, store)
+
+    result = replay_run("r1", store=store.blobs, reader=store.reader)
+
+    assert result.unguarded_llm_calls == 0
+
+
+def test_a_fork_reports_how_many_responses_were_served_unguarded(store):
+    """P5's CAR-style baseline drops the hash guard by construction, so how
+    far it drifted has to be countable rather than invisible."""
+    _recorded(AIRLINE_READS, store)
+
+    _outcome, driver = _fork(store, AIRLINE_READS, fork_step=4, run_id="fork-guarded")
+
+    assert driver.result is not None
+    assert driver.result.unguarded_llm_calls == 0
