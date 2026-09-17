@@ -25,6 +25,7 @@ without re-opening the test split.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -54,6 +55,7 @@ from agent_bisect.core.tape import TapeReader
 MISSING_KEY_EXIT_CODE = 1
 MANIFEST_EXIT_CODE = 6
 SPLIT_LOCKED_EXIT_CODE = 7
+SENSITIVITY_SPLIT_EXIT_CODE = 8
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
 DEFAULT_PHASE = "P5"
@@ -89,6 +91,47 @@ def _report_only(
         results_dir=results_dir,
     )
     return report
+
+
+def _per_step_sensitivity(
+    items: Sequence[Any],
+    primary: BaselineConfig,
+    base_kwargs: dict[str, Any],
+    *,
+    seed: int,
+    methods: tuple[str, ...] = ("bisect",),
+) -> dict[str, Any]:
+    """Re-run Bisect against a per-step control, beside the primary.
+
+    Decision 0016 keeps this as a **dev-split** analysis: it is the check
+    that `docs/decisions/0005-shared-control.md` says exists, it costs a
+    second control arm per tested step, and it answers "does the shared
+    arm's flat-control assumption hold on real runs" without touching the
+    pre-registered primary.
+    """
+    config = BaselineConfig(
+        top_m=primary.top_m,
+        sequential=primary.sequential,
+        control_mode="per_step",
+        methods=methods,  # type: ignore[arg-type]
+    )
+    run = evaluate_dataset(items, config=config, seed=seed, **base_kwargs)
+    scores = score_outcomes(items, run.outcomes)
+    return {
+        "control_mode": "per_step",
+        "split": "dev",
+        "n_items": len({score.item_id for score in scores}),
+        "accuracy": {
+            method: sum(1 for s in scores if s.method == method and s.correct)
+            / max(1, sum(1 for s in scores if s.method == method))
+            for method in methods
+        },
+        "n_control_flags": run.n_control_flags,
+        "note": (
+            "per-step control: each suspect is compared with a control forked at "
+            "that same step. Reported beside the primary, never in place of it."
+        ),
+    }
 
 
 def _summarise(report: dict[str, Any], failures: int) -> str:
@@ -137,6 +180,11 @@ def eval_(
         DEFAULT_SEED
     ),
     resume: bool = typer.Option(False, help="Continue an interrupted test-split run."),
+    per_step_sensitivity: bool = typer.Option(
+        False,
+        "--per-step-sensitivity",
+        help="Also run the per-step control arm (dev split only; doubles replay spend).",
+    ),
     report_only: bool = typer.Option(
         False, "--report-only", help="Rebuild the report from stored results. Offline."
     ),
@@ -159,6 +207,15 @@ def eval_(
             else _summarise(report, 0)
         )
         return
+
+    if per_step_sensitivity and split != "dev":
+        typer.echo(
+            "--per-step-sensitivity is a dev-split analysis (decision 0016): it doubles "
+            "replay spend and the test split is touched once, at the pre-registered "
+            "shared-control configuration.",
+            err=True,
+        )
+        raise typer.Exit(code=SENSITIVITY_SPLIT_EXIT_CODE)
 
     try:
         opening = guard(split, out_dir, resume=resume)
@@ -190,27 +247,34 @@ def eval_(
     reader = TapeReader(runs_dir)
     ledger = BudgetLedger(runs_dir / "ledger.sqlite")
 
+    sequential = SequentialConfig(
+        max_n=n, efficacy_boundary="obf" if n == DEFAULT_MAX_N else "none"
+    )
+    base_kwargs: dict[str, Any] = dict(
+        reader=reader,
+        store=store,
+        judge_backend=_backend(runs_dir, settings, ledger),
+        executor=Tau2ForkExecutor(store=store, reader=reader, tape=TapeWriter(runs_dir)),
+        task_text=task_text,
+        runs_dir=runs_dir,
+        truth_for_item=lambda item: Tau2TruthResolver(item.domain, item.task_id, store),
+    )
+
     with own_stdout(), recording_session(ledger=ledger, phase=DEFAULT_PHASE):
         run = evaluate_dataset(
             items,
-            reader=reader,
-            store=store,
-            judge_backend=_backend(runs_dir, settings, ledger),
-            executor=Tau2ForkExecutor(
-                store=store, reader=reader, tape=TapeWriter(runs_dir)
-            ),
-            task_text=task_text,
-            config=BaselineConfig(
-                top_m=top,
-                sequential=SequentialConfig(
-                    max_n=n, efficacy_boundary="obf" if n == DEFAULT_MAX_N else "none"
-                ),
-            ),
+            config=BaselineConfig(top_m=top, sequential=sequential),
             seed=seed,
-            runs_dir=runs_dir,
-            truth_for_item=lambda item: Tau2TruthResolver(
-                item.domain, item.task_id, store
-            ),
+            **base_kwargs,
+        )
+
+    sensitivity = None
+    if per_step_sensitivity:
+        sensitivity = _per_step_sensitivity(
+            items,
+            BaselineConfig(top_m=top, sequential=sequential),
+            base_kwargs,
+            seed=seed,
         )
 
     scores = score_outcomes(items, run.outcomes)
@@ -223,6 +287,7 @@ def eval_(
         control_flags=run.flag_rows(),
         unevaluated=run.failure_rows(),
         unguarded_calls=run.bisect_unguarded_calls,
+        sensitivity=sensitivity,
     )
     written = write_results(
         scores=scores,
