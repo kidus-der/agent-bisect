@@ -4,11 +4,13 @@
  */
 import { Panel } from '@/components/primitives/Panel'
 import { StatTicker } from '@/components/primitives/StatTicker'
+import { cn } from '@/lib/utils'
 
 import type { Kpis } from './api'
 
 interface KpiRowProps {
   readonly kpis: Kpis
+  readonly className?: string
 }
 
 interface KpiSpec {
@@ -51,11 +53,11 @@ function kpiSpecs(kpis: Kpis): readonly KpiSpec[] {
   ]
 }
 
-export function KpiRow({ kpis }: KpiRowProps) {
+export function KpiRow({ kpis, className }: KpiRowProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className={cn('grid grid-cols-2 gap-3', className)}>
       {kpiSpecs(kpis).map((spec) => (
-        <Panel key={spec.id} variant="kpi">
+        <Panel key={spec.id} variant="kpi" className="flex flex-col justify-center">
           <StatTicker
             label={spec.label}
             value={spec.value}

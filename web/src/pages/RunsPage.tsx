@@ -126,34 +126,37 @@ export function RunsPage() {
     <>
       {header}
       <div className="flex flex-col gap-4">
-        <RunsFilters search={search} facets={facets} onChange={apply} summary={summary} />
+        {/* Toolbar and table are one instrument: the filters sit inside the panel they narrow. */}
+        <Panel variant="card" className="p-0" bodyClassName="min-w-0">
+          <div className="border-b border-line p-4">
+            <RunsFilters search={search} facets={facets} onChange={apply} summary={summary} />
+          </div>
 
-        {narrowed.rows.length === 0 ? (
-          <Panel variant="canvas">
-            <EmptyState
-              label="no match"
-              title="No runs match these filters"
-              description="Nothing in the recorded runs matches every filter at once. Widen one, or clear them all and start again."
-            >
-              <button
-                type="button"
-                onClick={() => apply(clearFilters(search))}
-                className="inline-flex h-9 cursor-pointer items-center rounded-control border border-line-strong bg-elevated px-3 text-small font-medium text-ink hover:border-ink-muted"
+          {narrowed.rows.length === 0 ? (
+            <div className="px-4">
+              <EmptyState
+                label="no match"
+                title="No runs match these filters"
+                description="Nothing in the recorded runs matches every filter at once. Widen one, or clear them all and start again."
               >
-                Clear filters
-              </button>
-            </EmptyState>
-          </Panel>
-        ) : (
-          <Panel variant="card" className="p-0" bodyClassName="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => apply(clearFilters(search))}
+                  className="inline-flex h-9 cursor-pointer items-center rounded-control border border-line-strong bg-elevated px-3 text-small font-medium text-ink hover:border-ink-muted"
+                >
+                  Clear filters
+                </button>
+              </EmptyState>
+            </div>
+          ) : (
             <RunsTable
               rows={narrowed.rows}
               search={search}
               onSortChange={onSortChange}
               onOpen={onOpen}
             />
-          </Panel>
-        )}
+          )}
+        </Panel>
 
         {hasNextPage ? (
           <div className="flex justify-center">

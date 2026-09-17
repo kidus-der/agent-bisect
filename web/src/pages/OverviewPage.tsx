@@ -81,9 +81,8 @@ export function OverviewPage() {
             simulated={overview.data.meta.simulated}
             sampleSize={data.kpis.failures_diagnosed}
           />
-          <div className="flex flex-col gap-4">
-            <KpiRow kpis={data.kpis} />
-          </div>
+          {/* A single rail beside the hero: four equal rows, filling its height. */}
+          <KpiRow kpis={data.kpis} className="lg:h-full lg:auto-rows-fr lg:grid-cols-1 lg:gap-4" />
         </div>
 
         <HeroRewind run={data.hero_run} />
