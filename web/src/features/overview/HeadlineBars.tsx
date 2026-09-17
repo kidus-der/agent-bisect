@@ -57,41 +57,57 @@ interface WhiskerProps {
   readonly delay: number
 }
 
+const WHISKER_CAP_HALF = 6
+const WHISKER_HALO_PX = 3.5
+
 /**
- * The 95% interval, on the same scale as the bar and tied to it: a 1px riser
- * drops from the bar's end to the interval's point estimate, so the whisker
- * reads as this bar's interval rather than a detached rule under it.
+ * The 95% interval, drawn *on the bar's centreline* rather than in a lane under
+ * it — it is this bar's interval, not a separate rule. It crosses both the
+ * filled and unfilled parts of the track, so each stroke is painted twice: once
+ * wide in the panel's ground colour as a halo, once thin in ink on top. That
+ * reads on the role fill and on the empty track, in both themes.
  */
 function Whisker({ bar, reduced, delay }: WhiskerProps) {
   const transition = { ...springTransition('settle', reduced), delay: reduced ? 0 : delay }
+  const marks = (
+    <>
+      <line x1={`${bar.low * 100}%`} x2={`${bar.high * 100}%`} y1="50%" y2="50%" />
+      {[bar.low, bar.high].map((bound) => (
+        <line
+          key={bound}
+          x1={`${bound * 100}%`}
+          x2={`${bound * 100}%`}
+          y1={`calc(50% - ${WHISKER_CAP_HALF}px)`}
+          y2={`calc(50% + ${WHISKER_CAP_HALF}px)`}
+        />
+      ))}
+    </>
+  )
   return (
-    <motion.div
+    <motion.svg
       aria-hidden="true"
       initial={reduced ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={transition}
-      className={cn('relative h-3', ROLE_TEXT[bar.role])}
+      className="pointer-events-none absolute inset-0 size-full"
+      preserveAspectRatio="none"
     >
-      <span
-        className="absolute top-0 h-1/2 w-px -translate-x-1/2 bg-current opacity-45"
-        style={{ left: percent(bar.value) }}
+      <g stroke="var(--bx-ground)" strokeWidth={WHISKER_HALO_PX} strokeLinecap="butt">
+        {marks}
+      </g>
+      <g stroke="var(--bx-text)" strokeWidth={1.5} strokeLinecap="butt">
+        {marks}
+      </g>
+      <rect
+        x={`calc(${bar.value * 100}% - 3px)`}
+        y="calc(50% - 3px)"
+        width={6}
+        height={6}
+        fill="var(--bx-text)"
+        stroke="var(--bx-ground)"
+        strokeWidth={1.5}
       />
-      <span
-        className="absolute top-1/2 h-px -translate-y-1/2 bg-current"
-        style={{ left: percent(bar.low), width: percent(bar.high - bar.low) }}
-      />
-      {[bar.low, bar.high].map((bound) => (
-        <span
-          key={bound}
-          className="absolute top-1/2 h-2.5 w-px -translate-x-1/2 -translate-y-1/2 bg-current"
-          style={{ left: percent(bound) }}
-        />
-      ))}
-      <span
-        className="absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-current"
-        style={{ left: percent(bar.value) }}
-      />
-    </motion.div>
+    </motion.svg>
   )
 }
 
@@ -121,9 +137,9 @@ function BarRow({ bar, index }: BarRowProps) {
           style={{ width: percent(bar.value) }}
           className={cn('absolute inset-y-0 left-0 origin-left', ROLE_FILL[bar.role])}
         />
+        <Whisker bar={bar} reduced={reduced} delay={delay} />
       </div>
-      <Whisker bar={bar} reduced={reduced} delay={delay} />
-      <p className="-mt-0.5 w-fit bg-ground pr-2 num text-small text-ink-muted">
+      <p className="w-fit bg-ground pr-2 num text-small text-ink-muted">
         95% CI {formatPercent(bar.low)} – {formatPercent(bar.high)}
       </p>
     </div>
