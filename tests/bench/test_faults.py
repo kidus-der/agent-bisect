@@ -278,6 +278,60 @@ def test_a_result_already_an_error_cannot_be_faulted_into_an_error():
         plant(already, fault_type="tool_error", seed=1)
 
 
+def test_a_free_text_result_is_faulted_as_text():
+    """Not every tau2 tool answers with JSON; `Environment.to_json_str`
+    passes a plain string straight through."""
+    sentence = payload("Your refund is on its way")
+
+    faulted = plant(sentence, fault_type="wrong_value", seed=1)
+
+    assert faulted.payload["content"] != sentence["content"]
+    assert len(faulted.payload["content"]) == len(sentence["content"])
+
+
+def test_a_result_with_no_alphanumeric_character_cannot_be_made_wrong():
+    with pytest.raises(NoFaultPossibleError, match="alphanumeric"):
+        plant(payload("--- ---"), fault_type="wrong_value", seed=1)
+
+
+@pytest.mark.parametrize(
+    ("value", "kind"),
+    [(True, bool), (12.5, float), (7, int)],
+    ids=["bool", "float", "int"],
+)
+def test_wrong_value_handles_every_scalar_kind(value, kind):
+    mutation = plant(payload({"total": value}), fault_type="wrong_value", seed=2).mutation
+
+    assert type(mutation.new) is kind
+    assert mutation.new != value
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(True, False), (12.5, 10.0), ("2024-05-16", "2024-05-15")],
+    ids=["bool", "float", "date"],
+)
+def test_stale_record_rolls_every_scalar_kind_backwards(value, expected):
+    mutation = plant(payload({"total": value}), fault_type="stale_record", seed=9).mutation
+
+    assert mutation.new != value
+    assert type(mutation.new) is type(expected)
+
+
+def test_a_value_with_no_earlier_version_is_never_called_stale():
+    with pytest.raises(NoFaultPossibleError, match="stale_record"):
+        plant(payload({"note": "free text", "count": 0}), fault_type="stale_record", seed=1)
+
+
+def test_an_unnamed_argument_still_produces_an_error():
+    faulted = plant(
+        payload(), fault_type="tool_error", seed=2,
+        context=FaultContext(tool_name="calculate", tool_args={"expression": "1+1"}),
+    )
+
+    assert faulted.payload["content"].startswith("Error: ")
+
+
 def test_the_mutation_serialises_to_the_dataset_card():
     faulted = plant(payload(), fault_type="wrong_value", seed=1)
 
