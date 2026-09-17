@@ -5,7 +5,9 @@ import { type Page, test } from '@playwright/test'
 
 import { mockApi } from './apiFixture'
 
-const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round2/shell/', import.meta.url))
+// SHOTS_ROUND picks the review round the captures belong to.
+const ROUND = process.env.SHOTS_ROUND ?? 'round3'
+const OUT_DIR = fileURLToPath(new URL(`../../docs/screenshots/${ROUND}/shell/`, import.meta.url))
 const THEMES = ['dark', 'light'] as const
 const DESKTOP = { width: 1440, height: 900 }
 const PHONE = { width: 390, height: 844 }
