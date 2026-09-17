@@ -838,3 +838,67 @@ that ship to the screen.
 |---|---|---|
 | 1 | `features/pr-checks/ScenarioTable.tsx:74` — the scale key renders `SCALE_ ±67 pts pts · zero at the rule`. `extent` already carries its unit, so the literal ` pts` in `±{extent} pts` duplicates it. | [blocking-8.5] |
 | 2 | `features/pr-checks/GateSummaryPanel.tsx` — "The rest are inside the noise of a 96-run suite, however their point estimate reads" should be "whatever their point estimate reads". | [blocking-8.5] |
+
+---
+
+## Round 6 — 2026-09-17 (final)
+
+PR checks scored; one Benchmark sweep to confirm the panel move did no harm.
+
+### PR checks — 8.4 (0.0)
+
+| | hierarchy | type | colour | motion | data | polish | orig. | **score** |
+|---|---|---|---|---|---|---|---|---|
+| Round 5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.5 | 8.0 | 8.5 | 8.4 |
+| Round 6 | 8.5 | 8.5 | 8.5 | 8.5 | **8.0** | **8.5** | 8.5 | **8.4** |
+
+Both round-5 items are fixed: the key now reads `SCALE_ ±67 pts · zero at the
+rule` (and `±34 pts` on the clean check, so the extent is per table), and the
+gate-history paragraph reads "whatever their point estimate reads". Polish moves
+to the bar.
+
+The score does not move, because looking at the 390px captures for the first time
+since round 4 turned up a defect on the detail page that the desktop shots hide.
+
+**`features/pr-checks/ScenarioTable.tsx` at 390px drops every numeric column.**
+A row renders the scenario name and a coral bar against the zero rule — no
+`CHANGE`, no `BASE`, no `HEAD`, no `RUNS`. Eight rows of bar with no value
+anywhere on them. At 1440 the same row reads `▼ −67 pts · 93% · 26% · 4`. The bar
+is measured against a declared `±34 pts` scale, so it is not meaningless, but a
+product whose thesis is a trustworthy number with an interval around it should
+not show a magnitude with no magnitude printed (principle 3, "numbers over
+narrative"). Keeping `CHANGE` and dropping `RUNS` would fix it.
+
+That is the one thing between this page and 8.5.
+
+### Benchmark sweep
+
+Moving the accuracy heatmap and the blame sankey off the `recessed` fill onto
+surface panels did no harm and reads slightly better: the heatmap's ramp
+(96% dark teal → 62% pale) and the sankey's flows both sit on white with more
+separation than before, while `ACCURACY_BY_POSITION_` keeps the recessed ground
+and still reads. Benchmark's 8.5 carries.
+
+### Final scores
+
+| Page | Score | At the bar | Last scored |
+|---|---|---|---|
+| Run detail | **8.7** | yes | round 3 |
+| Global (shell · ⌘K · states · mobile) | **8.6** | yes | round 3 |
+| Overview | **8.5** | yes | round 5 |
+| Runs | **8.5** | yes | round 4 |
+| Benchmark | **8.5** | yes | round 5 (swept round 6) |
+| Live | **8.5** | yes | round 5 |
+| PR checks | **8.4** | no | round 6 |
+
+**Verdict: six of seven pages are at or above 8.5. PR checks is 0.1 short, on
+data clarity alone, because its scenario table renders a bar with no number at
+390px.** Every other page clears the bar, every rule guard passes in both themes
+at both widths, and the anti-pattern checklist is clean.
+
+Across six rounds the page scores moved 7.1–8.0 → 8.4–8.7. The three faults named
+in round 1 as systemic — panels filled to about 40% of the width they occupied,
+amber spent on things that were not blame, and estimates shown without their
+intervals — are gone. Two of my own round-1–3 findings were wrong and are
+withdrawn: the "narrow plot" complaints were a `fullPage` capture artefact, and
+several "missing" animations were real but sampled too late to see.

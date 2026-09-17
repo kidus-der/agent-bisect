@@ -436,6 +436,17 @@ if (inScope('global'))
     await captureFrames(page, 'motion-palette-dark-1440')
   })
 
+/**
+ * A page that is already at the bar but whose shared primitives changed: one
+ * whole-page shot per theme, enough to see whether the change did any harm.
+ */
+for (const name of process.env.EVAL_SWEEP?.split(',').map((part) => part.trim()) ?? [])
+  test(`sweep ${name}`, async ({ page }) => {
+    const [route, theme] = name.split(':') as [string, Theme]
+    await open(page, theme, DESKTOP, `/${route === 'overview' ? '' : route}`)
+    await shootWholePage(page, `sweep-${route}-${theme}-1440-full`, DESKTOP.width)
+  })
+
 /** Reduced motion must land every entrance on its final state, instantly. */
 test('motion: reduced-motion pass', async ({ page }) => {
   for (const [name, path] of [
