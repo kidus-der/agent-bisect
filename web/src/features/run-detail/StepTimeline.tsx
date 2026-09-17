@@ -182,10 +182,11 @@ export function StepTimeline({
             <button
               type="button"
               onClick={onResetRewind}
+              title="Back to the recorded tape"
               className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-control border border-line px-2.5 text-small text-ink-muted hover:text-ink"
             >
               <RotateCcw aria-hidden="true" className="size-3.5" />
-              Recording
+              Reset
             </button>
           ) : null}
         </div>

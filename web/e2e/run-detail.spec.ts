@@ -97,7 +97,7 @@ test('rewinding to step 7 bands the tape, tags the intervention and replays the 
   // The tape is a graphic, so its cells are asserted by state, not by role.
   await expect(tapeCells(page, 'passed')).toHaveCount(1, { timeout: 15_000 })
   await expect(tapeCells(page, 'tape')).toHaveCount(6)
-  await expect(page.getByRole('button', { name: 'Recording' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible()
 })
 
 test('the forest plot draws every estimate with its interval, against delta', async ({ page }) => {
