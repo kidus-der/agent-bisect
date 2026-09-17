@@ -60,17 +60,19 @@ function ZeroRule({ overhang = true }: { readonly overhang?: boolean }) {
   )
 }
 
-/** The key to the bars: where the zero line is, and what a full-length bar means. */
+/**
+ * What a full-length bar means. It used to draw its own track with a centre
+ * tick, which sat three hundred pixels from the tick the bars actually anchor
+ * on — two axes disagreeing. Zero is now marked in the column itself, so the key
+ * only has to state the extent.
+ */
 function DeltaAxisLegend({ scale }: { readonly scale: number }) {
+  const extent = formatPoints(scale, 0).replace(/^[+−]/, '')
   return (
     <span className="flex items-center gap-2 text-[12px] text-ink-muted">
       <InstrumentLabel>scale</InstrumentLabel>
-      <span className="num">−{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
-      <span aria-hidden="true" className={cn('relative inline-block h-3', TRACK_WIDTH)}>
-        <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line-strong" />
-        <ZeroRule overhang={false} />
-      </span>
-      <span className="num">+{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
+      <span className="num">±{extent} pts</span>
+      <span>· zero at the rule</span>
     </span>
   )
 }
