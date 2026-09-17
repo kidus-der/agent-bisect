@@ -9,6 +9,7 @@ import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
 import { ENTRANCE_LEAD_IN_SECONDS, delayedSpring, springTransition } from '@/design/motion'
+import { formatUsd } from '@/lib/cost'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -203,7 +204,9 @@ export function CostHistogram({ histogram, methods }: CostHistogramProps) {
   } calls. ${ordered
     .map(
       (method) =>
-        `${methodLabel(method.method)} averages ${callsLabel(method.mean_calls)} at $${method.mean_cost_usd.toFixed(2)}.`,
+        `${methodLabel(method.method)} averages ${callsLabel(method.mean_calls)}${
+          formatUsd(method.mean_cost_usd) === null ? '' : ` at ${formatUsd(method.mean_cost_usd)}`
+        }.`,
     )
     .join(' ')}`
 

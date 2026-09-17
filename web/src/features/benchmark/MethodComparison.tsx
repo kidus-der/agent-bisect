@@ -4,7 +4,7 @@ import { useId } from 'react'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { ENTRANCE_LEAD_IN_SECONDS, STAGGER_SECONDS, delayedSpring } from '@/design/motion'
-import { formatNumber } from '@/lib/format'
+import { formatCalls, formatUsd } from '@/lib/cost'
 import { formatPercent, formatPoints } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 
@@ -139,14 +139,15 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
             {formatPercent(high)}]
           </span>
         </div>
+        {/* Calls lead: they are measured on every run. A price is shown only
+            when the server sent one — real mode has no price list. */}
         <div className="hidden w-[5rem] flex-col items-end sm:flex">
-          <span className="num text-small text-ink">
-            {formatNumber(result.mean_cost_usd, { decimals: 2, prefix: '$' })}
-          </span>
-          <span className="num text-[12px] text-ink-muted">
-            {formatNumber(Math.round(result.mean_calls), { decimals: 0 })}{' '}
-            {Math.round(result.mean_calls) === 1 ? 'call' : 'calls'}
-          </span>
+          <span className="num text-small text-ink">{formatCalls(result.mean_calls)}</span>
+          {formatUsd(result.mean_cost_usd) === null ? null : (
+            <span className="num text-[12px] text-ink-muted">
+              {formatUsd(result.mean_cost_usd)}
+            </span>
+          )}
         </div>
       </div>
     </motion.li>
