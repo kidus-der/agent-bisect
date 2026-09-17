@@ -259,7 +259,9 @@ def test_redacted_secret_never_resurfaces_through_real_repository(tmp_path):
     assert "SHOULDNEVERSURVIVE" not in str(payload.tool_result)
 
 
-def _write_run(writer: TapeWriter, run_id: str, n_steps: int) -> None:
+def _write_run(
+    writer: TapeWriter, run_id: str, n_steps: int, *, record_outcome: bool = True
+) -> None:
     writer.start_run(
         RunManifest(
             run_id=run_id,
@@ -282,7 +284,8 @@ def _write_run(writer: TapeWriter, run_id: str, n_steps: int) -> None:
                 state_hash="h",
             )
         )
-    writer.record_outcome(Outcome(run_id=run_id, reward=1.0))
+    if record_outcome:
+        writer.record_outcome(Outcome(run_id=run_id, reward=1.0))
 
 
 def test_list_runs_honours_the_sort_field_in_real_mode(tmp_path):
@@ -300,3 +303,64 @@ def test_list_runs_honours_the_sort_field_in_real_mode(tmp_path):
     repo = RealRepository(runs_dir=runs_dir)
     runs, _ = repo.list_runs(RunFilter(sort="-n_steps"))
     assert [r.run_id for r in runs] == ["run-a", "run-b"]
+
+
+@pytest.fixture
+def one_complete_one_recording_dir(tmp_path) -> Path:
+    """A run with an outcome ("complete") alongside one still being recorded
+    (no outcome row) -- the recording run must never be reported as "fail"."""
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    _write_run(writer, "complete-run", n_steps=2)
+    _write_run(writer, "recording-run", n_steps=1, record_outcome=False)
+    return runs_dir
+
+
+def test_run_detail_status_is_recording_without_an_outcome_row(one_complete_one_recording_dir):
+    repo = RealRepository(runs_dir=one_complete_one_recording_dir)
+    detail = repo.run_detail("recording-run")
+    assert detail.status == "recording"
+    assert detail.outcome is None
+    assert detail.reward is None
+
+
+def test_run_detail_status_is_complete_with_an_outcome_row(one_complete_one_recording_dir):
+    repo = RealRepository(runs_dir=one_complete_one_recording_dir)
+    detail = repo.run_detail("complete-run")
+    assert detail.status == "complete"
+    assert detail.outcome == "pass"
+
+
+def test_list_runs_includes_recording_runs_not_just_complete_ones(
+    one_complete_one_recording_dir,
+):
+    repo = RealRepository(runs_dir=one_complete_one_recording_dir)
+    runs, total = repo.list_runs(RunFilter())
+    assert total == 2
+    by_id = {r.run_id: r for r in runs}
+    assert by_id["recording-run"].status == "recording"
+    assert by_id["recording-run"].outcome is None
+    assert by_id["complete-run"].status == "complete"
+    assert by_id["complete-run"].outcome == "pass"
+
+
+def test_list_runs_outcome_filter_excludes_recording_runs(one_complete_one_recording_dir):
+    repo = RealRepository(runs_dir=one_complete_one_recording_dir)
+    runs, total = repo.list_runs(RunFilter(outcome="pass"))
+    assert total == 1
+    assert runs[0].run_id == "complete-run"
+
+
+def test_list_runs_status_filter_selects_only_recording_runs(one_complete_one_recording_dir):
+    repo = RealRepository(runs_dir=one_complete_one_recording_dir)
+    runs, total = repo.list_runs(RunFilter(status="recording"))
+    assert total == 1
+    assert runs[0].run_id == "recording-run"
+
+
+def test_search_reports_status_for_both_run_kinds(one_complete_one_recording_dir):
+    repo = RealRepository(runs_dir=one_complete_one_recording_dir)
+    results = repo.search("run")
+    by_id = {hit.id: hit for hit in results.hits}
+    assert by_id["recording-run"].status == "recording"
+    assert by_id["complete-run"].status == "complete"
