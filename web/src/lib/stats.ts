@@ -79,12 +79,19 @@ export function formatPercent(rate: number, decimals = DEFAULT_PERCENT_DECIMALS)
   return `${(rate * PERCENT).toFixed(decimals)}%`
 }
 
-/** Signed percentage-point difference: `+10.5 pts`, `−4.0 pts`. */
+/**
+ * Signed percentage-point difference: `+10.5 pts`, `−4.0 pts`, `0.0 pts`.
+ *
+ * The sign comes from the rounded magnitude, not the raw value: a difference
+ * of -0.0001 displays as `0.0 pts`, never `−0.0 pts`, which would claim a
+ * direction the rounding has already erased.
+ */
 export function formatPoints(difference: number, decimals = DEFAULT_PERCENT_DECIMALS): string {
   if (!Number.isFinite(difference)) return 'n/a'
   const points = difference * PERCENT
-  const sign = points > 0 ? '+' : points < 0 ? '−' : ''
-  return `${sign}${Math.abs(points).toFixed(decimals)} pts`
+  const magnitude = Math.abs(points).toFixed(decimals)
+  const sign = Number(magnitude) === 0 ? '' : points > 0 ? '+' : '−'
+  return `${sign}${magnitude} pts`
 }
 
 const P_VALUE_DECIMALS = 3

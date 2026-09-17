@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 
-import { formatPValue, formatPercent, newcombeInterval, wilsonInterval } from './stats'
+import {
+  formatPValue,
+  formatPercent,
+  formatPoints,
+  newcombeInterval,
+  wilsonInterval,
+} from './stats'
 
 describe('wilsonInterval', () => {
   test('brackets the observed rate', () => {
@@ -117,5 +123,27 @@ describe('formatPValue', () => {
 
   test('reports a non-finite p value as not available', () => {
     expect(formatPValue(Number.NaN)).toBe('n/a')
+  })
+})
+
+describe('formatPoints', () => {
+  test('signs a percentage-point difference', () => {
+    expect(formatPoints(0.1512)).toBe('+15.1 pts')
+    expect(formatPoints(-0.04)).toBe('−4.0 pts')
+  })
+
+  test('shows no sign on a difference that rounds to zero', () => {
+    // '−0.0 pts' would claim a direction the rounding already erased.
+    expect(formatPoints(-0.0001)).toBe('0.0 pts')
+    expect(formatPoints(0.0001)).toBe('0.0 pts')
+    expect(formatPoints(0)).toBe('0.0 pts')
+  })
+
+  test('honours a requested precision', () => {
+    expect(formatPoints(0.1512, 0)).toBe('+15 pts')
+  })
+
+  test('renders a non-finite difference as n/a', () => {
+    expect(formatPoints(Number.NaN)).toBe('n/a')
   })
 })
