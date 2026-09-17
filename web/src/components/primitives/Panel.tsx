@@ -29,7 +29,8 @@ const VARIANT_STYLES: Readonly<Record<PanelVariant, string>> = {
   kpi: 'rounded-kpi border-line-strong bg-elevated border',
   chart: 'rounded-chart border-line bg-surface border',
   // Blueprint canvas: square corners so the registration marks land on them.
-  canvas: 'border-line-strong bg-ground blueprint-dots border border-dashed',
+  // Slate at 60%: the dashed frame stays quiet in dark and stops disappearing in light.
+  canvas: 'border-tape/60 bg-ground blueprint-dots border border-dashed',
   elevated: 'rounded-modal border-line-strong bg-elevated border',
 }
 
