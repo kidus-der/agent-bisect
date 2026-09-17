@@ -103,6 +103,27 @@ def test_outcome_accepts_explicit_consistent_passed():
     assert outcome.passed is True
 
 
+def test_outcome_carries_the_reward_breakdown_by_reference():
+    """tau2's RewardInfo (db_check, action_checks, nl_assertions, ...) is a
+    blob; the row keeps only its hash."""
+    outcome = Outcome(run_id="run-1", reward=1.0, breakdown_ref="f" * 64)
+
+    assert outcome.breakdown_ref == "f" * 64
+
+
+def test_outcome_records_why_the_run_stopped():
+    outcome = Outcome(run_id="run-1", reward=0.0, termination_reason="max_steps")
+
+    assert outcome.termination_reason == "max_steps"
+
+
+def test_outcome_breakdown_and_termination_default_to_none():
+    outcome = Outcome(run_id="run-1", reward=1.0)
+
+    assert outcome.breakdown_ref is None
+    assert outcome.termination_reason is None
+
+
 def test_outcome_rejects_inconsistent_passed():
     with pytest.raises(ValidationError):
         Outcome(run_id="run-1", reward=0.5, passed=True)
