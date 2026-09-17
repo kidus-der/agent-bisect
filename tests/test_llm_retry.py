@@ -188,7 +188,11 @@ async def test_gives_up_after_max_elapsed_s(tmp_path):
     with pytest.raises(TransportError):
         await client.complete(_request())
 
-    assert transport.calls <= len(outcomes)
+    # Deterministic, not "at most": attempt 1 fails at elapsed 0 and sleeps the
+    # 100s Retry-After; attempt 2 then finds elapsed 100 >= max_elapsed_s 50 and
+    # gives up. `<= len(outcomes)` passed even if no retry happened at all.
+    assert transport.calls == 2
+    assert sleeper.calls == [100.0]
 
 
 @pytest.mark.asyncio
