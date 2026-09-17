@@ -23,6 +23,7 @@ from agent_bisect.server.fixtures.serialize import (
 from agent_bisect.server.fixtures.writer import build_meta
 from agent_bisect.server.live_sim import LiveSimulator
 from agent_bisect.server.repository import RunFilter
+from agent_bisect.server.run_filtering import RunSearchRow, filter_runs
 from agent_bisect.server.run_sorting import sort_runs
 from agent_bisect.server.schemas_benchmark import BenchmarkSummary, DatasetPage
 from agent_bisect.server.schemas_live import LiveSnapshot
@@ -57,6 +58,15 @@ class FixtureRepository:
         self._bundle: FixtureBundle = build_bundle(seed)
         self._pr_by_id: dict[str, PrCheckDetail] = {c.check_id: c for c in self._bundle.pr_checks}
         self._live = LiveSimulator(seed)
+        self._search_rows: tuple[RunSearchRow, ...] = tuple(
+            RunSearchRow(
+                summary=summary,
+                tool_names=tuple(sorted({t for t in plan.tool_names if t})),
+            )
+            for plan, summary in zip(
+                self._bundle.plans, self._bundle.run_summaries, strict=True
+            )
+        )
 
     def data_source(self) -> str:
         return "fixture"
@@ -91,17 +101,8 @@ class FixtureRepository:
         return self._bundle.plan_by_id(run_id)
 
     def list_runs(self, filters: RunFilter) -> tuple[tuple[RunSummary, ...], int]:
-        runs = list(self._bundle.run_summaries)
-        if filters.domain:
-            runs = [r for r in runs if r.domain == filters.domain]
-        if filters.outcome:
-            runs = [r for r in runs if r.outcome == filters.outcome]
-        if filters.status:
-            runs = [r for r in runs if r.status == filters.status]
-        if filters.model:
-            runs = [r for r in runs if r.model == filters.model]
-
-        runs = sort_runs(runs, filters.sort)
+        rows = filter_runs(list(self._search_rows), filters)
+        runs = sort_runs([row.summary for row in rows], filters.sort)
 
         total = len(runs)
         start = (filters.page - 1) * filters.limit

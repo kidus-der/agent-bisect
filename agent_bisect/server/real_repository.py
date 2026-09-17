@@ -27,6 +27,7 @@ from agent_bisect.core.limits import load_limiter_settings
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step
 from agent_bisect.server.repository import DataNotAvailable, RunFilter
+from agent_bisect.server.run_filtering import RunSearchRow, filter_runs
 from agent_bisect.server.run_sorting import sort_runs
 from agent_bisect.server.schemas_benchmark import BenchmarkSummary, DatasetPage
 from agent_bisect.server.schemas_live import (
@@ -182,25 +183,20 @@ class RealRepository:
         if conn is None:
             raise DataNotAvailable("no recordings yet (runs/index.sqlite not found)")
         try:
-            summaries = []
+            rows = []
             for manifest, outcome in self._all_manifests(conn):
                 # A run with no outcome yet is still listed -- as
                 # status="recording", never silently hidden or shown as
                 # "fail" (`_run_summary` handles both null-outcome states).
                 steps = self._steps_for(conn, manifest.run_id)
-                summaries.append(self._run_summary(manifest, outcome, steps))
+                summary = self._run_summary(manifest, outcome, steps)
+                tool_names = tuple(sorted({s.tool_name for s in steps if s.tool_name}))
+                rows.append(RunSearchRow(summary=summary, tool_names=tool_names))
         finally:
             conn.close()
 
-        if filters.domain:
-            summaries = [s for s in summaries if s.domain == filters.domain]
-        if filters.outcome:
-            summaries = [s for s in summaries if s.outcome == filters.outcome]
-        if filters.status:
-            summaries = [s for s in summaries if s.status == filters.status]
-        if filters.model:
-            summaries = [s for s in summaries if s.model == filters.model]
-        summaries = sort_runs(summaries, filters.sort)
+        rows = filter_runs(rows, filters)
+        summaries = sort_runs([row.summary for row in rows], filters.sort)
 
         total = len(summaries)
         start = (filters.page - 1) * filters.limit

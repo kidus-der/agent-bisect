@@ -54,7 +54,7 @@ class DataNotAvailable(Exception):
 class RunFilter:
     """Filter/sort/pagination parameters for `list_runs`. Immutable; build a new one to change."""
 
-    __slots__ = ("domain", "outcome", "status", "model", "sort", "page", "limit")
+    __slots__ = ("domain", "outcome", "status", "model", "fault_type", "q", "sort", "page", "limit")
 
     def __init__(
         self,
@@ -62,6 +62,8 @@ class RunFilter:
         outcome: str | None = None,
         status: str | None = None,
         model: str | None = None,
+        fault_type: str | None = None,
+        q: str | None = None,
         sort: str = "run_id",
         page: int = 1,
         limit: int = 50,
@@ -70,6 +72,8 @@ class RunFilter:
         self.outcome = outcome
         self.status = status
         self.model = model
+        self.fault_type = fault_type
+        self.q = q
         self.sort = sort
         self.page = page
         self.limit = limit

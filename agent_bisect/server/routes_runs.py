@@ -13,6 +13,7 @@ from agent_bisect.server.deps import (
     not_found,
 )
 from agent_bisect.server.repository import DashboardRepository, DataNotAvailable, RunFilter
+from agent_bisect.server.run_filtering import Q_MAX_LENGTH
 from agent_bisect.server.schemas_common import Envelope
 from agent_bisect.server.schemas_meta import NotAvailable
 from agent_bisect.server.schemas_runs import (
@@ -29,6 +30,9 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 RunIdPath = Path(pattern=ID_PATTERN)
 _SortQuery = Query("run_id", pattern=r"^-?[A-Za-z_]+$")
+_FaultTypeQuery = Query(
+    None, pattern=r"^(wrong_value|missing_field|stale_record|tool_error|none)$"
+)
 
 
 @router.get("")
@@ -37,6 +41,8 @@ def list_runs(
     outcome: str | None = None,
     status: str | None = None,
     model: str | None = None,
+    fault_type: str | None = _FaultTypeQuery,
+    q: str | None = Query(None, max_length=Q_MAX_LENGTH),
     sort: str = _SortQuery,
     page: int = Query(1, ge=1),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
@@ -47,6 +53,8 @@ def list_runs(
         outcome=outcome,
         status=status,
         model=model,
+        fault_type=fault_type,
+        q=q,
         sort=sort,
         page=page,
         limit=limit,
