@@ -17,12 +17,16 @@ pressure with results already visible.
 1. **airline**, all 50 tasks. Every airline task's reward is pure code (DB hash,
    actions, communicate checks) — no evaluator LLM call
    (`0010-replay-mechanism.md` §"The evaluator").
-2. **retail tasks without `NL_ASSERTION` in their reward basis** — 74 of 114.
-   Same property: the reward costs no model call.
-3. **retail tasks with `NL_ASSERTION`** — 40 — last, and only if the target is
-   still out of reach. Each adds an evaluator call per run *and* per re-run, and
-   an LLM in the reward path adds variance to the very quantity the stability
-   check and the keep rule are measuring.
+2. **retail tasks whose reward costs no model call** — 74 of 114. Measured, not
+   assumed from the basis: `NLAssertionsEvaluator` runs only when
+   `NL_ASSERTION` is in `reward_basis` **and** the task actually lists
+   `nl_assertions`. 112 of 114 retail tasks carry `NL_ASSERTION` in the basis
+   but only **40** list assertions, so filtering on the basis alone would
+   wrongly defer all but two of them.
+3. **the 40 judged retail tasks** last, and only if the target is still out of
+   reach. Each adds an evaluator call per run *and* per re-run, and an LLM in
+   the reward path adds variance to the very quantity the stability check and
+   the keep rule are measuring.
 
 ## 2. Amortising the stability check
 
