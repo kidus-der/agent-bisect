@@ -16,6 +16,12 @@ const RING_STROKE = 12
 const RING_GAP = 5
 const INNER_RADIUS = 46
 const TIGHT_HEADROOM = 0.25
+/**
+ * Twelve o'clock, clockwise. The vendored default starts the arc at nine, which
+ * puts a half-full ring's end at three and reads as three quarters spent.
+ */
+const RING_START_ANGLE = 0
+const RING_END_ANGLE = Math.PI * 2
 
 interface HeadroomRingProps {
   readonly rateLimit: RateLimitStatus
@@ -61,6 +67,8 @@ export function HeadroomRing({ rateLimit }: HeadroomRingProps) {
                 strokeWidth={RING_STROKE}
                 ringGap={RING_GAP}
                 baseInnerRadius={INNER_RADIUS}
+                startAngle={RING_START_ANGLE}
+                endAngle={RING_END_ANGLE}
                 enterTransition={springTransition('drift', reduced)}
                 enterStaggerScale={reduced ? 0 : undefined}
               >
