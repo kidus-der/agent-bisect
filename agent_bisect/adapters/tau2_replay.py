@@ -27,8 +27,10 @@ stops. A live call before the fork step is impossible by construction, and
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, ExitStack, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -358,22 +360,92 @@ class Tau2Replayer:
             )
 
 
+#: The replay serving this thread's tau2 calls, if any.
+_active_completion: ContextVar[Callable[..., Any] | None] = ContextVar(
+    "bisect_replay_completion", default=None
+)
+
+
+class _CompletionDispatcher:
+    """One process-wide stand-in for `llm_utils.completion`, shared by threads.
+
+    `llm_utils.completion` is a module attribute, so a replay that serves
+    its tape by rebinding it is process-global: two forks in two threads
+    overwrite each other, and the one that leaves first restores the
+    other's replayer as the global — from then on one fork's tape answers
+    the other's requests. `Tau2Recorder` already avoids exactly this with
+    a `ContextVar`; this is the same answer for the replay half, which
+    matters because P3 runs sixteen forks per dataset item and P5 samples
+    N arms per step.
+
+    So the attribute is replaced **once**, by an object that asks a
+    `ContextVar` who is serving *this* thread and falls through to
+    whatever was installed underneath when nobody is — in production the
+    router, so a fork's live suffix keeps the limiter, the ledger and the
+    retry policy exactly as before. `ThreadPoolExecutor` gives each worker
+    a fresh context, and a tau2 simulation is strictly sequential within
+    itself (`docs/decisions/0010-replay-mechanism.md`), so one variable per
+    thread is the whole story.
+
+    Installation is refcounted under a lock: the first holder installs and
+    the **last** one restores, so a thread finishing early cannot pull the
+    dispatcher out from under threads still running.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._depth = 0
+        self._fallback: Callable[..., Any] | None = None
+
+    def __call__(self, **kwargs: Any) -> Any:
+        completion = _active_completion.get()
+        if completion is not None:
+            return completion(**kwargs)
+        fallback = self._fallback
+        if fallback is None:  # pragma: no cover - only if called uninstalled
+            raise RuntimeError("the replay dispatcher was called with nothing underneath it")
+        return fallback(**kwargs)
+
+    @contextmanager
+    def installed(self) -> Iterator[None]:
+        import tau2.utils.llm_utils as llm_utils
+
+        with self._lock:
+            if self._depth == 0:
+                self._fallback = llm_utils.completion
+                llm_utils.completion = self
+            self._depth += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._depth -= 1
+                if self._depth == 0:
+                    llm_utils.completion = self._fallback
+                    self._fallback = None
+
+
+_dispatcher = _CompletionDispatcher()
+
+
+def _dispatcher_installed() -> AbstractContextManager[None]:
+    """Put the shared dispatcher in place for as long as this block runs."""
+    return _dispatcher.installed()
+
+
 @contextmanager
 def _completion_patched(completion: Callable[..., Any]) -> Iterator[None]:
-    """Point `llm_utils.completion` at `completion` for the duration.
+    """Serve this thread's tau2 calls from `completion` for the duration.
 
-    Nested *inside* `route_tau2_llm` when a fork has a live suffix: the
-    router stays installed (so live calls keep the limiter, the ledger and
-    the retry policy) and this takes precedence for the prefix.
+    Per thread, not per process: see `_CompletionDispatcher`. Nested
+    *inside* `route_tau2_llm` when a fork has a live suffix, so the router
+    stays underneath and this takes precedence for the prefix.
     """
-    import tau2.utils.llm_utils as llm_utils
-
-    original = llm_utils.completion
-    llm_utils.completion = completion
+    token = _active_completion.set(completion)
     try:
         yield
     finally:
-        llm_utils.completion = original
+        _active_completion.reset(token)
 
 
 @contextmanager
@@ -384,6 +456,7 @@ def _driving(
     with ExitStack() as stack:
         if recorder is not None:
             stack.enter_context(active_recorder(recorder))
+        stack.enter_context(_dispatcher_installed())
         stack.enter_context(_completion_patched(replayer.completion))
         stack.enter_context(wrap_tool_execution(environment, replayer.get_response))
         yield
