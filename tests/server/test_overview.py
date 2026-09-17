@@ -30,9 +30,13 @@ def test_gap_ci_is_a_paired_bootstrap_not_an_independent_proportions_interval():
     for a paired comparison, and is exactly the mistake direction.md's "never
     show an estimate without its real interval" rule exists to prevent)."""
     bundle = build_bundle(SEED)
-    gap = build_paired_gap_ci(bundle.plans, bundle.judge_by_run, "bisect", "judge_step_by_step", SEED)
+    gap = build_paired_gap_ci(
+        bundle.plans, bundle.judge_by_run, "bisect", "judge_step_by_step", SEED
+    )
     bisect_ci = next(m for m in bundle.benchmark.methods if m.method == "bisect").accuracy
-    judge_ci = next(m for m in bundle.benchmark.methods if m.method == "judge_step_by_step").accuracy
+    judge_ci = next(
+        m for m in bundle.benchmark.methods if m.method == "judge_step_by_step"
+    ).accuracy
     naive_width = (bisect_ci.ci_high - bisect_ci.ci_low) + (judge_ci.ci_high - judge_ci.ci_low)
     assert (gap.ci_high - gap.ci_low) < naive_width
 
