@@ -23,6 +23,18 @@ UNUSED_API_KEY = "unused-in-offline-tests"
 UNUSED_API_BASE = "https://integrate.api.nvidia.com/v1"
 
 
+def quiet_tau2() -> None:
+    """Silence tau2's own loguru sink for the duration of a test module.
+
+    tau2 logs an ERROR per call for every model litellm cannot price, and
+    the scripted models are exactly that. Left on, a genuine failure is
+    buried in hundreds of lines about `completion_cost`.
+    """
+    from loguru import logger
+
+    logger.remove()
+
+
 class _NoLimiter:
     """A limiter that never sleeps: pacing is irrelevant with no network."""
 

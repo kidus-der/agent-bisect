@@ -26,9 +26,14 @@ from agent_bisect.adapters.tau2_scenarios import (
 from agent_bisect.adapters.tau2_snapshot import Tau2Snapshotter
 from agent_bisect.core.llm import RecordingError
 from agent_bisect.core.tape import canonical_request_hash
-from tests.tau2_offline import Store, record, scripted_session, spec_for
+from tests.tau2_offline import Store, quiet_tau2, record, scripted_session, spec_for
 
 pytestmark = pytest.mark.usefixtures("_no_real_key")
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _quiet():
+    quiet_tau2()
 
 
 @pytest.fixture
