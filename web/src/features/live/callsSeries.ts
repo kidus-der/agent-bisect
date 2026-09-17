@@ -4,9 +4,15 @@
  */
 import type { CallsPoint } from './api'
 
+export interface SeriesPoint {
+  /** Unix seconds. */
+  readonly time: number
+  readonly value: number
+}
+
 export interface ModelSeries {
   readonly model: string
-  readonly points: readonly { readonly time: number; readonly value: number }[]
+  readonly points: readonly SeriesPoint[]
   readonly latest: number
   readonly peak: number
 }
@@ -36,6 +42,15 @@ export function buildModelSeries(rows: readonly CallsPoint[]): readonly ModelSer
       }
     })
     .sort((a, b) => b.latest - a.latest)
+}
+
+/**
+ * One y-domain for every trace on the page, rounded up to a readable step, so
+ * two traces drawn side by side can be compared by eye rather than by label.
+ */
+export function sharedDomainMax(series: readonly ModelSeries[], step = 10): number {
+  const peak = series.reduce((largest, entry) => Math.max(largest, entry.peak), 0)
+  return Math.max(step, Math.ceil(peak / step) * step)
 }
 
 /** Seconds covered by the series, so the chart window matches the data it has. */

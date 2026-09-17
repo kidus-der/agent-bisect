@@ -1,29 +1,15 @@
-import { useReducedMotion } from 'motion/react'
 import { useMemo } from 'react'
 
-import { chartColours, roleColour } from '@/components/chart-theme/chartTheme'
-import { Grid } from '@/components/charts/grid'
-import { LiveLine } from '@/components/charts/live-line'
-import { LiveLineChart, type LiveLinePoint } from '@/components/charts/live-line-chart'
-import { LiveXAxis } from '@/components/charts/live-x-axis'
-import { LiveYAxis } from '@/components/charts/live-y-axis'
+import { roleColour } from '@/components/chart-theme/chartTheme'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import type { RoleName } from '@/design/tokens'
 import { formatNumber } from '@/lib/format'
 
 import type { CallsPoint } from './api'
-import {
-  type ModelSeries,
-  buildModelSeries,
-  seriesWindowSeconds,
-  shortModelName,
-} from './callsSeries'
+import { type ModelSeries, buildModelSeries, sharedDomainMax, shortModelName } from './callsSeries'
+import { TraceChart } from './TraceChart'
 
-const FALLBACK_WINDOW_SECONDS = 1800
-const X_TICKS = 4
-const INSTANT_LERP = 1
-const MARGIN = { top: 18, right: 64, bottom: 28, left: 40 } as const
 /** Cyan for the first model, violet for the second: two measurement channels, not a ranking. */
 const SERIES_ROLES: readonly RoleName[] = ['measure', 'judge']
 
@@ -31,24 +17,16 @@ function formatRate(value: number): string {
   return value.toFixed(1)
 }
 
-interface ModelLineProps {
+interface ModelTraceProps {
   readonly series: ModelSeries
   readonly index: number
-  readonly windowSeconds: number
+  readonly domainMax: number
 }
 
-function ModelLine({ series, index, windowSeconds }: ModelLineProps) {
-  const reduced = useReducedMotion() === true
+function ModelTrace({ series, index, domainMax }: ModelTraceProps) {
   const colour = roleColour(SERIES_ROLES[index % SERIES_ROLES.length] ?? 'measure')
-  // The chart's `data` prop is typed mutable, so it gets its own copy.
-  const data: LiveLinePoint[] = useMemo(
-    () => series.points.map((point) => ({ ...point })),
-    [series.points],
-  )
-  const momentum = { up: colour, down: colour, flat: colour }
-
   return (
-    <li className="flex min-w-0 flex-col gap-2 border-t border-line pt-4 first:border-t-0 first:pt-0">
+    <li className="flex min-w-0 flex-col gap-1.5 border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="num text-small font-medium text-ink">{shortModelName(series.model)}</span>
         <span className="flex items-baseline gap-3">
@@ -60,28 +38,13 @@ function ModelLine({ series, index, windowSeconds }: ModelLineProps) {
           </span>
         </span>
       </div>
-      <div className="h-36 w-full min-w-0">
-        <LiveLineChart
-          data={data}
-          value={series.latest}
-          window={windowSeconds}
-          numXTicks={X_TICKS}
-          margin={MARGIN}
-          paused={reduced}
-          lerpSpeed={reduced ? INSTANT_LERP : undefined}
-          style={{ height: '100%' }}
-        >
-          <Grid horizontal stroke={chartColours.grid} />
-          <LiveLine
-            dataKey="value"
-            stroke={colour}
-            momentumColors={momentum}
-            pulse={!reduced}
-            formatValue={formatRate}
-          />
-          <LiveXAxis numTicks={X_TICKS} />
-          <LiveYAxis position="left" formatValue={formatRate} />
-        </LiveLineChart>
+      <div className="h-40 w-full min-w-0">
+        <TraceChart
+          points={series.points}
+          colour={colour}
+          domainMax={domainMax}
+          formatValue={formatRate}
+        />
       </div>
     </li>
   )
@@ -90,26 +53,31 @@ function ModelLine({ series, index, windowSeconds }: ModelLineProps) {
 interface CallsPerModelProps {
   readonly rows: readonly CallsPoint[]
   readonly simulated: boolean
+  /** The connection chip, hoisted into this panel's header: liveness belongs here. */
+  readonly status?: React.ReactNode
 }
 
 /** Focal element of the Live page: what each model is actually being asked to do. */
-export function CallsPerModel({ rows, simulated }: CallsPerModelProps) {
+export function CallsPerModel({ rows, simulated, status }: CallsPerModelProps) {
   const series = useMemo(() => buildModelSeries(rows), [rows])
-  const windowSeconds = seriesWindowSeconds(series, FALLBACK_WINDOW_SECONDS)
+  const domainMax = sharedDomainMax(series)
   const total = series.reduce((sum, entry) => sum + entry.latest, 0)
 
   return (
-    <Panel variant="canvas" bodyClassName="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <InstrumentLabel>calls_per_minute</InstrumentLabel>
+    <Panel variant="canvas" bodyClassName="flex flex-col gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <InstrumentLabel>calls_per_minute</InstrumentLabel>
+            {status}
+          </div>
           <h2 className="text-h1 text-ink">What the models are doing</h2>
         </div>
         <div className="flex flex-col items-end">
           <span className="num text-display font-semibold text-ink">
             {formatNumber(total, { decimals: 1 })}
           </span>
-          <span className="label-instrument">calls / min, all models</span>
+          <span className="label-instrument">calls / min · scale 0–{domainMax} shared</span>
         </div>
       </header>
 
@@ -118,12 +86,7 @@ export function CallsPerModel({ rows, simulated }: CallsPerModelProps) {
       ) : (
         <ul className="m-0 flex list-none flex-col gap-4 p-0">
           {series.map((entry, index) => (
-            <ModelLine
-              key={entry.model}
-              series={entry}
-              index={index}
-              windowSeconds={windowSeconds}
-            />
+            <ModelTrace key={entry.model} series={entry} index={index} domainMax={domainMax} />
           ))}
         </ul>
       )}
