@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 # Blocks any commit whose staged content contains what looks like an
 # NVIDIA NIM API key (`nvapi-` followed by 20+ URL-safe characters).
-# Installed via: git config core.hooksPath .githooks
+# Installed by `make setup` (git config core.hooksPath .githooks); `bisect
+# doctor` checks that it is wired up.
 set -euo pipefail
 
 pattern='nvapi-[A-Za-z0-9_-]{20,}'
 
-if git diff --cached -U0 | grep -Eq "^\+.*${pattern}"; then
+# Capture the diff first and check git's own exit status. Piping straight
+# into `grep -q` inside an `if` makes a git failure indistinguishable from
+# "no match": the condition is false, the hook exits 0, and the commit goes
+# through unscanned. A hook that cannot read what is being committed must
+# refuse it.
+if ! staged=$(git diff --cached -U0 2>/dev/null); then
+  echo "pre-commit: could not read the staged diff ('git diff --cached' failed)." >&2
+  echo "pre-commit: refusing to commit content that cannot be scanned." >&2
+  exit 1
+fi
+
+if printf '%s\n' "$staged" | grep -Eq "^\+.*${pattern}"; then
   echo "pre-commit: staged content matches an NVIDIA API key pattern (nvapi-...)." >&2
   echo "pre-commit: refusing to commit. Remove the secret and re-stage." >&2
   exit 1
