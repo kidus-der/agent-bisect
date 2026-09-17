@@ -35,6 +35,13 @@ interface RerunRow {
   readonly calls: number
 }
 
+interface StepView {
+  readonly step_idx: number
+  readonly actor: string
+  readonly tool_name: string | null
+  readonly text: string
+}
+
 interface StepEffect {
   readonly step: number
   readonly treated: { readonly successes: number; readonly n: number }
@@ -76,6 +83,32 @@ function sixtyStepReruns(): readonly RerunRow[] {
   ]
 }
 
+const STEP_PATH = /^\/api\/runs\/([^/]+)\/steps\/(\d+)(\/[a-z-]+)?$/
+
+/**
+ * Only the brief run's step payloads were captured. For any other recorded run,
+ * derive the step from that run's own `steps` array rather than 404-ing: the
+ * inspector then shows what the recording actually says.
+ */
+function derivedStep(path: string): unknown | undefined {
+  const match = STEP_PATH.exec(path)
+  if (!match) return undefined
+  const [, runId, index, suffix] = match
+  const detail = byPath[`/api/runs/${runId}`]?.data as
+    { readonly steps: readonly StepView[] } | undefined
+  const step = detail?.steps.find((entry) => entry.step_idx === Number(index))
+  if (!step) return undefined
+  if (suffix === '/intervention-diff') return null
+  if (suffix === '/state-diff') return { step_idx: step.step_idx, entries: [] }
+  if (suffix) return undefined
+  return {
+    step_idx: step.step_idx,
+    messages: [{ role: step.actor, content: step.text }],
+    tool_args: null,
+    tool_result: null,
+  }
+}
+
 /** Only real API calls, never `/src/api/...` module requests. */
 const API_ROUTE = (url: URL): boolean => url.pathname.startsWith('/api/')
 
@@ -105,9 +138,14 @@ export async function mockRunDetailApi(page: Page): Promise<void> {
   await page.route(API_ROUTE, (route: Route) => {
     const path = new URL(route.request().url()).pathname
     const captured = byPath[path]
-    if (captured) return route.fulfill({ contentType: 'application/json', body: envelope(captured.data) })
+    if (captured)
+      return route.fulfill({ contentType: 'application/json', body: envelope(captured.data) })
     if (path in generated) {
       return route.fulfill({ contentType: 'application/json', body: envelope(generated[path]) })
+    }
+    const derived = derivedStep(path)
+    if (derived !== undefined) {
+      return route.fulfill({ contentType: 'application/json', body: envelope(derived) })
     }
     if (path.startsWith('/api/runs/')) {
       const runId = path.split('/')[3] ?? ''
