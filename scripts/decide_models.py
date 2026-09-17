@@ -290,9 +290,12 @@ def render_doc(decision: dict) -> str:
         "",
         "## 3. Agent probe — 20 airline tasks, 1 trial each",
         "",
-        "| Model | Pass rate | 95% CI (Wilson) | Valid tool calls | Mean steps | "
+        "| Model | Pass rate | 95% CI (Wilson) | Valid tool calls | Mean messages | "
         "Calls/task | Mean agent latency |",
         "|---|---|---|---|---|---|---|",
+        # "Mean messages" is len(simulation.messages): one per turn taken by the
+        # agent, the user or a tool. Reported under its real name rather than as
+        # "steps", which in this project means a tape step.
     ]
     parts += [_summary_row(s) for s in d["summaries"]]
     parts += [

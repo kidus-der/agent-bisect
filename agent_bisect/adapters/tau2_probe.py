@@ -51,6 +51,9 @@ class TaskProbeResult:
     task_id: str
     reward: float | None
     passed: bool
+    #: τ² messages in the finished conversation (`len(simulation.messages)`),
+    #: which is what "steps" means for a half-duplex τ² run: one message per
+    #: turn taken by the agent, the user or a tool.
     n_steps: int
     n_agent_calls: int
     n_user_calls: int
