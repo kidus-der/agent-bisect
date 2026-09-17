@@ -8,6 +8,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from agent_bisect.attribution.blame_store import save_blame
+from agent_bisect.attribution.estimate import ArmResult, RunEstimate, StepEffect
+from agent_bisect.attribution.judge_view import JudgeVerdict, RankedStep
+from agent_bisect.attribution.search import BlameConfig, BlameResult, RerunRecord
 from agent_bisect.core.budget import BudgetLedger, CallRecord
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step, TapeWriter
@@ -604,3 +608,154 @@ def test_live_snapshot_reads_multiple_phase_status_files(one_run_dir):
     assert set(jobs) == {"p1", "p5"}
     assert jobs["p1"].state == "queued"
     assert jobs["p5"].state == "done"
+
+
+# --- Blame results (P5's `runs/blame/<run_id>.json` convention) -----------
+
+
+def _blame_result(*, run_id: str = "real-run-1", step: int = 5, estimate: bool = True) -> BlameResult:
+    """Field names mirror `schemas_runs` exactly (see `blame_store.py`'s
+    docstring), so the repository under test should need no reshaping."""
+    verdict = JudgeVerdict(
+        item_id="item-1",
+        protocol="all_at_once",
+        decisive_step=step if estimate else None,
+        ranking=(RankedStep(step=step, rank=1, score=0.9, rationale="wrong value"),)
+        if estimate
+        else (),
+        rationale="the lookup was wrong" if estimate else "",
+        calls=1,
+        parse_failed=not estimate,
+        failure_reason=None if estimate else "no JSON object",
+    )
+    run_estimate = (
+        RunEstimate(
+            step_effects=(
+                StepEffect(
+                    step=step,
+                    treated=ArmResult(14, 16),
+                    control=ArmResult(1, 16),
+                    effect=0.8125,
+                    ci_low=0.55,
+                    ci_high=0.94,
+                    n_batches=4,
+                    stop_reason="blameworthy",
+                    decision_conf=0.95,
+                    decision_ci_low=0.5,
+                ),
+            ),
+            blamed_step=step,
+            control_mode="shared",
+            control_fork_step=max(step - 2, 0),
+            treated_reruns=16,
+            control_reruns=16,
+            sampler_calls=5,
+        )
+        if estimate
+        else None
+    )
+    return BlameResult(
+        item_id="item-1",
+        run_id=run_id,
+        method="bisect",
+        blamed_step=step if estimate else None,
+        estimate=run_estimate,
+        reruns=(
+            RerunRecord(f"{run_id}-t{step}-abc", "treated", step, 11, True, 12, 9),
+            RerunRecord(f"{run_id}-c{step}-def", "control", max(step - 2, 0), 12, False, 12, 9),
+        )
+        if estimate
+        else (),
+        judge=verdict,
+        shortlist=(step,) if estimate else (),
+        tested_steps=(step,) if estimate else (),
+        interventions={step: "truthful_tool_result"} if estimate else {},
+        untestable=(),
+        judge_calls=1,
+        replay_calls=18 if estimate else 0,
+        config=BlameConfig(),
+    )
+
+
+def test_run_detail_reads_a_stored_blame_result(one_run_dir):
+    save_blame(one_run_dir, _blame_result())
+    repo = RealRepository(runs_dir=one_run_dir)
+
+    detail = repo.run_detail("real-run-1")
+
+    assert detail.estimate is not None
+    assert detail.estimate.blamed_step == 5
+    assert detail.estimate.step_effects[0].effect == 0.8125
+    assert detail.estimate.config.shortlist_m == 3
+    assert detail.judge is not None
+    assert detail.judge.all_at_once[0].step == 5
+
+
+def test_run_detail_estimate_is_none_when_the_judge_never_answered(one_run_dir):
+    """`estimate` is `null` when the judge answered nothing and no re-run was
+    bought -- a real outcome ("no step blamed"), never a fabricated zero."""
+    save_blame(one_run_dir, _blame_result(estimate=False))
+    repo = RealRepository(runs_dir=one_run_dir)
+
+    detail = repo.run_detail("real-run-1")
+
+    assert detail.estimate is None
+    assert detail.judge is not None
+    assert detail.judge.all_at_once == ()
+
+
+def test_run_detail_estimate_stays_none_without_a_stored_blame_result(one_run_dir):
+    repo = RealRepository(runs_dir=one_run_dir)
+    detail = repo.run_detail("real-run-1")
+    assert detail.estimate is None
+    assert detail.judge is None
+
+
+def test_list_runs_blame_stripe_reflects_a_stored_result(one_run_dir):
+    """`one_run_dir` has exactly one step, at `step_idx=0` -- blame it."""
+    save_blame(one_run_dir, _blame_result(step=0))
+    repo = RealRepository(runs_dir=one_run_dir)
+
+    runs, _ = repo.list_runs(RunFilter())
+
+    assert runs[0].decisive_step == 0
+    assert runs[0].blame_stripe[0].tested is True
+    assert runs[0].blame_stripe[0].effect == 0.8125
+
+
+def test_list_runs_blame_stripe_is_untested_without_a_stored_result(one_run_dir):
+    repo = RealRepository(runs_dir=one_run_dir)
+    runs, _ = repo.list_runs(RunFilter())
+    assert runs[0].decisive_step is None
+    assert all(cell.tested is False for cell in runs[0].blame_stripe)
+
+
+def test_reruns_reads_the_stored_rerun_matrix(one_run_dir):
+    save_blame(one_run_dir, _blame_result())
+    repo = RealRepository(runs_dir=one_run_dir)
+
+    page = repo.reruns("real-run-1")
+
+    assert [row.rerun_id for row in page.reruns] == ["real-run-1-t5-abc", "real-run-1-c3-def"]
+    assert page.reruns[0].arm == "treated"
+
+
+def test_reruns_is_an_empty_page_when_the_stored_result_bought_none(one_run_dir):
+    """A judge that never answered bought no re-runs -- an honest empty
+    matrix, not `DataNotAvailable` (the diagnosis did run)."""
+    save_blame(one_run_dir, _blame_result(estimate=False))
+    repo = RealRepository(runs_dir=one_run_dir)
+
+    page = repo.reruns("real-run-1")
+
+    assert page.reruns == ()
+
+
+def test_rerun_steps_stay_unavailable_even_with_a_stored_blame_result(one_run_dir):
+    """`blame_store` records each re-run's outcome, not its step-by-step
+    trace -- there is nothing here yet for `rerun_steps` to read."""
+    save_blame(one_run_dir, _blame_result())
+    repo = RealRepository(runs_dir=one_run_dir)
+
+    with pytest.raises(DataNotAvailable):
+        repo.rerun_steps("real-run-1", "real-run-1-t5-abc")
