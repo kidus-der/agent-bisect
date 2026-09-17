@@ -1,4 +1,5 @@
 import { DataTable, type DataTableColumn } from '@/components/primitives/DataTable'
+import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { formatPercent, formatPoints } from '@/lib/stats'
 import { cn } from '@/lib/utils'
@@ -38,22 +39,6 @@ const COLUMNS: ReadonlyArray<DataTableColumn<ScenarioRow>> = [
     cell: (row) => <span className="num text-ink">{row.scenario}</span>,
   },
   {
-    id: 'base',
-    header: 'base',
-    numeric: true,
-    sortValue: (row) => row.base_pass_rate,
-    cell: (row) => (
-      <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
-    ),
-  },
-  {
-    id: 'head',
-    header: 'head',
-    numeric: true,
-    sortValue: (row) => row.head_pass_rate,
-    cell: (row) => <span className="num text-ink">{formatPercent(row.head_pass_rate, 0)}</span>,
-  },
-  {
     id: 'delta',
     header: 'change',
     numeric: true,
@@ -72,6 +57,22 @@ const COLUMNS: ReadonlyArray<DataTableColumn<ScenarioRow>> = [
     },
   },
   {
+    id: 'base',
+    header: 'base',
+    numeric: true,
+    sortValue: (row) => row.base_pass_rate,
+    cell: (row) => (
+      <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
+    ),
+  },
+  {
+    id: 'head',
+    header: 'head',
+    numeric: true,
+    sortValue: (row) => row.head_pass_rate,
+    cell: (row) => <span className="num text-ink">{formatPercent(row.head_pass_rate, 0)}</span>,
+  },
+  {
     id: 'n',
     header: 'runs',
     numeric: true,
@@ -88,16 +89,16 @@ interface ScenarioTableProps {
 export function ScenarioTable({ scenarios }: ScenarioTableProps) {
   const worse = scenarios.filter((row) => delta(row) < WORSE_THRESHOLD).length
   return (
-    <Panel
-      variant="card"
-      label="scenarios"
-      title="Every scenario in the suite"
-      actions={
-        <span className="num text-small text-ink-muted">
-          {worse} of {scenarios.length} worse on head
-        </span>
-      }
-    >
+    <Panel variant="card" bodyClassName="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <InstrumentLabel>scenarios</InstrumentLabel>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 className="text-h3 text-ink">Every scenario in the suite</h3>
+          <span className="num text-small text-ink-muted">
+            {worse} of {scenarios.length} worse on head
+          </span>
+        </div>
+      </header>
       {scenarios.length === 0 ? (
         <p className="py-6 text-ink-muted">This check ran no scenarios.</p>
       ) : (
