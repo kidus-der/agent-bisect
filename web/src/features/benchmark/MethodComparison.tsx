@@ -123,8 +123,8 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
         ))}
       </div>
 
-      <div className="flex shrink-0 items-baseline justify-end gap-4 text-right sm:gap-6">
-        <div className="flex flex-col items-end">
+      <div className="flex shrink-0 items-baseline justify-end gap-4 text-right">
+        <div className="flex w-[7.5rem] flex-col items-end">
           <span className={cn('num text-ink', focal ? 'text-stat font-semibold' : 'text-h2')}>
             {formatPercent(value)}
           </span>
@@ -133,7 +133,7 @@ function MethodRow({ result, axisMax, index, focal }: MethodRowProps) {
             {formatPercent(high)}]
           </span>
         </div>
-        <div className="hidden w-[5.5rem] flex-col items-end sm:flex">
+        <div className="hidden w-[5rem] flex-col items-end sm:flex">
           <span className="num text-small text-ink">
             {formatNumber(result.mean_cost_usd, { decimals: 2, prefix: '$' })}
           </span>
@@ -195,13 +195,19 @@ function AccuracyAxis({ axisMax }: AxisProps) {
   return (
     <div aria-hidden="true" className={cn(ROW_GRID, 'mt-1')}>
       <div className={cn(TRACK_CELL, 'relative h-4')}>
-        {AXIS_TICKS.map((tick) => (
+        {AXIS_TICKS.map((tick, index) => (
           <span
             key={tick}
             style={{ left: ratePercent(tick, axisMax) }}
             className={cn(
               'absolute num text-[12px] text-ink-muted',
-              tick === 0 ? '' : '-translate-x-1/2',
+              // The end ticks hug the plot's edge; a centred label there sits
+              // half its width outside the scale it belongs to.
+              index === 0
+                ? ''
+                : index === AXIS_TICKS.length - 1 && rateFraction(tick, axisMax) > 0.98
+                  ? '-translate-x-full'
+                  : '-translate-x-1/2',
             )}
           >
             {formatPercent(tick, 0)}
@@ -309,6 +315,18 @@ export function MethodComparison({ methods }: MethodComparisonProps) {
       {bar ? <CompactVerdict bar={bar} /> : null}
 
       <div className="relative pt-7">
+        {/* Column heads for the two right-aligned number stacks: without them
+            the page shows two right edges 110px apart with nothing between. */}
+        <div aria-hidden="true" className={cn(ROW_GRID, 'absolute inset-x-0 top-0')}>
+          <span />
+          <span />
+          <span className="hidden justify-end sm:flex">
+            <span className="flex shrink-0 items-baseline justify-end gap-4 text-right">
+              <span className="w-[7.5rem] text-right label-instrument">accuracy</span>
+              <span className="w-[5rem] text-right label-instrument">cost</span>
+            </span>
+          </span>
+        </div>
         <ScaleOverlay bar={bar} axisMax={axisMax} />
         <ul aria-describedby={captionId} className="relative m-0 list-none p-0">
           {ordered.map((result, index) => (
