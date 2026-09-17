@@ -1,7 +1,10 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 
+import { springTransition } from '@/design/motion'
+import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
 
 import { type SortState, type SortValue, nextSortState, sortRows } from './dataTableSort'
@@ -26,16 +29,34 @@ interface DataTableProps<Row> {
   /** Accessible table name. */
   readonly caption: string
   readonly initialSort?: SortState
+  /**
+   * Controlled sort. Passing `onSortChange` hands sorting to the caller — the
+   * table then reflects `sort` in the headers but leaves `rows` in the order it
+   * was given, which is what a server-sorted list needs.
+   */
+  readonly sort?: SortState | null
+  readonly onSortChange?: (columnId: string) => void
   readonly onRowActivate?: (row: Row) => void
   /** Set to scroll inside the table and virtualize rows. */
   readonly maxHeight?: number
   readonly rowHeight?: number
+  /**
+   * Below `--breakpoint-md` the table becomes this list instead of scrolling
+   * sideways. Rows stay virtualized; only the row renderer changes.
+   */
+  readonly renderCompactRow?: (row: Row) => ReactNode
+  readonly compactRowHeight?: number
   readonly className?: string
 }
 
 const DEFAULT_ROW_HEIGHT = 44
+const DEFAULT_COMPACT_ROW_HEIGHT = 84
 const OVERSCAN_ROWS = 8
 const HEADER_ROWS = 1
+const HOVER_LIFT_PX = 2
+const PRESS_SCALE = 0.995
+/** Matches `--breakpoint-md`, where the top nav collapses into the bottom tab bar. */
+const WIDE_QUERY = '(min-width: 768px)'
 
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const
 
@@ -89,27 +110,36 @@ interface BodyRowProps<Row> {
 
 const ACTIVATION_KEYS = ['Enter', ' ']
 
+/** Enter and Space activate a row; Space must not also scroll the table. */
+function activationHandler<Row>(
+  row: Row,
+  onRowActivate: ((row: Row) => void) | undefined,
+): ((event: React.KeyboardEvent) => void) | undefined {
+  if (!onRowActivate) return undefined
+  return (event) => {
+    if (!ACTIVATION_KEYS.includes(event.key) || event.target !== event.currentTarget) return
+    event.preventDefault()
+    onRowActivate(row)
+  }
+}
+
 function BodyRow<Row>({ row, columns, rowHeight, rowIndex, onRowActivate }: BodyRowProps<Row>) {
+  const reduced = useReducedMotion() ?? false
+  const interactive = onRowActivate !== undefined
   return (
-    <tr
+    <motion.tr
       aria-rowindex={rowIndex}
-      tabIndex={onRowActivate ? 0 : undefined}
+      tabIndex={interactive ? 0 : undefined}
       onClick={onRowActivate ? () => onRowActivate(row) : undefined}
-      onKeyDown={
-        onRowActivate
-          ? (event) => {
-              if (!ACTIVATION_KEYS.includes(event.key) || event.target !== event.currentTarget)
-                return
-              // Space would otherwise scroll the table.
-              event.preventDefault()
-              onRowActivate(row)
-            }
-          : undefined
-      }
+      onKeyDown={activationHandler(row, onRowActivate)}
+      // Transform only: a lift must not reflow the virtualized list.
+      whileHover={interactive && !reduced ? { y: -HOVER_LIFT_PX } : undefined}
+      whileTap={interactive && !reduced ? { y: 0, scale: PRESS_SCALE } : undefined}
+      transition={springTransition('settle', reduced)}
       style={{ height: rowHeight }}
       className={cn(
-        'border-b border-line last:border-b-0 hover:bg-elevated',
-        onRowActivate && 'cursor-pointer focus-visible:-outline-offset-2',
+        'relative border-b border-line last:border-b-0 hover:bg-elevated',
+        interactive && 'cursor-pointer focus-visible:-outline-offset-2',
       )}
     >
       {columns.map((column) => (
@@ -124,7 +154,46 @@ function BodyRow<Row>({ row, columns, rowHeight, rowIndex, onRowActivate }: Body
           {column.cell(row)}
         </td>
       ))}
-    </tr>
+    </motion.tr>
+  )
+}
+
+interface CompactRowProps<Row> {
+  readonly row: Row
+  readonly rowIndex: number
+  readonly rowCount: number
+  readonly rowHeight: number
+  readonly render: (row: Row) => ReactNode
+  readonly onRowActivate?: (row: Row) => void
+}
+
+function CompactRow<Row>({
+  row,
+  rowIndex,
+  rowCount,
+  rowHeight,
+  render,
+  onRowActivate,
+}: CompactRowProps<Row>) {
+  const reduced = useReducedMotion() ?? false
+  const interactive = onRowActivate !== undefined
+  return (
+    <motion.li
+      aria-posinset={rowIndex - HEADER_ROWS}
+      aria-setsize={rowCount}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onRowActivate ? () => onRowActivate(row) : undefined}
+      onKeyDown={activationHandler(row, onRowActivate)}
+      whileTap={interactive && !reduced ? { scale: PRESS_SCALE } : undefined}
+      transition={springTransition('settle', reduced)}
+      style={{ minHeight: rowHeight }}
+      className={cn(
+        'flex min-w-0 flex-col justify-center gap-1.5 px-1 py-2.5',
+        interactive && 'cursor-pointer focus-visible:-outline-offset-2 active:bg-elevated',
+      )}
+    >
+      {render(row)}
+    </motion.li>
   )
 }
 
@@ -149,25 +218,41 @@ export function DataTable<Row>({
   getRowId,
   caption,
   initialSort,
+  sort: controlledSort,
+  onSortChange,
   onRowActivate,
   maxHeight,
   rowHeight = DEFAULT_ROW_HEIGHT,
+  renderCompactRow,
+  compactRowHeight = DEFAULT_COMPACT_ROW_HEIGHT,
   className,
 }: DataTableProps<Row>) {
-  const [sort, setSort] = useState<SortState | null>(initialSort ?? null)
+  const [internalSort, setInternalSort] = useState<SortState | null>(initialSort ?? null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const wide = useMediaQuery(WIDE_QUERY)
+  const compact = renderCompactRow !== undefined && !wide
+
+  const controlled = onSortChange !== undefined
+  const sort = controlled ? (controlledSort ?? null) : internalSort
+  const handleSort = (columnId: string): void => {
+    if (onSortChange) onSortChange(columnId)
+    else setInternalSort((current) => nextSortState(current, columnId))
+  }
 
   const sortedRows = useMemo(() => {
-    const column = columns.find((candidate) => candidate.id === sort?.columnId)
-    return sortRows(rows, column?.sortValue, sort?.direction)
-  }, [columns, rows, sort])
+    // A controlled table is already in the order its owner chose.
+    if (controlled) return rows
+    const column = columns.find((candidate) => candidate.id === internalSort?.columnId)
+    return sortRows(rows, column?.sortValue, internalSort?.direction)
+  }, [columns, rows, internalSort, controlled])
 
+  const effectiveRowHeight = compact ? compactRowHeight : rowHeight
   const virtualized = maxHeight !== undefined
   // eslint-disable-next-line react-hooks/incompatible-library -- no React Compiler here; the virtualizer is read during render on purpose
   const virtualizer = useVirtualizer({
     count: sortedRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowHeight,
+    estimateSize: () => effectiveRowHeight,
     overscan: OVERSCAN_ROWS,
     enabled: virtualized,
     initialRect: { width: 0, height: maxHeight ?? 0 },
@@ -186,6 +271,55 @@ export function DataTable<Row>({
       })
     : sortedRows.map((row, index) => ({ row, rowIndex: index + HEADER_ROWS + 1 }))
 
+  const body = compact ? (
+    // A list, not a sideways-scrolling table: at 390px there is no room for columns.
+    <ul
+      aria-label={caption}
+      className="flex flex-col divide-y divide-line"
+      style={{ paddingTop: padTop, paddingBottom: padBottom }}
+    >
+      {visibleRows.map(({ row, rowIndex }) => (
+        <CompactRow
+          key={getRowId(row)}
+          row={row}
+          rowIndex={rowIndex}
+          rowCount={sortedRows.length}
+          rowHeight={compactRowHeight}
+          render={renderCompactRow}
+          onRowActivate={onRowActivate}
+        />
+      ))}
+    </ul>
+  ) : (
+    <table
+      aria-rowcount={sortedRows.length + HEADER_ROWS}
+      className="w-full border-separate border-spacing-0"
+    >
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr aria-rowindex={1}>
+          {columns.map((column) => (
+            <HeaderCell key={column.id} column={column} sort={sort} onSort={handleSort} />
+          ))}
+        </tr>
+      </thead>
+      <tbody className="[&_td]:border-b [&_td]:border-line [&_tr:last-child_td]:border-b-0">
+        <SpacerRow height={padTop} span={columns.length} />
+        {visibleRows.map(({ row, rowIndex }) => (
+          <BodyRow
+            key={getRowId(row)}
+            row={row}
+            rowIndex={rowIndex}
+            columns={columns}
+            rowHeight={rowHeight}
+            onRowActivate={onRowActivate}
+          />
+        ))}
+        <SpacerRow height={padBottom} span={columns.length} />
+      </tbody>
+    </table>
+  )
+
   return (
     <div
       ref={scrollRef}
@@ -194,40 +328,9 @@ export function DataTable<Row>({
       role={virtualized ? 'group' : undefined}
       aria-label={virtualized ? `${caption} (scrollable)` : undefined}
       style={virtualized ? { maxHeight } : undefined}
-      className={cn('min-w-0 overflow-auto', className)}
+      className={cn('min-w-0', compact ? 'overflow-x-hidden overflow-y-auto' : 'overflow-auto', className)}
     >
-      <table
-        aria-rowcount={sortedRows.length + HEADER_ROWS}
-        className="w-full border-separate border-spacing-0"
-      >
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr aria-rowindex={1}>
-            {columns.map((column) => (
-              <HeaderCell
-                key={column.id}
-                column={column}
-                sort={sort}
-                onSort={(columnId) => setSort((current) => nextSortState(current, columnId))}
-              />
-            ))}
-          </tr>
-        </thead>
-        <tbody className="[&_td]:border-b [&_td]:border-line [&_tr:last-child_td]:border-b-0">
-          <SpacerRow height={padTop} span={columns.length} />
-          {visibleRows.map(({ row, rowIndex }) => (
-            <BodyRow
-              key={getRowId(row)}
-              row={row}
-              rowIndex={rowIndex}
-              columns={columns}
-              rowHeight={rowHeight}
-              onRowActivate={onRowActivate}
-            />
-          ))}
-          <SpacerRow height={padBottom} span={columns.length} />
-        </tbody>
-      </table>
+      {body}
     </div>
   )
 }
