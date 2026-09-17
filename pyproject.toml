@@ -87,3 +87,20 @@ forbidden_modules = [
   "agent_bisect.bench",
   "agent_bisect.gate",
 ]
+
+# The record/replay engine is the part Branchpoint reuses, so it must also
+# know nothing about any adapter -- it talks to domains through the
+# Snapshotter and Intervention protocols only. `core.doctor` is deliberately
+# not in this list: it drives one real tau2 task end to end, which is what
+# `bisect doctor --live` is for.
+[[tool.importlinter.contracts]]
+name = "the replay engine never imports an adapter"
+type = "forbidden"
+source_modules = [
+  "agent_bisect.core.replay",
+  "agent_bisect.core.runner",
+  "agent_bisect.core.snapshot",
+  "agent_bisect.core.store",
+  "agent_bisect.core.tape",
+]
+forbidden_modules = ["agent_bisect.adapters"]
