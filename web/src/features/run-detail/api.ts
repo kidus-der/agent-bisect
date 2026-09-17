@@ -5,7 +5,7 @@
  */
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 
-import { type ApiError, type ApiResult, type Schemas, apiFetch } from '@/api/client'
+import { type ApiError, type ApiResult, type Schemas, apiFetch, isNotAvailable } from '@/api/client'
 
 export type RunDetail = Readonly<Schemas['RunDetail']>
 export type StepView = Readonly<Schemas['StepView']>
@@ -89,19 +89,11 @@ export function normalizeStateDiff(raw: StateDiff | NotAvailable): StateDiff | N
   return { ...raw, entries: asArray<DiffEntry>(raw.entries) as DiffEntry[] }
 }
 
-/** The server answers `not_available` rather than inventing a number. */
-export function isNotAvailable(value: unknown): value is NotAvailable {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as { status?: unknown }).status === 'not_available'
-  )
-}
-
-export function availableOrNull<T>(value: T | NotAvailable | null): T | null {
-  if (value === null || isNotAvailable(value)) return null
-  return value
-}
+/**
+ * Re-exported from the client, where the single `not_available` narrowing lives.
+ * Kept on this module so the page's own imports do not have to change.
+ */
+export { availableOrNull, isNotAvailable } from '@/api/client'
 
 interface RerunPage {
   readonly reruns: readonly RerunRow[]

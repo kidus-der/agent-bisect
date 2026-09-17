@@ -1,25 +1,16 @@
 /**
- * `not_available` narrowing.
+ * `not_available` helpers built on the client's single narrowing.
  *
  * A field the server cannot answer yet comes back as HTTP 200 with
  * `data = {"status": "not_available", "reason": "..."}` rather than a
- * fabricated number (api-contract.md). Every page that reads such an endpoint
- * has to tell that apart from a real payload before it draws anything.
+ * fabricated number (api-contract.md). `isNotAvailable` and `availableOrNull`
+ * live in `./client` beside the envelope they narrow; they are re-exported here
+ * so the pages that already import them from this module keep working, and so
+ * there is exactly one implementation to get right.
  */
-import type { Schemas } from './client'
+export { type NotAvailable, availableOrNull, isNotAvailable } from './client'
 
-export type NotAvailable = Readonly<Schemas['NotAvailable']>
-
-const NOT_AVAILABLE_STATUS = 'not_available'
-
-export function isNotAvailable(data: unknown): data is NotAvailable {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'status' in data &&
-    (data as { status: unknown }).status === NOT_AVAILABLE_STATUS
-  )
-}
+import { type NotAvailable, isNotAvailable } from './client'
 
 /**
  * Splits an endpoint's payload into "measured" and "not measured yet". `payload`
