@@ -2,7 +2,8 @@ import { Link, useRouterState } from '@tanstack/react-router'
 
 import { cn } from '@/lib/utils'
 
-import { ActivityPulse, useRunningJobCount } from './ActivityPulse'
+import { ActivityPulse } from './ActivityPulse'
+import { useRunningJobCount } from './useRunningJobCount'
 import { NAV_ITEMS, isNavItemActive } from './nav'
 
 /**
