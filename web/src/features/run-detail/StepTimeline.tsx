@@ -211,10 +211,9 @@ export function StepTimeline({
         <div
           ref={scrollRef}
           onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
-          className={cn(
-            '[scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden',
-            geometry.scrolls ? '' : 'flex justify-center',
-          )}
+          // The tape is the spine: it starts at the panel's content edge, it is
+          // not a motif centred in the middle of the width.
+          className="[scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
         >
           <div
             ref={sliderRef}

@@ -5,10 +5,10 @@ import { MAX_CELL_WIDTH_PX, MIN_CELL_WIDTH_PX, timelineGeometry } from './timeli
 describe('timelineGeometry', () => {
   it('spreads a short run across the available width', () => {
     // Arrange / Act
-    const geometry = timelineGeometry({ nSteps: 20, availableWidth: 900 })
+    const geometry = timelineGeometry({ nSteps: 20, availableWidth: 1100 })
 
     // Assert
-    expect(geometry.contentWidth).toBe(900)
+    expect(geometry.contentWidth).toBe(1100)
     expect(geometry.scrolls).toBe(false)
     expect(geometry.bandWidth).toBeGreaterThan(MIN_CELL_WIDTH_PX)
   })
@@ -18,7 +18,7 @@ describe('timelineGeometry', () => {
     const geometry = timelineGeometry({ nSteps: 6, availableWidth: 1400 })
 
     // Assert
-    expect(geometry.bandWidth).toBeLessThanOrEqual(MAX_CELL_WIDTH_PX)
+    expect(geometry.bandWidth).toBeCloseTo(MAX_CELL_WIDTH_PX, 6)
     expect(geometry.contentWidth).toBeLessThan(1400)
     expect(geometry.scrolls).toBe(false)
   })

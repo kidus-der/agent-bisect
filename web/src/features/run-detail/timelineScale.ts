@@ -5,9 +5,9 @@
 import { scaleBand } from '@visx/scale'
 
 /** Below this a cell stops being a readable target, so the tape scrolls instead. */
-export const MIN_CELL_WIDTH_PX = 30
+export const MIN_CELL_WIDTH_PX = 40
 /** Above this a cell stops reading as an instrument cell and becomes an empty card. */
-export const MAX_CELL_WIDTH_PX = 58
+export const MAX_CELL_WIDTH_PX = 96
 const PADDING_INNER = 0.14
 
 export interface TimelineGeometryInput {
