@@ -493,3 +493,78 @@ def test_credentials_passed_by_a_caller_never_reach_the_recording_hook(tmp_path)
     assert "api_key" not in seen[0]
     assert "api_base" not in seen[0]
     assert seen[0]["temperature"] == 0.0
+
+
+# ---- per-run attribution (P1b) ----
+
+
+def test_ledger_rows_carry_the_run_the_call_belongs_to(tmp_path):
+    """Every call a recorded run makes must be attributable to it, so a
+    run can say what it cost."""
+    # `make_router` opens the same ledger file, so this reads what it wrote.
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    router = make_router(tmp_path, FakeCompletion(), run_id_for=lambda: "airline-3-t0")
+
+    router.completion(model="m", messages=[])
+
+    assert ledger.totals_per_run() == {"airline-3-t0": 1}
+
+
+def test_every_retry_of_a_call_is_attributed_to_the_same_run(tmp_path):
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    router = Tau2Router(
+        api_base=API_BASE,
+        api_key=FAKE_KEY,
+        ledger=ledger,
+        limiter_for=lambda _m: RecordingLimiter(),
+        completion_fn=FakeCompletion(errors=[TransportError("slow", status_code=429)]),
+        phase="P1",
+        sleep=lambda _s: None,
+        run_id_for=lambda: "airline-3-t0",
+    )
+
+    router.completion(model="m", messages=[])
+
+    assert ledger.totals_per_run() == {"airline-3-t0": 2}
+
+
+def test_a_call_outside_any_run_is_attributed_to_none(tmp_path):
+    """The rate-limit ramp and the model probes belong to no run."""
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    router = Tau2Router(
+        api_base=API_BASE,
+        api_key=FAKE_KEY,
+        ledger=ledger,
+        limiter_for=lambda _m: RecordingLimiter(),
+        completion_fn=FakeCompletion(),
+        phase="P0",
+        sleep=lambda _s: None,
+    )
+
+    router.completion(model="m", messages=[])
+
+    assert ledger.totals_per_run() == {}
+    assert ledger.total_calls() == 1
+
+
+def test_the_run_is_read_per_call_not_pinned_at_construction(tmp_path):
+    """One routed context serves a whole batch, so which run a call belongs
+    to is whatever the calling thread is recording at that moment."""
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    current = {"run": "first"}
+    router = Tau2Router(
+        api_base=API_BASE,
+        api_key=FAKE_KEY,
+        ledger=ledger,
+        limiter_for=lambda _m: RecordingLimiter(),
+        completion_fn=FakeCompletion(),
+        phase="P1",
+        sleep=lambda _s: None,
+        run_id_for=lambda: current["run"],
+    )
+
+    router.completion(model="m", messages=[])
+    current["run"] = "second"
+    router.completion(model="m", messages=[])
+
+    assert ledger.totals_per_run() == {"first": 1, "second": 1}
