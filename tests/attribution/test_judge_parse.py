@@ -209,7 +209,7 @@ def test_rejects_a_non_boolean_error_here():
         parse_step_by_step('{"error_here": "yes", "confidence": 0.9, "reason": "x"}')
 
 
-def test_rejects_a_confidence_outside_zero_to_one():
+def test_rejects_a_step_confidence_outside_zero_to_one():
     # Arrange / Act / Assert
     with pytest.raises(JudgeParseError, match="confidence"):
         parse_step_by_step('{"error_here": true, "confidence": -1, "reason": "x"}')
