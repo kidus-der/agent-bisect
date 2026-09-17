@@ -15,6 +15,7 @@ import typer
 from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, AIRLINE_READS, USER_MODEL
 from agent_bisect.cli_record import record
 from agent_bisect.cli_replay import DIVERGENCE_EXIT_CODE, UNKNOWN_RUN_EXIT_CODE, replay
+from agent_bisect.core.models import ChosenModels
 from tests.tau2_offline import Store, quiet_tau2, ref, reward_of
 from tests.tau2_offline import record as record_scenario
 from typer.testing import CliRunner
@@ -134,6 +135,35 @@ def test_record_prints_a_line_per_run_without_json(runner, store, monkeypatch):
     assert "2 runs, 2 outstanding" in result.stdout
     assert "airline-0-t0" in result.stdout
     assert "recorded 2" in result.stdout
+
+
+def test_record_defaults_to_the_models_p0_chose(runner, store, monkeypatch):
+    """The brief's invocation is `bisect record --domain airline --tasks
+    0-19`: no model flags, so the command must read the choice rather
+    than carry a default of its own."""
+    import agent_bisect.cli_record as cli_record
+
+    _scripted_record(monkeypatch, store)
+    monkeypatch.setattr(
+        cli_record,
+        "load_chosen_models",
+        lambda: ChosenModels(
+            agent=AGENT_MODEL, user_sim=USER_MODEL, judge="j", tau2_commit="c"
+        ),
+    )
+
+    result = runner.invoke(
+        _app(record),
+        [
+            "--domain", "airline", "--tasks", "0",
+            "--runs-dir", str(store.root),
+            "--ledger", str(store.root / "ledger.sqlite"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert AGENT_MODEL in result.stdout
+    assert store.reader.get_manifest("airline-0-t0").agent_model == AGENT_MODEL
 
 
 def test_record_help_documents_the_documented_invocation(runner):
