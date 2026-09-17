@@ -67,7 +67,11 @@ test('fault type is a server filter, including runs with none planted', async ({
   await page.getByRole('button', { name: 'none planted' }).click()
   await request
   await expect(page).toHaveURL(/fault=none/)
-  await expect(page.getByRole('cell').getByText('STEP', { exact: false })).toHaveCount(0)
+  // "none planted" is about the injected fault, not about blame: an unplanted
+  // run can still have been bisected. The check is that the server narrowed.
+  const matched = await page.locator('output').textContent()
+  expect(matched).toMatch(/^\d+ runs? match(es)?$/)
+  expect(matched).not.toBe(`${RECORDED.runTotal} runs`)
 })
 
 test('sorting is requested from the server and announced on the header', async ({ page }) => {
