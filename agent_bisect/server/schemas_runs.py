@@ -16,7 +16,9 @@ Outcome = Literal["pass", "fail"]
 # are `None` while `status == "recording"`, never a fabricated "fail"/`0.0`.
 RunStatus = Literal["recording", "complete"]
 FaultType = Literal["wrong_value", "missing_field", "stale_record", "tool_error"]
-Actor = Literal["agent", "user", "tool"]
+# Mirrors `core.tape.Actor` -- a real recording can carry any of these,
+# so the server's own type must not be a strict subset of it.
+Actor = Literal["agent", "user", "tool", "evaluator"]
 PositionBucket = Literal["early", "middle", "late"]
 
 
