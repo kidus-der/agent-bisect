@@ -111,7 +111,7 @@ function MorphTarget({ layoutId, className, children }: MorphTargetProps) {
   )
 }
 
-function RunIdChip({ runId }: { readonly runId: string }) {
+export function RunIdChip({ runId }: { readonly runId: string }) {
   return (
     <MorphTarget
       layoutId={layoutIds.runIdChip(runId)}
@@ -127,7 +127,7 @@ function RunIdChip({ runId }: { readonly runId: string }) {
  * nobody has bisected, p6c's header renders no blame target at all, so this
  * swaps rather than animating into a zero-size box.
  */
-function RunBlameStripeCell({ run }: { readonly run: RunSummary }) {
+export function RunBlameStripeCell({ run }: { readonly run: RunSummary }) {
   return (
     <MorphTarget layoutId={layoutIds.runBlameStripe(run.run_id)} className="inline-flex">
       <RunBlameStripe run={run} />
@@ -135,7 +135,7 @@ function RunBlameStripeCell({ run }: { readonly run: RunSummary }) {
   )
 }
 
-function RunOutcomeCell({ run }: { readonly run: RunSummary }) {
+export function RunOutcomeCell({ run }: { readonly run: RunSummary }) {
   return (
     <MorphTarget layoutId={layoutIds.runStatus(run.run_id)} className="inline-flex">
       <RunOutcome run={run} />
