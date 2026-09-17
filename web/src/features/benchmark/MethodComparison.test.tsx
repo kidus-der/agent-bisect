@@ -42,9 +42,22 @@ describe('MethodComparison', () => {
     // Act
     render(<MethodComparison methods={METHODS} />)
 
-    // Assert
-    expect(screen.getByText('[90.2%, 98.8%]')).toBeInTheDocument()
+    // Assert — Bisect's interval appears twice: on its row, and in the compact
+    // one-line verdict that replaces the stacked strip below `sm`.
+    expect(screen.getAllByText('[90.2%, 98.8%]')).toHaveLength(2)
     expect(screen.getByText('[78.5%, 92.7%]')).toBeInTheDocument()
+  })
+
+  test('states the whole verdict on one line for a narrow viewport', () => {
+    // Act
+    render(<MethodComparison methods={METHODS} />)
+
+    // Assert — accuracy, interval, margin and the bar, in one mono line.
+    const compact = screen.getByText(/vs best judge ·/)
+    expect(compact).toHaveTextContent('96.5%')
+    expect(compact).toHaveTextContent('[90.2%, 98.8%]')
+    expect(compact).toHaveTextContent('+9.3 pts')
+    expect(compact).toHaveTextContent('bar 102.2%')
   })
 
   test('labels every interval for a screen reader', () => {
