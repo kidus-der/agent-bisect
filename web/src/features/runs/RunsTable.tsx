@@ -86,25 +86,60 @@ function useRowArrowKeys(ref: React.RefObject<HTMLElement | null>): void {
 }
 
 /**
- * The chip the Run detail header morphs from (signature moment §7.4).
+ * A piece of the row that travels into the Run detail header (signature moment §7.4).
  *
- * `inline-block` is load-bearing: a plain `<span>` is `display: inline`, and CSS
- * transforms do not apply to non-replaced inline boxes — the shared-layout
- * animation ran and moved nothing. Under reduced motion the id carries no
- * `layoutId` at all, so the two pages swap instantly.
+ * The caller's `className` must establish a block or flex box: a plain `<span>`
+ * is `display: inline`, CSS transforms do not apply to non-replaced inline
+ * boxes, and the shared-layout animation ran and moved nothing. Under reduced
+ * motion no `layoutId` is carried at all, so the two pages swap instantly —
+ * which is also what the detail side collapses to.
  */
-function RunIdChip({ runId }: { readonly runId: string }) {
+interface MorphTargetProps {
+  readonly layoutId: string
+  readonly className: string
+  readonly children: React.ReactNode
+}
+
+function MorphTarget({ layoutId, className, children }: MorphTargetProps) {
   const reduced = useReducedMotion() ?? false
   const transition = useSpringTransition('glide')
-  if (reduced) return <span className="num font-medium text-ink">{runId}</span>
+  if (reduced) return <span className={className}>{children}</span>
   return (
-    <motion.span
+    <motion.span layoutId={layoutId} transition={transition} className={className}>
+      {children}
+    </motion.span>
+  )
+}
+
+function RunIdChip({ runId }: { readonly runId: string }) {
+  return (
+    <MorphTarget
       layoutId={layoutIds.runIdChip(runId)}
-      transition={transition}
       className="inline-block num font-medium text-ink"
     >
       {runId}
-    </motion.span>
+    </MorphTarget>
+  )
+}
+
+/**
+ * The stripe travels only where the header has a stripe to travel into: on a run
+ * nobody has bisected, p6c's header renders no blame target at all, so this
+ * swaps rather than animating into a zero-size box.
+ */
+function RunBlameStripeCell({ run }: { readonly run: RunSummary }) {
+  return (
+    <MorphTarget layoutId={layoutIds.runBlameStripe(run.run_id)} className="inline-flex">
+      <RunBlameStripe run={run} />
+    </MorphTarget>
+  )
+}
+
+function RunOutcomeCell({ run }: { readonly run: RunSummary }) {
+  return (
+    <MorphTarget layoutId={layoutIds.runStatus(run.run_id)} className="inline-flex">
+      <RunOutcome run={run} />
+    </MorphTarget>
   )
 }
 
@@ -146,7 +181,7 @@ const RUN_COLUMNS: ReadonlyArray<DataTableColumn<RunSummary>> = [
     id: 'blame_stripe',
     header: 'Effect per step',
     width: '10rem',
-    cell: (run) => <RunBlameStripe run={run} />,
+    cell: (run) => <RunBlameStripeCell run={run} />,
   },
   {
     id: 'decisive',
@@ -158,7 +193,7 @@ const RUN_COLUMNS: ReadonlyArray<DataTableColumn<RunSummary>> = [
     id: 'outcome',
     header: 'Outcome',
     width: '8rem',
-    cell: (run) => <RunOutcome run={run} />,
+    cell: (run) => <RunOutcomeCell run={run} />,
     sortValue: (run) => run.outcome,
   },
   {
@@ -197,13 +232,13 @@ function CompactRun({ run }: { readonly run: RunSummary }) {
     <>
       <div className="flex items-center justify-between gap-2">
         <RunIdChip runId={run.run_id} />
-        <RunOutcome run={run} />
+        <RunOutcomeCell run={run} />
       </div>
       <p className="truncate text-small text-ink-muted">
         {run.task_id} · {run.domain} · <span className="num">{run.n_steps}</span> steps
       </p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <RunBlameStripe run={run} />
+        <RunBlameStripeCell run={run} />
         <RunBlame run={run} />
         <RunNumber
           value={run.cost_usd}
