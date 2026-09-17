@@ -59,7 +59,13 @@ export function timelineGeometry({
     x,
     center: (step) => x(step) + bandWidth / 2,
     stepAt: (value) => clampStep(Math.floor(value / slot) + 1, steps),
-    scrolls: required > availableWidth,
+    // `availableWidth: 0` is the one render every tape starts on, before
+    // `react-use-measure`'s ResizeObserver reports the container's real
+    // width -- not an actual 0px container. Reading it as "needs to scroll"
+    // mounts the minimap for that one frame and then unmounts it once the
+    // real width lands, which is a layout shift on every single page load.
+    // Assuming it fits until proven otherwise is wrong far less often.
+    scrolls: availableWidth > 0 && required > availableWidth,
   }
 }
 
