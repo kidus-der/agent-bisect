@@ -90,12 +90,40 @@ describe('HeatStripe', () => {
 
   test('tested steps use the sequential scale and the blamed step uses the blame gradient', () => {
     const { container } = render(<HeatStripe steps={steps} blamedStep={3} />)
+    // One tested non-blamed step is no spread, so it takes the middle bucket
+    // rather than implying a gradient that was never measured.
     expect(container.querySelector('rect[data-state="tested"]')?.getAttribute('fill')).toBe(
-      'var(--chart-scale-02)',
+      'var(--chart-scale-03)',
     )
     expect(container.querySelector('rect[data-state="blamed"]')?.getAttribute('fill')).toMatch(
       /blame\)$/,
     )
+  })
+
+  test('spreads ordinary steps across the ramp instead of flattening them under the blamed one', () => {
+    const spread = [
+      { step: 1, effect: -0.06 },
+      { step: 2, effect: 0.06 },
+      { step: 3, effect: 0.25 },
+      { step: 4, effect: 0.88 },
+    ]
+    const { container } = render(<HeatStripe steps={spread} blamedStep={4} />)
+    const fills = [...container.querySelectorAll('rect[data-state="tested"]')].map((cell) =>
+      cell.getAttribute('fill'),
+    )
+    expect(new Set(fills).size).toBe(3)
+  })
+
+  test('a fixed track divides by the step count, so stripes share one length', () => {
+    const short = render(<HeatStripe steps={steps} trackWidth={120} />)
+    const long = render(
+      <HeatStripe
+        steps={Array.from({ length: 27 }, (_, index) => ({ step: index + 1, effect: 0.1 }))}
+        trackWidth={120}
+      />,
+    )
+    expect(short.container.querySelector('svg')?.getAttribute('width')).toBe('120')
+    expect(long.container.querySelector('svg')?.getAttribute('width')).toBe('120')
   })
 
   test('has an accessible description and shows the blame number', () => {

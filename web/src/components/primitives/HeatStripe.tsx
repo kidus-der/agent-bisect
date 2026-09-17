@@ -3,6 +3,8 @@ import { useId } from 'react'
 import { formatEffect } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { buildHeatScale, bucketVariable } from './heatScale'
+
 export interface HeatStep {
   /** 1-based step index. */
   readonly step: number
@@ -15,6 +17,12 @@ interface HeatStripeProps {
   /** 1-based index of the blamed step, if any. */
   readonly blamedStep?: number
   readonly cellWidth?: number
+  /**
+   * Total width the stripe fills, divided by the step count. Prefer this in a
+   * table: it keeps step *position* comparable down a column, where a constant
+   * cell width makes a 27-step stripe a different length from an 11-step one.
+   */
+  readonly trackWidth?: number
   readonly cellHeight?: number
   /** Show `#7 +0.75` after the stripe. Blame never appears without its number. */
   readonly showBlameCaption?: boolean
@@ -25,15 +33,9 @@ const DEFAULT_CELL_WIDTH = 14
 const DEFAULT_CELL_HEIGHT = 16
 const CELL_GAP = 2
 const CELL_RADIUS = 2
-const SCALE_STEPS = 5
 const HATCH_SIZE = 5
-
-/** Effect in [0, 1] -> one of the five sequential scale variables. Never guesses for null. */
-function scaleVariable(effect: number): string {
-  const clamped = Math.min(1, Math.max(0, effect))
-  const bucket = Math.min(SCALE_STEPS, Math.floor(clamped * SCALE_STEPS) + 1)
-  return `var(--chart-scale-0${bucket})`
-}
+/** Below this a cell is a hairline; the gap is dropped so the marks stay readable. */
+const MIN_GAPPED_CELL_PX = 3
 
 function describe(steps: readonly HeatStep[], blamedStep: number | undefined): string {
   const tested = steps.filter((entry) => entry.effect !== null)
@@ -57,6 +59,7 @@ export function HeatStripe({
   steps,
   blamedStep,
   cellWidth = DEFAULT_CELL_WIDTH,
+  trackWidth,
   cellHeight = DEFAULT_CELL_HEIGHT,
   showBlameCaption = true,
   className,
@@ -64,7 +67,14 @@ export function HeatStripe({
   const uid = useId()
   const hatchId = `${uid}-hatch`
   const blameId = `${uid}-blame`
-  const width = steps.length * (cellWidth + CELL_GAP) - CELL_GAP
+  const count = Math.max(steps.length, 1)
+  // A fixed track divides exactly, so step 1 and step n land at the same x on
+  // every row regardless of how many steps the run has.
+  const pitch = trackWidth === undefined ? cellWidth + CELL_GAP : trackWidth / count
+  const gap = pitch >= MIN_GAPPED_CELL_PX + CELL_GAP ? CELL_GAP : 0
+  const drawnCellWidth = Math.max(pitch - gap, 1)
+  const width = trackWidth ?? count * pitch - CELL_GAP
+  const scale = buildHeatScale(steps, blamedStep)
   const blamed = steps.find((entry) => entry.step === blamedStep)
 
   return (
@@ -100,14 +110,14 @@ export function HeatStripe({
               ? `url(#${hatchId})`
               : isBlamed
                 ? `url(#${blameId})`
-                : scaleVariable(entry.effect)
+                : bucketVariable(scale.bucket(entry.effect))
           return (
             <rect
               key={entry.step}
               data-state={entry.effect === null ? 'untested' : isBlamed ? 'blamed' : 'tested'}
-              x={index * (cellWidth + CELL_GAP) + 0.5}
+              x={index * pitch + 0.5}
               y={0.5}
-              width={cellWidth - 1}
+              width={Math.max(drawnCellWidth - 1, 0.5)}
               height={cellHeight - 1}
               rx={CELL_RADIUS}
               fill={fill}

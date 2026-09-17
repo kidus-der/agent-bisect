@@ -43,6 +43,7 @@ export function sparkSeries(points: readonly SparkPoint[]): SparkSeries | null {
   return null
 }
 
+/** Kept for callers that still size by cell; the stripe itself prefers a track. */
 export function stripeCellWidth(steps: number, targetPx = STRIPE_TARGET_PX): number {
   if (steps <= 0) return STRIPE_MAX_CELL_PX
   const fitted = Math.floor(targetPx / steps) - STRIPE_GAP_PX
@@ -83,7 +84,7 @@ export function RunSparkline({ run }: { readonly run: RunSummary }) {
 
 interface RunBlameStripeProps {
   readonly run: RunSummary
-  /** Width the stripe should fill, so every row shares one step-1 origin. */
+  /** Width the stripe fills, so step position stays comparable down a column. */
   readonly targetPx?: number
 }
 
@@ -93,7 +94,7 @@ export function RunBlameStripe({ run, targetPx }: RunBlameStripeProps) {
     <HeatStripe
       steps={toHeatSteps(run.blame_stripe)}
       blamedStep={run.decisive_step ?? undefined}
-      cellWidth={stripeCellWidth(run.blame_stripe.length, targetPx)}
+      trackWidth={targetPx ?? STRIPE_TARGET_PX}
       showBlameCaption={false}
     />
   )
