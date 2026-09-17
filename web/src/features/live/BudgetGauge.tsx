@@ -2,7 +2,7 @@ import { ParentSize } from '@visx/responsive'
 import { useReducedMotion } from 'motion/react'
 
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
-import { chartColours, roleColour } from '@/components/chart-theme/chartTheme'
+import { roleColour } from '@/components/chart-theme/chartTheme'
 import { Gauge } from '@/components/charts/gauge'
 import { NotMeasuredState } from '@/components/primitives/NotMeasuredState'
 import { formatNumber } from '@/lib/format'
@@ -74,7 +74,9 @@ export function BudgetGauge({ budget }: BudgetGaugeProps) {
               defaultLabel={`of ${formatNumber(cap, { decimals: 0 })} calls`}
               totalNotches={NOTCH_COUNT}
               activeFill={activeFill}
-              inactiveFill={chartColours.grid}
+              // The unfilled ticks ARE the remaining budget, so they are a data
+              // mark and need 3:1 (WCAG 1.4.11); chart-grid is ~1.3:1 on white.
+              inactiveFill="var(--bx-line-strong)"
               width={size.width}
               height={size.height}
               enterTransition={reduced ? NO_MOTION : undefined}
