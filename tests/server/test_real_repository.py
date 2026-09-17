@@ -257,3 +257,46 @@ def test_redacted_secret_never_resurfaces_through_real_repository(tmp_path):
     repo = RealRepository(runs_dir=runs_dir)
     payload = repo.step_payload("secret-run", 0)
     assert "SHOULDNEVERSURVIVE" not in str(payload.tool_result)
+
+
+def _write_run(writer: TapeWriter, run_id: str, n_steps: int) -> None:
+    writer.start_run(
+        RunManifest(
+            run_id=run_id,
+            domain="airline",
+            task_id="refund_after_cancellation",
+            agent_model="m",
+            user_model="u",
+            tau2_commit="c",
+            created_at=datetime.now(UTC),
+        )
+    )
+    for idx in range(n_steps):
+        writer.append_step(
+            Step(
+                run_id=run_id,
+                step_idx=idx,
+                actor="agent",
+                state_before="a",
+                state_after="a",
+                state_hash="h",
+            )
+        )
+    writer.record_outcome(Outcome(run_id=run_id, reward=1.0))
+
+
+def test_list_runs_honours_the_sort_field_in_real_mode(tmp_path):
+    """`run_id` order and `n_steps` order deliberately disagree here: `run-a`
+    sorts first alphabetically but has *more* steps than `run-b`. A repo
+    that (bug) sorts by `run_id` and merely reads the `-` prefix for
+    direction -- ignoring which field was actually asked for -- would give
+    `["run-b", "run-a"]` (run_id descending) instead of the correct
+    `["run-a", "run-b"]` (n_steps descending)."""
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    _write_run(writer, "run-a", n_steps=3)
+    _write_run(writer, "run-b", n_steps=1)
+
+    repo = RealRepository(runs_dir=runs_dir)
+    runs, _ = repo.list_runs(RunFilter(sort="-n_steps"))
+    assert [r.run_id for r in runs] == ["run-a", "run-b"]
