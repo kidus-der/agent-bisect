@@ -8,6 +8,7 @@ import { App } from './App'
 import { createAppRouter } from './router'
 
 const META_PATH = '/api/meta'
+const SEARCH_PATH = '/api/search'
 
 /**
  * The shell owns `/api/meta` only. Every page endpoint answers with a failed
@@ -19,6 +20,14 @@ function mockMeta(simulated: boolean | 'offline'): void {
     vi.fn((input: RequestInfo | URL) => {
       if (simulated === 'offline') return Promise.reject(new TypeError('Failed to fetch'))
       const meta = { simulated, data_source: simulated ? 'fixture' : 'real' }
+      if (String(input).startsWith(SEARCH_PATH)) {
+        const data = { query: 'mocked', hits: [] }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true, data, error: null, meta }),
+        })
+      }
       if (!String(input).startsWith(META_PATH)) {
         const error = { code: 'not_mocked', message: 'Page data is not part of the shell tests.' }
         return Promise.resolve({
@@ -129,6 +138,8 @@ describe('AppShell', () => {
     // The palette is a lazy chunk: wait for its input before typing.
     await user.type(await screen.findByRole('combobox'), 'qqzz')
     expect(await screen.findByRole('option', { name: /Filter Runs by “qqzz”/ })).toBeInTheDocument()
+    // Zero hits is an answer, and it is shown: cmdk must not hide the Runs group with it.
+    expect(await screen.findByText('No run matches.')).toBeVisible()
     await user.keyboard('{Enter}')
     expect(await screen.findByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument()
     expect(router.state.location.search).toMatchObject({ q: 'qqzz' })
