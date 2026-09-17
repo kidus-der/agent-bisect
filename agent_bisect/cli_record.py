@@ -34,6 +34,7 @@ from agent_bisect.adapters.tau2_batch import (
 from agent_bisect.cli_io import own_stdout, say
 from agent_bisect.core.budget import DEFAULT_LEDGER_PATH, BudgetLedger
 from agent_bisect.core.config import get_settings
+from agent_bisect.core.models import load_chosen_models
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import TapeReader, TapeWriter
 
@@ -69,10 +70,12 @@ def record(
     domain: str = typer.Option("airline", help="tau2 domain to record."),
     tasks: str = typer.Option("0-19", help='Task ids: "0-19", "0,3,7" or "4".'),
     trials: int = typer.Option(1, help="Runs per task."),
-    agent_model: str = typer.Option(..., help="Agent model id."),
-    user_model: str = typer.Option(..., help="User-simulator model id."),
+    agent_model: str = typer.Option("", help="Agent model id. Default: the P0 choice."),
+    user_model: str = typer.Option("", help="User-simulator model id. Default: the P0 choice."),
     seed: int = typer.Option(300, help="Seed pinned into every run manifest."),
-    temperature: float = typer.Option(0.0, help="Sampling temperature for both participants."),
+    temperature: float = typer.Option(
+        -1.0, help="Sampling temperature. Default: the pinned agent temperature."
+    ),
     runs_dir: Annotated[
         Path, typer.Option(help="Tape, blob store and checkpoint root.")
     ] = DEFAULT_RUNS_DIR,
@@ -90,6 +93,7 @@ def record(
         typer.echo("NVIDIA_API_KEY not set; cannot record.", err=True)
         raise typer.Exit(code=MISSING_KEY_EXIT_CODE)
 
+    chosen = load_chosen_models()
     items = items_for(domain, tasks_from_range(tasks), trials=trials)
     store = BlobStore(runs_dir)
     tape = TapeWriter(runs_dir)
@@ -97,14 +101,17 @@ def record(
     template = RunSpec(
         domain=domain,
         task_id="",
-        agent_model=agent_model,
-        user_model=user_model,
+        agent_model=agent_model or chosen.agent,
+        user_model=user_model or chosen.user_sim,
         seed=seed,
-        temperature=temperature,
+        temperature=chosen.agent_temperature if temperature < 0 else temperature,
     )
     outstanding = pending(runs_dir, items)
     if not json_output:
-        typer.echo(f"{len(items)} runs, {len(outstanding)} outstanding")
+        typer.echo(
+            f"{len(items)} runs, {len(outstanding)} outstanding "
+            f"(agent {template.agent_model}, user {template.user_model})"
+        )
 
     ledger = BudgetLedger(ledger_path, max_calls=max_calls)
     with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
