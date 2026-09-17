@@ -56,7 +56,10 @@ def _run_mixed_callers(limiter: TokenBucketLimiter, clock: SharedFakeClock) -> l
 
     def note(exc: BaseException | None) -> None:
         with lock:
-            (failures if exc is not None else grants).append(exc or clock())
+            if exc is not None:
+                failures.append(exc)
+            else:
+                grants.append(clock())
 
     def async_worker() -> None:
         async def main() -> None:

@@ -31,7 +31,7 @@ MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
 @pytest.fixture(autouse=True)
 def _probe_dir(tmp_path, monkeypatch):
-    import probe_models
+    import probe_models  # type: ignore[reportMissingImports]  # noqa: PLC0415
 
     monkeypatch.setattr(probe_models, "PROBE_DIR", tmp_path)
     return tmp_path
