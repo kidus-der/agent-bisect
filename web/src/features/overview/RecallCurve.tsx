@@ -15,6 +15,7 @@ import { useId, useRef } from 'react'
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { PercentYAxis } from '@/components/chart-theme/PercentYAxis'
 import { chartColours } from '@/components/chart-theme/chartTheme'
+import { springTransition } from '@/design/motion'
 import { formatPercent } from '@/lib/stats'
 
 import type { RecallPoint } from './api'
@@ -25,7 +26,6 @@ const MARGIN = { top: 16, right: 20, bottom: 40, left: 44 } as const
 const MIN_HEIGHT = 240
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
 const MARKER_RADIUS = 3.5
-const REVEAL_SECONDS = 0.9
 const IN_VIEW_AMOUNT = 0.3
 
 function describe(points: readonly RecallPoint[]): string {
@@ -76,10 +76,13 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
           <motion.rect
             x={0}
             y={-MARGIN.top}
+            width={innerWidth + MARGIN.right}
             height={height}
-            initial={reduced ? false : { width: 0 }}
-            animate={{ width: revealed || reduced ? innerWidth + MARGIN.right : 0 }}
-            transition={reduced ? { duration: 0 } : { duration: REVEAL_SECONDS, ease: 'easeOut' }}
+            // Springs only, transform only: the clip scales from its left edge on `drift`.
+            style={{ originX: 0 }}
+            initial={reduced ? false : { scaleX: 0 }}
+            animate={{ scaleX: revealed || reduced ? 1 : 0 }}
+            transition={springTransition('drift', reduced)}
           />
         </clipPath>
       </defs>
