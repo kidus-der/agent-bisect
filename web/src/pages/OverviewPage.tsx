@@ -65,7 +65,7 @@ export function OverviewPage() {
       <TitledState>
         <StatePanel>
           <ErrorState
-            title="Cannot reach the Bisect server"
+            title="The headline result did not load"
             message={overview.error.message}
             code={overview.error.code}
             onRetry={() => void overview.refetch()}
