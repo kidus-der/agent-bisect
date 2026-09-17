@@ -1,0 +1,299 @@
+"""The injection pipeline, driven by a fake runner.
+
+The pipeline's job is the funnel of `docs/brief/summary.md` §3: record
+successes, keep the stable ones, plant a fault at a stratified tool step,
+re-run N = 4, keep it if it flips. What is tested here is that funnel —
+the thresholds, the caps, the resume, and the rule that nothing is ever
+dropped silently. Driving it against tau2's real orchestrator is
+`tests/test_tau2_inject_e2e.py`.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+from agent_bisect.bench.inject import (
+    BaseRun,
+    InjectConfig,
+    Journal,
+    RerunResult,
+    ToolStep,
+    collect,
+)
+from agent_bisect.core.budget import BudgetExceededError
+from agent_bisect.core.llm import AuthenticationError
+
+AIRLINE = [("airline", str(index)) for index in range(4)]
+
+
+def tool_step(step_idx: int) -> ToolStep:
+    return ToolStep(
+        step_idx=step_idx,
+        tool_name="get_reservation_details",
+        tool_args={"reservation_id": "HATHAT"},
+        result={"id": f"c{step_idx}", "role": "tool", "requestor": "assistant",
+                "error": False,
+                "content": json.dumps({"reservation_id": "HATHAT", "status": "confirmed",
+                                       "total_baggages": 2, "price": 122})},
+        result_ref=f"{step_idx:064d}",
+        downstream="the agent quotes HATHAT back",
+    )
+
+
+class FakeRunner:
+    """A runner whose outcomes are decided by rules, not by a model.
+
+    `faulted_passes` says how many of the N faulted re-runs pass, so a
+    test can make a candidate flip (0 of 4) or not (all 4).
+    """
+
+    def __init__(
+        self,
+        *,
+        base_passes: bool = True,
+        stability_passes: int = 4,
+        faulted_passes: int = 0,
+        tool_steps_per_run: int = 9,
+        infra_failures: int = 0,
+    ) -> None:
+        self.base_passes = base_passes
+        self.stability_passes = stability_passes
+        self.faulted_passes = faulted_passes
+        self.tool_steps_per_run = tool_steps_per_run
+        self.infra_failures = infra_failures
+        self.recorded: list[str] = []
+        self.resamples: list[str] = []
+        self.forks: list[tuple[str, int, str]] = []
+
+    def record_base(self, domain: str, task_id: str, trial: int) -> BaseRun:
+        run_id = f"{domain}-{task_id}-t{trial}"
+        self.recorded.append(run_id)
+        return BaseRun(run_id=run_id, domain=domain, task_id=task_id,
+                       passed=self.base_passes, steps=20)
+
+    def resample(self, base_run_id: str, *, run_id: str, seed: int) -> RerunResult:
+        self.resamples.append(run_id)
+        index = len([name for name in self.resamples if name.startswith(base_run_id)]) - 1
+        return RerunResult(run_id=run_id, passed=index < self.stability_passes)
+
+    def tool_steps(self, base_run_id: str) -> list[ToolStep]:
+        return [tool_step(index * 2 + 1) for index in range(self.tool_steps_per_run)]
+
+    def fault_fork(self, base_run_id, *, run_id, step_idx, faulted_result, seed) -> RerunResult:
+        if self.infra_failures > 0:
+            self.infra_failures -= 1
+            raise RuntimeError("infrastructure_error: the provider hung up")
+        self.forks.append((base_run_id, step_idx, run_id))
+        index = len([f for f in self.forks if f[0] == base_run_id and f[1] == step_idx]) - 1
+        return RerunResult(run_id=run_id, passed=index < self.faulted_passes)
+
+
+def run(tmp_path, runner, **overrides):
+    config = InjectConfig(**overrides)
+    return collect(runner, tasks=AIRLINE, journal=Journal(tmp_path), config=config)
+
+
+# ---- the funnel ----
+
+
+def test_a_flipping_fault_is_kept_and_labelled(tmp_path):
+    result = run(tmp_path, FakeRunner(faulted_passes=0))
+
+    assert result.items
+    item = result.items[0]
+    assert item["planted_step"] in {step.step_idx for step in FakeRunner().tool_steps("x")}
+    assert item["faulted_pass_rate"] == 0.0
+    assert item["base_pass_rate"] == 1.0
+    assert item["oracle"]["tool_result_ref"].endswith(str(item["planted_step"]))
+    assert item["intervention"]["name"] == "replace_tool_result"
+
+
+def test_a_fault_that_does_not_flip_the_run_is_rejected(tmp_path):
+    result = run(tmp_path, FakeRunner(faulted_passes=4))
+
+    assert result.items == []
+    assert result.counts["rejected_not_flipped"] > 0
+
+
+def test_the_keep_rule_is_the_pre_registered_one_quarter(tmp_path):
+    kept = run(tmp_path, FakeRunner(faulted_passes=1))
+    not_kept = run(tmp_path / "other", FakeRunner(faulted_passes=2))
+
+    assert kept.items
+    assert not_kept.items == []
+
+
+def test_an_unstable_base_run_is_never_faulted(tmp_path):
+    runner = FakeRunner(stability_passes=2)
+
+    result = run(tmp_path, runner)
+
+    assert result.items == []
+    assert runner.forks == []
+    assert result.counts["rejected_unstable"] == len(AIRLINE)
+
+
+def test_a_base_run_that_failed_is_never_faulted(tmp_path):
+    runner = FakeRunner(base_passes=False)
+
+    result = run(tmp_path, runner)
+
+    assert result.items == []
+    assert runner.resamples == []
+    assert result.counts["rejected_base_failed"] == len(AIRLINE)
+
+
+def test_stability_is_the_pre_registered_three_of_four(tmp_path):
+    stable = run(tmp_path, FakeRunner(stability_passes=3))
+
+    assert stable.items
+
+
+# ---- the caps ----
+
+
+def test_no_base_run_contributes_more_than_three_faults(tmp_path):
+    result = run(tmp_path, FakeRunner(), attempts_per_bucket=3)
+
+    per_run: dict[str, int] = {}
+    for item in result.items:
+        per_run[item["base_run_id"]] = per_run.get(item["base_run_id"], 0) + 1
+    assert max(per_run.values()) <= 3
+
+
+def test_no_base_run_contributes_two_faults_from_one_bucket(tmp_path):
+    result = run(tmp_path, FakeRunner(), attempts_per_bucket=3)
+
+    seen = {(item["base_run_id"], item["position_bucket"]) for item in result.items}
+    assert len(seen) == len(result.items)
+
+
+def test_collection_stops_once_the_target_is_reached(tmp_path):
+    result = run(tmp_path, FakeRunner(), target_items=2)
+
+    assert len(result.items) == 2
+    assert result.stopped_reason == "target reached"
+
+
+def test_every_fault_type_is_used_across_the_dataset(tmp_path):
+    result = run(tmp_path, FakeRunner(), attempts_per_bucket=1)
+
+    assert len({item["fault_type"] for item in result.items}) >= 3
+
+
+def test_every_position_bucket_is_represented(tmp_path):
+    result = run(tmp_path, FakeRunner(), attempts_per_bucket=1)
+
+    assert {item["position_bucket"] for item in result.items} == {"early", "middle", "late"}
+
+
+# ---- nothing is dropped silently ----
+
+
+def test_every_candidate_is_logged_with_its_verdict(tmp_path):
+    journal = Journal(tmp_path)
+    collect(FakeRunner(faulted_passes=4), tasks=AIRLINE, journal=journal,
+            config=InjectConfig())
+
+    verdicts = [event for event in journal.events() if event["kind"] == "candidate"]
+    assert verdicts
+    assert all(event["status"] in {"kept", "rejected"} for event in verdicts)
+    assert all(event.get("reason") for event in verdicts if event["status"] == "rejected")
+
+
+def test_the_funnel_counts_add_up(tmp_path):
+    result = run(tmp_path, FakeRunner(faulted_passes=4))
+
+    assert result.counts["candidates"] == (
+        result.counts["kept"] + result.counts["rejected_not_flipped"]
+        + result.counts.get("rejected_unplantable", 0)
+    )
+
+
+# ---- resume ----
+
+
+def test_a_second_pass_pays_for_nothing_twice(tmp_path):
+    journal = Journal(tmp_path)
+    first = collect(FakeRunner(), tasks=AIRLINE, journal=journal, config=InjectConfig())
+    runner = FakeRunner()
+
+    second = collect(runner, tasks=AIRLINE, journal=journal, config=InjectConfig())
+
+    assert [item["item_id"] for item in second.items] == [item["item_id"] for item in first.items]
+    assert runner.recorded == []
+    assert runner.resamples == []
+    assert runner.forks == []
+
+
+# ---- infrastructure ----
+
+
+def test_an_infrastructure_failure_is_retried_not_scored(tmp_path):
+    runner = FakeRunner(infra_failures=2)
+
+    result = run(tmp_path, runner)
+
+    assert result.items
+    assert result.counts["infra_retries"] == 2
+
+
+def test_an_infrastructure_failure_that_never_clears_abandons_the_candidate(tmp_path):
+    runner = FakeRunner(infra_failures=999)
+
+    result = run(tmp_path, runner)
+
+    assert result.items == []
+    assert result.counts["rejected_infra"] > 0
+
+
+def test_a_spent_budget_stops_the_run_cleanly(tmp_path):
+    class Broke(FakeRunner):
+        def fault_fork(self, *args, **kwargs):
+            raise BudgetExceededError("budget exceeded: cap is 10 calls")
+
+    result = run(tmp_path, Broke())
+
+    assert result.stopped_reason == "budget exhausted"
+    assert result.items == []
+
+
+def test_a_rejected_key_stops_the_run_cleanly(tmp_path):
+    class Unauthorised(FakeRunner):
+        def record_base(self, *args, **kwargs):
+            raise AuthenticationError("401 unauthorized")
+
+    result = run(tmp_path, Unauthorised())
+
+    assert result.stopped_reason == "authentication rejected"
+
+
+# ---- the journal ----
+
+
+def test_the_journal_remembers_and_replays(tmp_path):
+    journal = Journal(tmp_path)
+
+    journal.write("base", "airline-0-t0", {"run_id": "airline-0-t0", "passed": True})
+
+    assert journal.read("base", "airline-0-t0") == {"run_id": "airline-0-t0", "passed": True}
+    assert journal.read("base", "absent") is None
+    assert len(journal.all("base")) == 1
+
+
+def test_the_journal_is_safe_for_keys_with_separators(tmp_path):
+    journal = Journal(tmp_path)
+
+    journal.write("candidate", "airline/0:k3", {"ok": True})
+
+    assert journal.read("candidate", "airline/0:k3") == {"ok": True}
+
+
+def test_an_unreadable_journal_entry_is_treated_as_absent(tmp_path):
+    journal = Journal(tmp_path)
+    journal.write("base", "airline-0-t0", {"run_id": "x"})
+    next(iter((tmp_path / "base").glob("*.json"))).write_text("{ not json")
+
+    with pytest.raises(ValueError, match="airline-0-t0"):
+        journal.read("base", "airline-0-t0")
