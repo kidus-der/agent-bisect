@@ -4,9 +4,14 @@ import { cn } from '@/lib/utils'
 import type { LiveEvent } from './liveBuffer'
 import { EVENT_BUFFER_LIMIT } from './liveBuffer'
 
+/**
+ * Colour on this feed is spent on `error` alone. A warning is raised by its `!`
+ * glyph and its tag, not by amber: amber means blame and nothing else
+ * (direction.md §3, principle 2).
+ */
 const LEVEL_STYLES: Readonly<Record<LiveEvent['level'], { glyph: string; className: string }>> = {
   info: { glyph: '·', className: 'text-ink-muted' },
-  warn: { glyph: '!', className: 'text-blame' },
+  warn: { glyph: '!', className: 'text-ink' },
   error: { glyph: '✕', className: 'text-fail' },
 }
 
