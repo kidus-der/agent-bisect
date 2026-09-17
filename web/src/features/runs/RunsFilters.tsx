@@ -3,9 +3,9 @@
  * URL holds, so a filtered view is always a link. The component itself does no
  * navigating — the page owns that — which keeps it testable without a router.
  */
-import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 
 import { SegmentedControl } from '@/components/primitives/SegmentedControl'
 import { cn } from '@/lib/utils'
@@ -121,21 +121,54 @@ interface FilterControlsProps {
   readonly onChange: (next: RunsSearch) => void
 }
 
-function FilterControls({ search, facets, onChange }: FilterControlsProps) {
+/** Filters that live behind the disclosure, and whether any of them is set. */
+function hasSecondaryFilter(search: RunsSearch): boolean {
+  return search.domain !== null || search.fault !== null || search.model !== null
+}
+
+/** A named control, so two adjacent groups both starting at "All" are tellable apart. */
+function LabelledGroup({
+  label,
+  children,
+}: {
+  readonly label: string
+  readonly children: ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="label-instrument">{label}_</span>
+      {children}
+    </div>
+  )
+}
+
+/** Outcome and status: the two filters worth keeping on the toolbar itself. */
+function PrimaryFilters({ search, onChange }: FilterControlsProps) {
   return (
     <>
-      <SegmentedControl
-        label="Filter by outcome"
-        options={OUTCOME_OPTIONS}
-        value={(search.outcome ?? ALL) as WithAll<RunOutcome>}
-        onChange={(value) => onChange({ ...search, outcome: fromAll(value) })}
-      />
-      <SegmentedControl
-        label="Filter by status"
-        options={STATUS_OPTIONS}
-        value={(search.status ?? ALL) as WithAll<RunStatus>}
-        onChange={(value) => onChange({ ...search, status: fromAll(value) })}
-      />
+      <LabelledGroup label="outcome">
+        <SegmentedControl
+          label="Filter by outcome"
+          options={OUTCOME_OPTIONS}
+          value={(search.outcome ?? ALL) as WithAll<RunOutcome>}
+          onChange={(value) => onChange({ ...search, outcome: fromAll(value) })}
+        />
+      </LabelledGroup>
+      <LabelledGroup label="status">
+        <SegmentedControl
+          label="Filter by status"
+          options={STATUS_OPTIONS}
+          value={(search.status ?? ALL) as WithAll<RunStatus>}
+          onChange={(value) => onChange({ ...search, status: fromAll(value) })}
+        />
+      </LabelledGroup>
+    </>
+  )
+}
+
+function SecondaryFilters({ search, facets, onChange }: FilterControlsProps) {
+  return (
+    <>
       <ChipGroup
         label="domain"
         options={facets.domains.map((domain) => ({ value: domain, label: domain }))}
@@ -171,11 +204,14 @@ interface RunsFiltersProps {
 
 export function RunsFilters({ search, facets, onChange, summary }: RunsFiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const active = hasActiveFilters(search)
+  // A filter behind the disclosure must never be hidden while it is narrowing.
+  const moreShown = moreOpen || hasSecondaryFilter(search)
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <SearchField value={search.q} onChange={(q) => onChange({ ...search, q })} />
 
         {/* At 390 the controls move into a sheet rather than wrapping into five rows. */}
@@ -208,31 +244,70 @@ export function RunsFilters({ search, facets, onChange, summary }: RunsFiltersPr
               <Dialog.Description className="sr-only">
                 Narrow the run list. Every choice is kept in the page address.
               </Dialog.Description>
-              <div className="flex flex-col items-start gap-4">
-                <FilterControls search={search} facets={facets} onChange={onChange} />
+              <div className="flex flex-col items-start gap-4 pb-20">
+                <PrimaryFilters search={search} facets={facets} onChange={onChange} />
+                <SecondaryFilters search={search} facets={facets} onChange={onChange} />
+              </div>
+              {/* A sheet with no footer leaves nowhere to act; this says what it did. */}
+              <div className="sticky inset-x-0 bottom-0 -mx-5 -mb-5 flex items-center justify-between gap-3 border-t border-line bg-elevated px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => onChange(clearFilters(search))}
+                  disabled={!active}
+                  className="inline-flex h-9 cursor-pointer items-center text-small text-ink-muted hover:text-ink disabled:cursor-default disabled:opacity-45"
+                >
+                  Clear all
+                </button>
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 cursor-pointer items-center rounded-control border border-line-strong bg-surface px-4 text-small font-medium text-ink"
+                  >
+                    Show {summary}
+                  </button>
+                </Dialog.Close>
               </div>
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-      </div>
 
-      <div className="hidden flex-wrap items-center gap-x-4 gap-y-2 md:flex">
-        <FilterControls search={search} facets={facets} onChange={onChange} />
-      </div>
+        {/* One toolbar row: the two filters worth permanent space, then a disclosure. */}
+        <div className="hidden flex-wrap items-center gap-x-4 gap-y-2 md:flex">
+          <PrimaryFilters search={search} facets={facets} onChange={onChange} />
+          <button
+            type="button"
+            aria-expanded={moreShown}
+            onClick={() => setMoreOpen((open) => !open)}
+            className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-pill border border-line px-2.5 text-small text-ink-muted hover:border-line-strong hover:text-ink"
+          >
+            <SlidersHorizontal aria-hidden="true" className="size-3" />
+            More filters
+            <ChevronDown
+              aria-hidden="true"
+              className={cn('size-3 transition-transform', moreShown && 'rotate-180')}
+            />
+          </button>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <output className="num text-small text-ink-muted">{summary}</output>
+        <output className="ml-auto num text-small text-ink-muted">{summary}</output>
         {active ? (
           <button
             type="button"
             onClick={() => onChange(clearFilters(search))}
+            aria-label="Clear filters"
             className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-pill border border-line px-2.5 text-small text-ink-muted hover:border-line-strong hover:text-ink"
           >
             <X aria-hidden="true" className="size-3" />
-            Clear filters
+            Clear
           </button>
         ) : null}
       </div>
+
+      {moreShown ? (
+        <div className="hidden flex-wrap items-center gap-x-4 gap-y-2 md:flex">
+          <SecondaryFilters search={search} facets={facets} onChange={onChange} />
+        </div>
+      ) : null}
     </div>
   )
 }

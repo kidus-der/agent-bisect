@@ -25,16 +25,29 @@ describe('RunsFilters', () => {
     expect(screen.getByText('266 of 266 runs')).toBeInTheDocument()
   })
 
+  test('keeps the secondary filters behind a disclosure so the toolbar is one row', () => {
+    setup()
+    expect(screen.queryByRole('button', { name: 'retail' })).toBeNull()
+    expect(screen.getByRole('button', { name: /more filters/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+  })
+
   test('selects a domain from the values the loaded runs actually have', async () => {
     const { onChange, user } = setup()
+    await user.click(screen.getByRole('button', { name: /more filters/i }))
     await user.click(screen.getByRole('button', { name: 'retail' }))
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_RUNS_SEARCH, domain: 'retail' })
   })
 
-  test('pressing the active chip clears that filter', async () => {
+  test('shows the disclosure already open when a filter inside it is narrowing', async () => {
     const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, domain: 'retail' }
     const { onChange, user } = setup(search)
-    await user.click(screen.getByRole('button', { name: 'retail' }))
+    // A filter must never narrow the list from behind a collapsed control.
+    const chip = screen.getByRole('button', { name: 'retail' })
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    await user.click(chip)
     expect(onChange).toHaveBeenCalledWith({ ...search, domain: null })
   })
 
@@ -46,8 +59,15 @@ describe('RunsFilters', () => {
 
   test('filters by fault type, shown in words', async () => {
     const { onChange, user } = setup()
+    await user.click(screen.getByRole('button', { name: /more filters/i }))
     await user.click(screen.getByRole('button', { name: 'stale record' }))
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_RUNS_SEARCH, fault: 'stale_record' })
+  })
+
+  test('names both segmented groups, so two controls reading "All" are tellable apart', () => {
+    setup()
+    expect(screen.getByText('outcome_')).toBeInTheDocument()
+    expect(screen.getByText('status_')).toBeInTheDocument()
   })
 
   test('debounces the search field instead of navigating on every keystroke', async () => {
