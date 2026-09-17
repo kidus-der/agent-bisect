@@ -43,6 +43,18 @@ for (const theme of THEMES) {
     await page.screenshot({ path: `${OUT_DIR}run-detail-60step-${theme}-1440.png` })
   })
 
+  test(`run-detail rerun-control ${theme} 1440`, async ({ page }) => {
+    // The control arm is a different claim from the treated arm, so it is
+    // captured as its own state.
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await prepare(page, theme, `/runs/${BRIEF_RUN}/reruns/${BRIEF_RUN}-c-0`)
+    await page.screenshot({
+      path: `${OUT_DIR}run-detail-rerun-control-${theme}-1440.png`,
+      fullPage: true,
+    })
+  })
+
   test(`run-detail rerun ${theme} 1440`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
