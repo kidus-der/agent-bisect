@@ -41,7 +41,7 @@ test('the blame rail reports the settings the estimate was produced with', async
   await expect(config).toContainText('N ≤')
   await expect(config).toContainText('16')
   await expect(config).toContainText('shared')
-  await expect(config).toContainText('O’Brien-Fleming')
+  await expect(config).toContainText('OBF')
   // The caption carries a non-breaking space before the value, so match around it.
   await expect(page.getByText(/Earliest step whose 95% interval clears/)).toBeVisible()
   await expect(page.getByText(/out of 12 tested/)).toBeVisible()

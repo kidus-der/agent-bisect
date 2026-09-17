@@ -17,9 +17,14 @@ function Caption({ children }: { readonly children: React.ReactNode }) {
   return <p className="text-small text-pretty text-ink-muted">{children}</p>
 }
 
+/** Short enough for the rail; the full name is the abbreviation's title. */
 const BOUNDARY_LABELS: Readonly<Record<EstimatorConfig['efficacy_boundary'], string>> = {
-  obf: 'O’Brien-Fleming',
+  obf: 'OBF',
   none: 'none',
+}
+const BOUNDARY_TITLES: Readonly<Record<EstimatorConfig['efficacy_boundary'], string>> = {
+  obf: 'O’Brien-Fleming efficacy boundary',
+  none: 'no efficacy boundary',
 }
 
 /** The estimator's own settings, read off the run rather than assumed. */
@@ -30,7 +35,6 @@ function Method({ config }: { readonly config: EstimatorConfig }) {
     ['N ≤', String(config.max_n)],
     ['batch', String(config.batch)],
     ['control', config.control_mode],
-    ['boundary', BOUNDARY_LABELS[config.efficacy_boundary]],
   ]
   return (
     <dl
@@ -43,6 +47,14 @@ function Method({ config }: { readonly config: EstimatorConfig }) {
           <dd className="num text-[11px] text-ink">{value}</dd>
         </div>
       ))}
+      <div className="col-span-2 flex items-baseline justify-between gap-2">
+        <dt className="text-[11px] text-ink-muted">boundary</dt>
+        <dd className="num text-[11px] text-ink">
+          <abbr title={BOUNDARY_TITLES[config.efficacy_boundary]} className="no-underline">
+            {BOUNDARY_LABELS[config.efficacy_boundary]}
+          </abbr>
+        </dd>
+      </div>
     </dl>
   )
 }
