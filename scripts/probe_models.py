@@ -326,7 +326,14 @@ def build_judge_prompt() -> str:
     trajectories = sorted(PROBE_DIR.glob("*/*.simulation.json"))
     if not trajectories:
         raise SystemExit("no recorded trajectory yet; run --stage probe first")
-    messages = json.loads(trajectories[0].read_text()).get("messages") or []
+    # The protocol asks for a *realistic ~3k-token* prompt. Taking the first
+    # file alphabetically gives whichever conversation happened to be shortest
+    # (~1.9k tokens on this data); the longest recorded one is the closest
+    # single trajectory to the intended size, and the char cap trims from there.
+    longest = max(
+        trajectories, key=lambda path: len(json.loads(path.read_text()).get("messages") or [])
+    )
+    messages = json.loads(longest.read_text()).get("messages") or []
     transcript = "\n".join(
         f"{m.get('role')}: {json.dumps(m.get('content'))[:600]}" for m in messages
     )[:JUDGE_PROMPT_CHARS]
