@@ -34,6 +34,8 @@ const MIN_HEIGHT = 240
 const Y_DOMAIN = [0.5, 1] as const
 const Y_TICKS = [0.5, 0.6, 0.7, 0.8, 0.9, 1] as const
 const X_TICKS = [0.03, 0.1, 0.3, 1, 3] as const
+/** A narrow plot cannot fit five money labels without them touching. */
+const X_TICKS_NARROW = [0.03, 0.3, 3] as const
 const POINT_RADIUS = 5
 const HEADLINE_RADIUS = 7
 const CAP_HALF = 4
@@ -133,7 +135,7 @@ function Plot({ points, width, height, revealed, reduced, numbered }: PlotProps)
           titleOffset={MARGIN.left - 12}
         />
 
-        {X_TICKS.map((tick) => (
+        {(numbered ? X_TICKS_NARROW : X_TICKS).map((tick) => (
           <text
             key={tick}
             x={x(tick)}

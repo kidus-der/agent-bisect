@@ -27,6 +27,8 @@ const MIN_HEIGHT = 240
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
 const MARKER_RADIUS = 3.5
 const IN_VIEW_AMOUNT = 0.3
+/** Below this the pre-registration note collides with the end label. */
+const NARROW_PLOT_PX = 340
 
 function describe(points: readonly RecallPoint[]): string {
   const first = points[0]
@@ -109,7 +111,9 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
               paintOrder="stroke"
               className="num"
             >
-              m={PREREGISTERED_M} pre-registered
+              {innerWidth < NARROW_PLOT_PX
+                ? `m=${PREREGISTERED_M}`
+                : `m=${PREREGISTERED_M} pre-registered`}
             </text>
           </g>
         ) : null}
