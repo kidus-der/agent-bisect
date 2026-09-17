@@ -3,7 +3,7 @@ import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { formatPercent, formatPoints } from '@/lib/stats'
 
-import { deltaBarGeometry } from './deltaBarGeometry'
+import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry } from './deltaBarGeometry'
 import { cn } from '@/lib/utils'
 
 import type { ScenarioRow } from './api'
@@ -41,8 +41,22 @@ function DeltaBar({ value, scale }: { readonly value: number; readonly scale: nu
         )}
         style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
       />
-      <span className="absolute inset-y-0 left-1/2 z-10 w-px bg-ink-muted" />
+      <ZeroRule />
     </span>
+  )
+}
+
+/**
+ * Zero, drawn at the one x the bars anchor on. It overhangs its row so the
+ * rules in consecutive rows join into a single line down the column — a bar's
+ * side only means something against a zero the reader can see.
+ */
+function ZeroRule({ overhang = true }: { readonly overhang?: boolean }) {
+  return (
+    <span
+      className={cn('absolute z-10 w-px bg-line-strong', overhang ? '-inset-y-3' : 'inset-y-0')}
+      style={{ left: `${ZERO_MIDPOINT_PERCENT}%` }}
+    />
   )
 }
 
@@ -54,7 +68,7 @@ function DeltaAxisLegend({ scale }: { readonly scale: number }) {
       <span className="num">−{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
       <span aria-hidden="true" className={cn('relative inline-block h-3', TRACK_WIDTH)}>
         <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line-strong" />
-        <span className="absolute inset-y-0 left-1/2 w-px bg-ink-muted" />
+        <ZeroRule overhang={false} />
       </span>
       <span className="num">+{formatPoints(scale, 0).replace(/^[+−]/, '')}</span>
     </span>
