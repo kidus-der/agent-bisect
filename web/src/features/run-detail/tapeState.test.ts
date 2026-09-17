@@ -107,7 +107,13 @@ describe('tapeStepStates, after a rewind to k', () => {
 describe('nextRewind', () => {
   it('bands the prefix in chunks before applying the intervention', () => {
     // Arrange: 54 steps to band would be one expensive commit if done at once.
-    let state = { step: 55, phase: 'rewinding' as const, replayedThrough: 55, passed: null, bandedThrough: 0 }
+    let state = {
+      step: 55,
+      phase: 'rewinding' as const,
+      replayedThrough: 55,
+      passed: null,
+      bandedThrough: 0,
+    }
     const ticks: number[] = []
 
     // Act
