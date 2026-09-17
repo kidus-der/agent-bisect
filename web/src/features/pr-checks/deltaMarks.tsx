@@ -1,6 +1,5 @@
 import { cn } from '@/lib/utils'
 
-import type { ScenarioRow } from './api'
 import { ZERO_MIDPOINT_PERCENT, deltaBarGeometry } from './deltaBarGeometry'
 
 /** Anything below this is a real regression rather than floating-point dust. */
@@ -12,10 +11,6 @@ export const WORSE_THRESHOLD = -0.0001
  * sharing the track width is what lets a reader match the two by eye.
  */
 export const TRACK_WIDTH = 'w-40'
-
-export function scenarioDelta(row: ScenarioRow): number {
-  return row.head_pass_rate - row.base_pass_rate
-}
 
 /**
  * Zero, drawn at the one x the bars anchor on. It overhangs its row so the

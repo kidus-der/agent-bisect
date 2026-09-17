@@ -12,6 +12,9 @@ const ROW: ScenarioRow = {
   n: 4,
 }
 
+/** Real mode: a scenario that exists only on head has nothing to compare to. */
+const NEW_IN_HEAD: ScenarioRow = { ...ROW, base_pass_rate: null }
+
 function ids(narrow: boolean): readonly string[] {
   return scenarioColumns(SCALE, narrow).map((column) => column.id)
 }
@@ -43,12 +46,23 @@ describe('scenarioColumns', () => {
     expect(ids(false)).toContain('n')
   })
 
+  test('an uncompared scenario sorts below every measured one', () => {
+    // Arrange / Act — ascending puts the worst change first, so a row with no
+    // change at all belongs at the end rather than among the small ones.
+    const delta = scenarioColumns(SCALE, false).find((column) => column.id === 'delta')
+
+    // Assert
+    expect(delta?.sortValue?.(NEW_IN_HEAD)).toBe(Number.POSITIVE_INFINITY)
+    expect(delta?.sortValue?.(ROW)).toBeLessThan(0)
+  })
+
   test('sorting still works on every narrow column', () => {
     // A column a reader can see but not sort by is a regression against the
     // wide table, where all of them sort.
     for (const column of scenarioColumns(SCALE, true)) {
       expect(column.sortValue).toBeTypeOf('function')
       expect(column.sortValue?.(ROW)).toBeDefined()
+      expect(column.sortValue?.(NEW_IN_HEAD)).toBeDefined()
     }
   })
 })

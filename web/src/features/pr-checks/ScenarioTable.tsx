@@ -6,7 +6,8 @@ import { formatPoints } from '@/lib/stats'
 
 import type { ScenarioRow } from './api'
 import { scaleKeyLabel } from './deltaBarGeometry'
-import { WORSE_THRESHOLD, scenarioDelta } from './deltaMarks'
+import { scenarioDelta } from './checkRef'
+import { WORSE_THRESHOLD } from './deltaMarks'
 import { scenarioColumns } from './scenarioColumns'
 
 const TABLE_MAX_HEIGHT = 380
@@ -31,7 +32,7 @@ function DeltaAxisLegend({ scale }: { readonly scale: number }) {
 
 /** The largest absolute change in the suite; every bar is drawn against it. */
 function deltaScale(scenarios: readonly ScenarioRow[]): number {
-  return scenarios.reduce((largest, row) => Math.max(largest, Math.abs(scenarioDelta(row))), 0)
+  return scenarios.reduce((largest, row) => Math.max(largest, Math.abs(scenarioDelta(row) ?? 0)), 0)
 }
 
 interface ScenarioTableProps {
@@ -40,7 +41,9 @@ interface ScenarioTableProps {
 
 export function ScenarioTable({ scenarios }: ScenarioTableProps) {
   const narrow = useMediaQuery(NARROW_QUERY)
-  const worse = scenarios.filter((row) => scenarioDelta(row) < WORSE_THRESHOLD).length
+  // A scenario with no base run is neither better nor worse; it is uncompared.
+  const compared = scenarios.filter((row) => scenarioDelta(row) !== null)
+  const worse = compared.filter((row) => (scenarioDelta(row) ?? 0) < WORSE_THRESHOLD).length
   const scale = deltaScale(scenarios)
 
   return (
@@ -52,7 +55,7 @@ export function ScenarioTable({ scenarios }: ScenarioTableProps) {
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <DeltaAxisLegend scale={scale} />
             <span className="num text-small text-ink-muted">
-              {worse} of {scenarios.length} worse on head
+              {worse} of {compared.length} worse on head
             </span>
           </span>
         </div>

@@ -3,7 +3,8 @@ import { formatPercent, formatPoints } from '@/lib/stats'
 import { cn } from '@/lib/utils'
 
 import type { ScenarioRow } from './api'
-import { DeltaBar, WORSE_THRESHOLD, scenarioDelta } from './deltaMarks'
+import { scenarioDelta } from './checkRef'
+import { DeltaBar, WORSE_THRESHOLD } from './deltaMarks'
 
 /**
  * The suite table's columns, wide and narrow.
@@ -14,7 +15,15 @@ import { DeltaBar, WORSE_THRESHOLD, scenarioDelta } from './deltaMarks'
  * itself, pairs the two pass rates into one `93% → 26%` cell, and drops the run
  * count, which is constant across the suite and stated in the panel above.
  */
-function DeltaValue({ value }: { readonly value: number }) {
+function DeltaValue({ value }: { readonly value: number | null }) {
+  // No base run, no change: the row says so rather than reporting head - 0.
+  if (value === null) {
+    return (
+      <span className="num whitespace-nowrap text-ink-muted" title="new in head: no base run">
+        —
+      </span>
+    )
+  }
   const worse = value < WORSE_THRESHOLD
   return (
     <span className={cn('num whitespace-nowrap', worse ? 'text-fail' : 'text-pass')}>
@@ -27,7 +36,7 @@ function DeltaValue({ value }: { readonly value: number }) {
 function PassPair({ row }: { readonly row: ScenarioRow }) {
   return (
     <span className="num whitespace-nowrap text-ink-muted">
-      {formatPercent(row.base_pass_rate, 0)}
+      {row.base_pass_rate === null ? '—' : formatPercent(row.base_pass_rate, 0)}
       <span aria-hidden="true">→</span>
       <span className="text-ink">{formatPercent(row.head_pass_rate, 0)}</span>
     </span>
@@ -58,7 +67,9 @@ export function scenarioColumns(
     id: 'delta',
     header: 'change',
     numeric: true,
-    sortValue: (row) => scenarioDelta(row),
+    // An uncompared scenario sorts below every measured one instead of
+    // landing in the middle as a zero change.
+    sortValue: (row) => scenarioDelta(row) ?? Number.POSITIVE_INFINITY,
     cell: (row) =>
       narrow ? (
         // No bar: the track needs 10rem it does not have here, and the signed
@@ -66,7 +77,7 @@ export function scenarioColumns(
         <DeltaValue value={scenarioDelta(row)} />
       ) : (
         <span className="inline-flex items-center justify-end gap-2">
-          <DeltaBar value={scenarioDelta(row)} scale={scale} />
+          <DeltaBar value={scenarioDelta(row) ?? 0} scale={scale} />
           <span className="w-20">
             <DeltaValue value={scenarioDelta(row)} />
           </span>
@@ -95,9 +106,11 @@ export function scenarioColumns(
       id: 'base',
       header: 'base',
       numeric: true,
-      sortValue: (row) => row.base_pass_rate,
+      sortValue: (row) => row.base_pass_rate ?? Number.NEGATIVE_INFINITY,
       cell: (row) => (
-        <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
+        <span className="num text-ink-muted">
+          {row.base_pass_rate === null ? '—' : formatPercent(row.base_pass_rate, 0)}
+        </span>
       ),
     },
     {
