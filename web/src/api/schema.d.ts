@@ -840,7 +840,7 @@ export interface components {
             /** Cost Vs Accuracy */
             cost_vs_accuracy: components["schemas"]["CostAccuracyPoint"][];
             headline: components["schemas"]["HeadlineResult"];
-            hero_run: components["schemas"]["RunSummary"];
+            hero_run: components["schemas"]["RunSummary"] | null;
             kpis: components["schemas"]["Kpis"];
             /** Recall At M */
             recall_at_m: components["schemas"]["RecallPoint"][];
