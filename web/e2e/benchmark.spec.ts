@@ -20,7 +20,9 @@ test('the method comparison names every method with its interval and its cost', 
   await openBenchmark(page)
 
   await expect(page.getByText('96.5%').first()).toBeVisible()
-  await expect(page.getByText('[90.2%, 98.8%]', { exact: true })).toBeVisible()
+  // Twice: on the Bisect row, and in the compact one-line verdict for narrow
+  // viewports, which is in the DOM at every width.
+  await expect(page.getByText('[90.2%, 98.8%]').first()).toBeVisible()
   await expect(page.getByText('$1.56').first()).toBeVisible()
   await expect(page.getByText('780 calls').first()).toBeVisible()
   // The pre-registered bar is reported at its real value, above 100%.

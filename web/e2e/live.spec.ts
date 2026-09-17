@@ -27,7 +27,8 @@ test('the calls chart, gauge, ring, queue and feed all render', async ({ page })
   await mockP6eApi(page)
   await openLive(page)
 
-  await expect(page.getByText(/calls \/ min · scale 0–\d+ shared/)).toBeVisible()
+  await expect(page.getByText(/calls \/ min · sum of \d+ models?/)).toBeVisible()
+  await expect(page.getByText(/traces share 0–\d+/)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Call budget' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Headroom' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Jobs in flight' })).toBeVisible()
@@ -69,7 +70,7 @@ test('an unmeasured live endpoint is reported, never filled in with numbers', as
 
   await expect(page.getByText(/live · not measured/i)).toBeVisible()
   await expect(page.getByText('no call ledger yet')).toBeVisible()
-  await expect(page.getByText(/calls \/ min · scale/)).toHaveCount(0)
+  await expect(page.getByText(/calls \/ min · sum of/)).toHaveCount(0)
 })
 
 test('the page does not scroll sideways at 390px', async ({ page }) => {

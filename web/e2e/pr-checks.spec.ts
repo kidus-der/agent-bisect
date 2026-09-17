@@ -27,18 +27,26 @@ test('the list separates flagged checks from clean ones', async ({ page }) => {
   await mockP6eApi(page)
   await openList(page)
 
-  await expect(page.getByText('flagged')).toBeVisible()
+  // The count appears in the table header and again in the gate summary below.
+  await expect(page.getByText('flagged').first()).toBeVisible()
   await expect(page.getByText('clean').first()).toBeVisible()
-  await expect(page.getByRole('link', { name: /#10\d\d/ })).toHaveCount(6)
-  await expect(page.locator('[data-verdict="regression"]')).toHaveCount(3)
-  await expect(page.locator('[data-verdict="clean"]')).toHaveCount(3)
+  // Scoped to the table: the gate summary below links every check again.
+  const table = page.getByRole('table', { name: /Gated pull requests/ })
+  await expect(table.getByRole('link', { name: /#10\d\d/ })).toHaveCount(6)
+  // `:visible` because each row renders the chip twice — once for the verdict
+  // column and once for the stacked mobile cell — and CSS picks which shows.
+  await expect(page.locator('[data-verdict="regression"]:visible')).toHaveCount(3)
+  await expect(page.locator('[data-verdict="clean"]:visible')).toHaveCount(3)
 })
 
 test('a list row opens its detail', async ({ page }) => {
   await mockP6eApi(page)
   await openList(page)
 
-  await page.getByRole('link', { name: '#1000' }).click()
+  await page
+    .getByRole('table', { name: /Gated pull requests/ })
+    .getByRole('link', { name: '#1000' })
+    .click()
 
   await expect(page).toHaveURL(new RegExp(`/pr-checks/${REGRESSION_CHECK}$`))
   await expect(page.getByText('Regression detected').first()).toBeVisible()
