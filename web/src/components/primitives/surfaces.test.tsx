@@ -195,6 +195,13 @@ describe('Panel', () => {
     expect(new Set(radii).size).toBe(4)
   })
 
+  test('KPI tiles step up a fill from cards, so the light theme does not read as empty boxes', () => {
+    const kpi = render(<Panel variant="kpi">x</Panel>)
+    expect(kpi.container.firstElementChild).toHaveClass('bg-elevated', 'border-line-strong')
+    const card = render(<Panel variant="card">x</Panel>)
+    expect(card.container.firstElementChild).toHaveClass('bg-surface', 'border-line')
+  })
+
   test('registration marks appear on the blueprint canvas only', () => {
     const canvas = render(
       <Panel variant="canvas" label="tape">
