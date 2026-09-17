@@ -6,6 +6,7 @@ import { Kbd } from '@/components/primitives/Kbd'
 import { layoutIds, useSpringTransition } from '@/design/motion'
 import { cn } from '@/lib/utils'
 
+import { ActivityPulse, useRunningJobCount } from './ActivityPulse'
 import { BrandMark } from './BrandMark'
 import { DataSourceFlag } from './DataSourceFlag'
 import { NAV_ITEMS, isNavItemActive } from './nav'
@@ -18,6 +19,7 @@ interface TopBarProps {
 function DesktopNav() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const transition = useSpringTransition('snap')
+  const runningJobs = useRunningJobCount()
   return (
     <nav aria-label="Primary" className="hidden h-full md:flex">
       <ul className="flex h-full items-stretch gap-1">
@@ -34,6 +36,9 @@ function DesktopNav() {
                 )}
               >
                 {item.label}
+                {item.to === '/live' ? (
+                  <ActivityPulse count={runningJobs} className="ml-1.5" />
+                ) : null}
                 {active ? (
                   <motion.span
                     layoutId={layoutIds.navIndicator}

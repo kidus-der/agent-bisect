@@ -2,6 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 
 import { cn } from '@/lib/utils'
 
+import { ActivityPulse, useRunningJobCount } from './ActivityPulse'
 import { NAV_ITEMS, isNavItemActive } from './nav'
 
 /**
@@ -10,6 +11,7 @@ import { NAV_ITEMS, isNavItemActive } from './nav'
  */
 export function BottomNav() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const runningJobs = useRunningJobCount()
   return (
     <nav
       aria-label="Primary"
@@ -29,7 +31,12 @@ export function BottomNav() {
                 )}
               >
                 {active ? <span className="absolute inset-x-5 top-0 h-0.5 bg-ink" /> : null}
-                <item.icon aria-hidden="true" className="size-[18px]" />
+                <span className="relative">
+                  <item.icon aria-hidden="true" className="size-[18px]" />
+                  {item.to === '/live' ? (
+                    <ActivityPulse count={runningJobs} className="absolute -top-0.5 -right-1" />
+                  ) : null}
+                </span>
                 {item.shortLabel}
               </Link>
             </li>
