@@ -32,13 +32,13 @@ BUSY_TIMEOUT_S = 30.0
 #: A row written before its call is made, updated by finish() afterwards.
 RESERVED_STATUS = "reserved"
 
-_COLUMNS = "ts, phase, model, purpose, status, tokens_in, tokens_out, latency_ms"
-_INSERT_SQL = f"INSERT INTO calls ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+_COLUMNS = "ts, phase, model, purpose, status, tokens_in, tokens_out, latency_ms, run_id"
+_INSERT_SQL = f"INSERT INTO calls ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 #: The count and the insert in ONE statement: that is what makes the cap hold
 #: under concurrency. rowcount == 0 means the cap was already reached.
 _INSERT_GUARDED_SQL = (
     f"INSERT INTO calls ({_COLUMNS}) "
-    "SELECT ?, ?, ?, ?, ?, ?, ?, ? "
+    "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? "
     "WHERE (SELECT COUNT(*) FROM calls) < ?"
 )
 
@@ -52,9 +52,29 @@ CREATE TABLE IF NOT EXISTS calls (
     status TEXT NOT NULL,
     tokens_in INTEGER NOT NULL,
     tokens_out INTEGER NOT NULL,
-    latency_ms REAL NOT NULL
+    latency_ms REAL NOT NULL,
+    run_id TEXT
 );
 """
+
+#: Columns added after the table first shipped. A ledger written by an
+#: earlier phase already holds thousands of rows that must survive and keep
+#: counting against the cap, so the column is added in place rather than
+#: the file being rebuilt.
+_ADDED_COLUMNS = {"run_id": "TEXT"}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add any column this table gained after it first shipped.
+
+    `CREATE TABLE IF NOT EXISTS` leaves an older table exactly as it was,
+    so a ledger from an earlier phase would otherwise be missing the
+    column and every insert would fail.
+    """
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(calls)")}
+    for column, column_type in _ADDED_COLUMNS.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE calls ADD COLUMN {column} {column_type}")
 
 
 def _row_values(record: CallRecord) -> tuple:
@@ -67,6 +87,7 @@ def _row_values(record: CallRecord) -> tuple:
         record.tokens_in,
         record.tokens_out,
         record.latency_ms,
+        record.run_id,
     )
 
 
@@ -87,6 +108,9 @@ class CallRecord(BaseModel):
     tokens_in: int
     tokens_out: int
     latency_ms: float
+    #: The recorded run this call belongs to, when it belongs to one. A
+    #: rate-limit ramp or a model probe belongs to no run.
+    run_id: str | None = None
 
 
 def current_phase(explicit: str | None = None) -> str:
@@ -110,6 +134,7 @@ class BudgetLedger:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.execute(_SCHEMA)
+            _migrate(conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path, timeout=BUSY_TIMEOUT_S)
@@ -133,7 +158,9 @@ class BudgetLedger:
                 f"budget exceeded: {total} calls already recorded, cap is {self._max_calls}"
             )
 
-    def reserve(self, *, phase: str, model: str, purpose: str) -> int:
+    def reserve(
+        self, *, phase: str, model: str, purpose: str, run_id: str | None = None
+    ) -> int:
         """Atomically claim one slot under the cap; return the row id.
 
         The count and the insert are a single statement, so concurrent
@@ -145,6 +172,7 @@ class BudgetLedger:
         row = CallRecord(
             ts=time.time(), phase=phase, model=model, purpose=purpose,
             status=RESERVED_STATUS, tokens_in=0, tokens_out=0, latency_ms=0.0,
+            run_id=run_id,
         )
         with self._connect() as conn:
             if self._max_calls is None:
@@ -201,4 +229,12 @@ class BudgetLedger:
     def totals_per_phase(self) -> dict[str, int]:
         with self._connect() as conn:
             rows = conn.execute("SELECT phase, COUNT(*) FROM calls GROUP BY phase").fetchall()
+            return dict(rows)
+
+    def totals_per_run(self) -> dict[str, int]:
+        """Calls per recorded run. Calls belonging to no run are left out."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT run_id, COUNT(*) FROM calls WHERE run_id IS NOT NULL GROUP BY run_id"
+            ).fetchall()
             return dict(rows)
