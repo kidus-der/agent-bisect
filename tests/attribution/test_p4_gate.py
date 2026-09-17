@@ -15,9 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from gates.p4 import (  # type: ignore[reportMissingImports]  # noqa: E402
     COVERAGE_WINDOW,
     MIN_FOUND_RATE,
+    POWER_CONTROL_RATES,
+    POWER_TREATED_RATES,
     classify_outcome,
+    detection_power,
     evaluate_criteria,
     evaluate_run,
+    format_power_table,
     format_report,
     main,
     run_gate,
@@ -152,3 +156,59 @@ def test_one_run_reports_a_coverage_count_for_every_step_it_tested():
     assert outcome.fixed_tested == spec.n_steps
     assert outcome.sequential_tested == spec.n_steps
     assert 0 <= outcome.sequential_covered <= outcome.sequential_tested
+
+
+def test_detection_power_is_a_probability_for_every_tabulated_cell():
+    for control in POWER_CONTROL_RATES:
+        for treated in POWER_TREATED_RATES:
+            assert 0.0 <= detection_power(treated, control) <= 1.0
+
+
+def test_detection_power_rises_with_the_treated_rate():
+    powers = [detection_power(treated, 0.10) for treated in POWER_TREATED_RATES]
+
+    assert powers == sorted(powers)
+
+
+def test_detection_power_falls_as_the_control_rate_rises():
+    powers = [detection_power(0.70, control) for control in POWER_CONTROL_RATES]
+
+    assert powers == sorted(powers, reverse=True)
+
+
+def test_an_effect_that_cannot_be_missed_is_detected_with_certainty():
+    assert detection_power(1.0, 0.0) == pytest.approx(1.0)
+
+
+def test_the_stricter_obf_level_never_detects_more_than_the_nominal_one():
+    from agent_bisect.attribution.estimate import OBF_CRITICAL_Z, confidence_for_z
+
+    obf_conf = confidence_for_z(OBF_CRITICAL_Z[-1])
+    for control in POWER_CONTROL_RATES:
+        for treated in POWER_TREATED_RATES:
+            assert detection_power(treated, control, conf=obf_conf) <= detection_power(
+                treated, control
+            )
+
+
+def test_the_enumeration_covers_the_whole_probability_mass():
+    # Power at a delta below every achievable bound must be the total mass, 1.
+    assert detection_power(0.7, 0.1, delta=-1.0) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_the_power_table_names_every_rate_it_tabulates():
+    table = format_power_table()
+
+    for treated in POWER_TREATED_RATES:
+        assert f"treated {treated:.2f}" in table
+    for control in POWER_CONTROL_RATES:
+        assert f"{control:.2f} |" in table
+
+
+def test_the_power_table_flag_exits_zero_and_writes_no_report(tmp_path: Path):
+    destination = tmp_path / "unwanted.json"
+
+    exit_code = main(["--power-table", "--out", str(destination)])
+
+    assert exit_code == 0
+    assert not destination.exists()

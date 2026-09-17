@@ -29,9 +29,20 @@ each treated arm and exists to check the assumption on real runs;
 Wilson interval), which the baselines need. See
 `docs/decisions/0005-shared-control.md`.
 
-Repeated looks at a fixed-coverage interval inflate its error rate. Nothing
-here corrects for that; the P4 gate measures the distortion by reporting
-coverage for both the fixed-N design and the sequential procedure.
+Repeated looks and the efficacy boundary
+----------------------------------------
+Acting on a nominal 95% bound at four successive looks is not a 95% test, and
+under the earliest-step rule a false crossing at an early null step is
+irreversible. Interim **blame** decisions therefore consult an O'Brien-Fleming
+boundary (`efficacy_boundary="obf"`, the default): at look j the step is
+blame-worthy only if the interval computed at that look's level clears delta.
+`"none"` keeps the original uncorrected behaviour so the two can be compared.
+
+Two things stay at the nominal level: futility ("cleared") stopping, which
+cannot manufacture a false blame, and the **reported** interval, which is always
+the nominal 95% Newcombe CI at the step's final n -- that is what the P4
+coverage criterion measures and what the dashboard draws. Only the decision
+moves. See `docs/decisions/0008-sequential-efficacy-boundary.md`.
 
 This module is pure: it reaches the world only through the `RerunSampler`
 protocol, so the replay runner, the fakes and the baselines all plug into the
@@ -50,11 +61,23 @@ from typing import Literal, Protocol
 Arm = Literal["treated", "control"]
 ControlMode = Literal["shared", "per_step", "none"]
 StopReason = Literal["blameworthy", "cleared", "max_n"]
+EfficacyBoundary = Literal["obf", "none"]
 
 DEFAULT_BATCH = 4
 DEFAULT_MAX_N = 16
 DEFAULT_DELTA = 0.10
 DEFAULT_CONF = 0.95
+
+# O'Brien-Fleming boundary for K = 4 equally spaced looks at overall two-sided
+# alpha = 0.05. O'Brien & Fleming (1979); constant C_B(4, 0.05) = 2.024 as
+# tabulated in Jennison & Turnbull (2000), Table 2.3. Verified in
+# `tests/attribution/test_boundary.py`: each value equals C * sqrt(K / j), the
+# implied nominal alphas reproduce the published table, and integrating the
+# crossing probability of the equivalent constant score-scale boundary returns
+# an overall two-sided alpha of 0.05. See docs/decisions/0008-*.
+OBF_CONSTANT = 2.024
+OBF_LOOKS = 4
+OBF_CRITICAL_Z: tuple[float, ...] = (4.049, 2.863, 2.337, 2.024)
 
 _SEED_BYTES = 4
 _SEED_MODULUS = 1 << (8 * _SEED_BYTES)
@@ -79,6 +102,11 @@ def _z_for(conf: float) -> float:
     if not 0.0 < conf < 1.0:
         raise ValueError(f"conf must be strictly between 0 and 1, got {conf}")
     return NormalDist().inv_cdf(1.0 - (1.0 - conf) / 2.0)
+
+
+def confidence_for_z(critical_z: float) -> float:
+    """The two-sided confidence level a critical z value corresponds to."""
+    return 2.0 * NormalDist().cdf(critical_z) - 1.0
 
 
 def _validate_arm_counts(successes: int, n: int) -> None:
@@ -163,10 +191,20 @@ class StepEffect:
     ci_high: float
     n_batches: int
     stop_reason: StopReason
+    # The blame decision is taken at the efficacy boundary's level for the look
+    # that made it, which is not the level of the reported interval above.
+    decision_conf: float = DEFAULT_CONF
+    decision_ci_low: float = float("nan")
 
     @property
     def interval(self) -> Interval:
+        """The reported effect interval: always the nominal `conf` level."""
         return Interval(self.ci_low, self.ci_high)
+
+    @property
+    def blameworthy(self) -> bool:
+        """Whether this step's own sampling ended in a blame-worthy verdict."""
+        return self.stop_reason == "blameworthy"
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +218,7 @@ class SequentialConfig:
     max_n: int = DEFAULT_MAX_N
     delta: float = DEFAULT_DELTA
     conf: float = DEFAULT_CONF
+    efficacy_boundary: EfficacyBoundary = "obf"
 
     def __post_init__(self) -> None:
         if self.batch <= 0:
@@ -189,6 +228,20 @@ class SequentialConfig:
         if not 0.0 <= self.delta < 1.0:
             raise ValueError(f"delta must be in [0, 1), got {self.delta}")
         _z_for(self.conf)
+        if self.efficacy_boundary not in ("obf", "none"):
+            raise ValueError(
+                f"efficacy_boundary must be 'obf' or 'none', got {self.efficacy_boundary!r}"
+            )
+        if self.efficacy_boundary == "obf" and self.planned_looks != OBF_LOOKS:
+            raise ValueError(
+                f"the 'obf' boundary is defined for exactly {OBF_LOOKS} looks, but "
+                f"batch={self.batch} and max_n={self.max_n} plan {self.planned_looks}"
+            )
+
+    @property
+    def planned_looks(self) -> int:
+        """How many batches the plan takes if no step ever stops early."""
+        return math.ceil(self.max_n / self.batch)
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,10 +301,26 @@ def _effect_and_interval(
     return treated.rate - control.rate, interval
 
 
-def _stop_reason(interval: Interval, delta: float) -> StopReason | None:
-    if interval.low > delta:
+def decision_confidence(config: SequentialConfig, look: int) -> float:
+    """The confidence level the blame decision uses at this (1-indexed) look.
+
+    Without a boundary this is just the nominal level at every look -- which is
+    what made a nominal 95% bound, consulted four times, not a 95% bound.
+    """
+    if config.efficacy_boundary == "none":
+        return config.conf
+    return confidence_for_z(OBF_CRITICAL_Z[look - 1])
+
+
+def _stop_reason(decision: Interval, reported: Interval, delta: float) -> StopReason | None:
+    """Blame on the boundary-adjusted interval; clear on the nominal one.
+
+    Futility stopping cannot manufacture a false blame, so it needs no
+    multiplicity control and stays at the nominal level (docs/decisions/0008).
+    """
+    if decision.low > delta:
         return "blameworthy"
-    if interval.high <= delta:
+    if reported.high <= delta:
         return "cleared"
     return None
 
@@ -302,7 +371,9 @@ def estimate_step(
         batches += 1
 
         effect, interval = _effect_and_interval(treated, control, config.conf)
-        reason = _stop_reason(interval, config.delta)
+        conf_for_decision = decision_confidence(config, batches)
+        _, decision = _effect_and_interval(treated, control, conf_for_decision)
+        reason = _stop_reason(decision, interval, config.delta)
         if reason is not None or treated.n >= config.max_n:
             return StepEffect(
                 step=step,
@@ -313,13 +384,20 @@ def estimate_step(
                 ci_high=interval.high,
                 n_batches=batches,
                 stop_reason=reason or "max_n",
+                decision_conf=conf_for_decision,
+                decision_ci_low=decision.low,
             )
 
 
-def blame(step_effects: Iterable[StepEffect], delta: float = DEFAULT_DELTA) -> int | None:
-    """The earliest step whose interval lower bound clears `delta`, else `None`."""
+def blame(step_effects: Iterable[StepEffect]) -> int | None:
+    """The earliest step with a blame-worthy verdict, else `None`.
+
+    The verdict travels with the `StepEffect` rather than being re-derived from
+    the reported bound, because the decision was taken at the efficacy
+    boundary's level for the look that made it, not at the reported level.
+    """
     for effect in sorted(step_effects, key=lambda candidate: candidate.step):
-        if effect.ci_low > delta:
+        if effect.blameworthy:
             return effect.step
     return None
 
@@ -381,7 +459,7 @@ def estimate_run(
 
     return RunEstimate(
         step_effects=effects,
-        blamed_step=blame(effects, config.delta),
+        blamed_step=blame(effects),
         control_mode=control_mode,
         control_fork_step=fork_step,
         treated_reruns=sum(effect.treated.n for effect in effects),

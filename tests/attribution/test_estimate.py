@@ -17,8 +17,9 @@ from agent_bisect.attribution.estimate import (
     estimate_step,
 )
 
-PREREGISTERED = SequentialConfig()
-FIXED_N = SequentialConfig(batch=16, max_n=16)
+PREREGISTERED = SequentialConfig()  # OBF efficacy boundary, the default
+UNCORRECTED = SequentialConfig(efficacy_boundary="none")  # the pre-0008 rule
+FIXED_N = SequentialConfig(batch=16, max_n=16, efficacy_boundary="none")
 
 
 @dataclass
@@ -57,6 +58,7 @@ class WrongLengthSampler:
 
 
 def _effect(step: int, ci_low: float, ci_high: float) -> StepEffect:
+    """A step effect whose verdict follows from its bound against the default delta."""
     return StepEffect(
         step=step,
         treated=ArmResult(4, 4),
@@ -65,19 +67,21 @@ def _effect(step: int, ci_low: float, ci_high: float) -> StepEffect:
         ci_low=ci_low,
         ci_high=ci_high,
         n_batches=1,
-        stop_reason="blameworthy",
+        stop_reason="blameworthy" if ci_low > PREREGISTERED.delta else "max_n",
+        decision_conf=PREREGISTERED.conf,
+        decision_ci_low=ci_low,
     )
 
 
 def test_step_stops_at_the_first_batch_when_the_treated_arm_always_passes():
-    # Arrange
+    # Arrange -- without an efficacy boundary a perfect first look is decisive.
     sampler = RecordingSampler(treated_passes=True, control_passes=False)
 
     # Act
     effect = estimate_step(
         7,
         sampler,
-        PREREGISTERED,
+        UNCORRECTED,
         seed=1,
         control_mode="shared",
         shared_control=ArmResult(0, 16),
@@ -184,7 +188,7 @@ def test_shared_control_costs_max_n_reruns_and_one_extra_sampler_call():
     sampler = RecordingSampler(treated_passes=True, control_passes=False)
 
     # Act
-    estimate = estimate_run([1, 2, 3], sampler, PREREGISTERED, control_mode="shared", seed=5)
+    estimate = estimate_run([1, 2, 3], sampler, UNCORRECTED, control_mode="shared", seed=5)
 
     # Assert
     assert estimate.treated_reruns == 3 * PREREGISTERED.batch
@@ -197,7 +201,7 @@ def test_shared_control_costs_max_n_reruns_and_one_extra_sampler_call():
 def test_per_step_control_doubles_both_the_reruns_and_the_sampler_calls():
     sampler = RecordingSampler(treated_passes=True, control_passes=False)
 
-    estimate = estimate_run([1, 2, 3], sampler, PREREGISTERED, control_mode="per_step", seed=5)
+    estimate = estimate_run([1, 2, 3], sampler, UNCORRECTED, control_mode="per_step", seed=5)
 
     assert estimate.control_reruns == estimate.treated_reruns
     assert estimate.sampler_calls == 2 * 3
@@ -216,19 +220,19 @@ def test_early_stopping_spends_fewer_reruns_than_the_fixed_design():
 def test_blame_names_the_earliest_step_whose_lower_bound_clears_delta():
     effects = (_effect(2, 0.05, 0.4), _effect(5, 0.30, 0.8), _effect(9, 0.60, 0.95))
 
-    assert blame(effects, delta=0.10) == 5
+    assert blame(effects) == 5
 
 
 def test_blame_ignores_a_larger_effect_at_a_later_step():
     effects = (_effect(9, 0.90, 0.99), _effect(5, 0.11, 0.5))
 
-    assert blame(effects, delta=0.10) == 5
+    assert blame(effects) == 5
 
 
 def test_blame_returns_none_when_no_step_clears_delta():
     effects = (_effect(2, 0.05, 0.4), _effect(5, 0.10, 0.8))
 
-    assert blame(effects, delta=0.10) is None
+    assert blame(effects) is None
 
 
 def test_blame_of_no_steps_is_none():

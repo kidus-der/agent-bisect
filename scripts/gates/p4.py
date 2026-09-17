@@ -27,16 +27,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 from agent_bisect.attribution.estimate import (
+    DEFAULT_CONF,
     DEFAULT_MAX_N,
+    OBF_CRITICAL_Z,
     RunEstimate,
     SequentialConfig,
+    confidence_for_z,
     estimate_run,
+    newcombe_diff_interval,
     wilson_interval,
 )
 from agent_bisect.attribution.fakes import FakeRunSpec, ScriptedSampler, sample_run_specs
@@ -47,7 +52,13 @@ MIN_FOUND_RATE = 0.95
 COVERAGE_WINDOW = (0.92, 0.98)
 CONTROL_MODE = "shared"
 SEQUENTIAL_CONFIG = SequentialConfig()
-FIXED_CONFIG = SequentialConfig(batch=DEFAULT_MAX_N, max_n=DEFAULT_MAX_N)
+# One look means no multiplicity to correct, so the fixed-N diagnostic keeps the
+# nominal level (docs/decisions/0008). Its numbers -- including the gated
+# coverage -- are therefore unaffected by the efficacy boundary.
+FIXED_CONFIG = SequentialConfig(
+    batch=DEFAULT_MAX_N, max_n=DEFAULT_MAX_N, efficacy_boundary="none"
+)
+UNCORRECTED_CONFIG = SequentialConfig(efficacy_boundary="none")
 DEFAULT_OUTPUT = Path("runs/p4/gate.json")
 _SEED_BYTES = 4
 
@@ -369,12 +380,76 @@ def format_report(report: GateReport) -> str:
     return "\n".join(lines)
 
 
+POWER_CONTROL_RATES = (0.00, 0.10, 0.15)
+POWER_TREATED_RATES = (0.60, 0.70, 0.80, 0.90)
+
+
+def _binomial_pmf(successes: int, n: int, prob: float) -> float:
+    return math.comb(n, successes) * prob**successes * (1.0 - prob) ** (n - successes)
+
+
+def detection_power(
+    treated_prob: float,
+    control_prob: float,
+    n: int = DEFAULT_MAX_N,
+    delta: float = SEQUENTIAL_CONFIG.delta,
+    conf: float = DEFAULT_CONF,
+) -> float:
+    """P(Newcombe lower bound > delta) at `n` per arm, by exact enumeration.
+
+    Every (x_treated, x_control) pair is weighted by its binomial probability --
+    no simulation, so the number is exact to floating point.
+    """
+    return sum(
+        _binomial_pmf(treated, n, treated_prob)
+        * _binomial_pmf(control, n, control_prob)
+        * (newcombe_diff_interval(treated, n, control, n, conf=conf).low > delta)
+        for treated in range(n + 1)
+        for control in range(n + 1)
+    )
+
+
+def format_power_table(n: int = DEFAULT_MAX_N) -> str:
+    """Why N = 16 caps P4 accuracy, independent of any seed or simulation."""
+    obf_conf = confidence_for_z(OBF_CRITICAL_Z[-1])
+    header = "  control |" + "".join(f"  treated {p:.2f}" for p in POWER_TREATED_RATES)
+    lines = [
+        f"Detection power at N = {n} per arm: P(Newcombe lower bound > "
+        f"delta = {SEQUENTIAL_CONFIG.delta}), exact enumeration",
+        f"  nominal 95% (the reported interval) and OBF final look "
+        f"(z = {OBF_CRITICAL_Z[-1]}, conf {obf_conf:.4f})",
+        "",
+        header,
+        "  " + "-" * (len(header) - 2),
+    ]
+    for control in POWER_CONTROL_RATES:
+        nominal = "".join(
+            f"       {detection_power(p, control, n):.3f}" for p in POWER_TREATED_RATES
+        )
+        boundary = "".join(
+            f"       {detection_power(p, control, n, conf=obf_conf):.3f}"
+            for p in POWER_TREATED_RATES
+        )
+        lines.append(f"     {control:.2f} |{nominal}   (95%)")
+        lines.append(f"          |{boundary}   (OBF final)")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the P4 estimator gate.")
     parser.add_argument("--runs", type=int, default=N_RUNS)
     parser.add_argument("--seed", type=int, default=MASTER_SEED)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--power-table",
+        action="store_true",
+        help="print the exact N=16 detection-power table and exit 0",
+    )
     args = parser.parse_args(argv)
+
+    if args.power_table:
+        sys.stdout.write(format_power_table() + "\n")
+        return 0
 
     report = run_gate(n_runs=args.runs, master_seed=args.seed)
     write_report(report, args.out)
