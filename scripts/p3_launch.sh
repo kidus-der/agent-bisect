@@ -5,25 +5,27 @@
 # first, 10 hours of wall-clock, stop at 120 kept items but never below 60,
 # one shared ledger with a hard cap.
 #
-# Sharding is by PROCESS, not by thread, and that is not a preference:
-# `adapters/tau2_replay._completion_patched` rebinds a module-level symbol, so
-# two forks in two threads of one process would race and serve each other's
-# tapes. Separate processes have separate module state. The tape (SQLite WAL),
+# Concurrency is threads inside a few processes. It used to have to be
+# processes: `adapters/tau2_replay._completion_patched` rebound a module-level
+# symbol, so two forks in two threads served each other's tapes. That was fixed
+# (a ContextVar dispatcher, fee9740), so one process now runs many tasks at
+# once for the cost of one interpreter. A handful of processes rather than one
+# is for crash isolation, and because the shards share the tape (SQLite WAL),
 # the blob store (atomic writes), the journal (one small file per key) and the
-# ledger (a single guarded INSERT) are all built for concurrent writers, and
-# the shards share all four — so the stop rule sees the whole dataset, not one
-# worker's share.
+# ledger (a single guarded INSERT) — all built for concurrent writers — the
+# stop rule sees the whole dataset, not one worker's share.
 #
 # Resumable: re-running this script skips everything that already has a
 # checkpoint. Safe to run again after a crash, a reboot, or a relaunch at a
 # different shard count.
 #
-#   scripts/p3_launch.sh [SHARDS] [MAX_HOURS]
+#   scripts/p3_launch.sh [SHARDS] [MAX_HOURS] [CONCURRENCY_PER_SHARD]
 
 set -euo pipefail
 
-SHARDS="${1:-6}"
+SHARDS="${1:-3}"
 MAX_HOURS="${2:-10}"
+CONCURRENCY="${3:-9}"
 TARGET="${TARGET:-120}"
 FLOOR="${FLOOR:-60}"
 MAX_CALLS="${MAX_CALLS:-70000}"
@@ -32,13 +34,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 mkdir -p runs/logs runs/p3
 
-echo "P3 collection: ${SHARDS} shards, ${MAX_HOURS} h, target ${TARGET} (floor ${FLOOR})"
+echo "P3 collection: ${SHARDS} shards x ${CONCURRENCY} in flight, ${MAX_HOURS} h, "\
+     "target ${TARGET} (floor ${FLOOR})"
 
 for shard in $(seq 0 $((SHARDS - 1))); do
   nohup uv run python -m agent_bisect.cli inject collect \
     --all-tasks \
     --shard "${shard}" \
     --shards "${SHARDS}" \
+    --concurrency "${CONCURRENCY}" \
     --max-hours "${MAX_HOURS}" \
     --target "${TARGET}" \
     --floor "${FLOOR}" \
