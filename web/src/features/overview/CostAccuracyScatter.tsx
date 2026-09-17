@@ -45,7 +45,28 @@ const MIN_COST_USD = 0.02
  * live` still float between their points. So the points are always numbered and
  * the legend always names them: one reading, at every size.
  */
-const BADGE_RADIUS = 9
+const BADGE_GAP_PX = 11
+const BADGE_BASELINE_PX = 4
+
+/**
+ * Which side of its point a number sits on. Below is not an option: below is
+ * where the interval lives, and a haloed label punched a hole in the very line
+ * it was annotating. It takes the side away from the nearest other point, so the
+ * two methods that nearly share a cost do not label into each other.
+ */
+function badgeSide(centres: readonly number[], index: number): 1 | -1 {
+  const centre = centres[index]
+  if (centre === undefined) return 1
+  let nearest = Number.POSITIVE_INFINITY
+  let side: 1 | -1 = 1
+  centres.forEach((other, candidate) => {
+    const distance = Math.abs(other - centre)
+    if (candidate === index || distance >= nearest) return
+    nearest = distance
+    side = other >= centre ? -1 : 1
+  })
+  return side
+}
 
 /**
  * Colour is a role, not an identity: measurement cyan for the methods that
@@ -103,6 +124,7 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
   })
   const y = scaleLinear<number>({ domain: [...Y_DOMAIN], range: [innerHeight, 0] })
   const pointX = (point: ScatterPoint): number => x(Math.max(point.mean_cost_usd, MIN_COST_USD))
+  const centres = points.map(pointX)
 
   return (
     <svg width={width} height={height} aria-hidden="true">
@@ -144,6 +166,7 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
           const isHeadline = point.method === 'bisect'
           const cx = pointX(point)
           const cy = y(point.accuracy)
+          const side = badgeSide(centres, index)
           return (
             <motion.g
               key={point.method}
@@ -187,9 +210,9 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
               />
               {/* The point carries its index; the legend below names it. */}
               <text
-                x={cx}
-                y={cy + BADGE_RADIUS + 12}
-                textAnchor="middle"
+                x={cx + side * BADGE_GAP_PX}
+                y={cy + BADGE_BASELINE_PX}
+                textAnchor={side === 1 ? 'start' : 'end'}
                 stroke={chartColours.background}
                 strokeWidth={3}
                 paintOrder="stroke"
