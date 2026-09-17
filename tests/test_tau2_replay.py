@@ -860,3 +860,108 @@ def test_parallel_forks_each_write_only_their_own_steps(store):
         steps = store.reader.get_steps(fork_id)
         assert {step.run_id for step in steps} == {fork_id}
         assert [step.step_idx for step in steps] == list(range(len(steps)))
+
+
+# ---- an intervention that goes live at an LLM step ----
+
+
+class _ResampleDiffering:
+    """`Resample`, but the fresh sample genuinely differs.
+
+    A scripted model is a pure function of the message history, so a
+    resampled turn normally comes back byte-identical to the recording and
+    the run stays in lockstep by luck. That is why a `Resample` fork can
+    pass every offline test and still diverge against a real model: the
+    bug only shows when the new answer is different.
+    """
+
+    name = "resample-differing"
+
+    def apply(self, step, payload):
+        return LIVE
+
+
+def _differing_session(scenario, store: Store):
+    """A session whose agent and user say something other than the tape."""
+    from agent_bisect.adapters.tau2 import recording_session
+    from agent_bisect.adapters.tau2_fake_llm import ScriptedLLM, ScriptedTurn
+    from agent_bisect.adapters.tau2_scenarios import AGENT_MODEL, STOP, USER_MODEL
+    from tests.tau2_offline import UNUSED_API_BASE, UNUSED_API_KEY, ledger_for, no_limiter
+
+    llm = ScriptedLLM(
+        {
+            AGENT_MODEL: [
+                ScriptedTurn(content="A different answer entirely."),
+                ScriptedTurn(content="Still different."),
+                ScriptedTurn(content="And again."),
+                ScriptedTurn(content="And once more."),
+            ],
+            USER_MODEL: [
+                ScriptedTurn(content="I have a completely different question."),
+                ScriptedTurn(content=STOP),
+                ScriptedTurn(content=STOP),
+                ScriptedTurn(content=STOP),
+            ],
+        }
+    )
+    return llm, recording_session(
+        ledger=ledger_for(store.root),
+        phase="test",
+        completion_fn=llm.completion,
+        api_key=UNUSED_API_KEY,
+        api_base=UNUSED_API_BASE,
+        limiter_for=no_limiter,
+    )
+
+
+def test_resampling_an_llm_step_hands_the_run_over_to_the_live_model(store):
+    """The tape must stop governing the moment an intervention resamples,
+    or every later call is hash-checked against a run that no longer
+    exists."""
+    from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
+
+    _recorded(AIRLINE_READS, store)
+    llm, session = _differing_session(AIRLINE_READS, store)
+    spec = ForkSpec(parent_run_id="r1", run_id="fork-resampled", fork_step=0)
+
+    with session:
+        import tau2.utils.llm_utils as llm_utils
+
+        driver = Tau2ForkDriver(
+            spec,
+            store=store.blobs,
+            reader=store.reader,
+            tape=store.tape,
+            live_completion=llm_utils.completion,
+        )
+        run_fork(driver, spec, _ResampleDiffering())
+
+    assert driver.result is not None
+    assert llm.calls > 0, "the fresh sample never reached the live model"
+
+
+def test_a_resampled_step_is_recorded_rather_than_vanishing(store):
+    """A step that leaves no trace is invisible to replay and to the
+    dashboard, and makes the fork's own tape unreplayable."""
+    from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
+
+    _recorded(AIRLINE_READS, store)
+    _llm, session = _differing_session(AIRLINE_READS, store)
+    spec = ForkSpec(parent_run_id="r1", run_id="fork-resampled-2", fork_step=0)
+
+    with session:
+        import tau2.utils.llm_utils as llm_utils
+
+        driver = Tau2ForkDriver(
+            spec,
+            store=store.blobs,
+            reader=store.reader,
+            tape=store.tape,
+            live_completion=llm_utils.completion,
+        )
+        run_fork(driver, spec, _ResampleDiffering())
+
+    steps = store.reader.get_steps("fork-resampled-2")
+    assert steps, "the fork recorded nothing"
+    assert [step.step_idx for step in steps] == list(range(len(steps)))
+    assert steps[0].from_tape is False, "the resampled step was recorded as read from tape"

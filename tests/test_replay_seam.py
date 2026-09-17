@@ -143,3 +143,100 @@ def test_concurrent_installs_restore_the_original_exactly_once(llm_utils):
         list(pool.map(enter_and_leave, range(8)))
 
     assert llm_utils.completion is _fallback
+
+
+# ---- who owns the replayer's sense of where it is ----
+
+
+class _Sink:
+    """A sink that is told about steps, like a recorder."""
+
+    def __init__(self) -> None:
+        self.next_step_idx = 0
+
+    def begin_step(self) -> None:
+        return None
+
+    def on_llm_call(self, *_args, **_kwargs) -> None:
+        self.next_step_idx += 1
+
+    def on_tool_call(self, *_args, **_kwargs) -> None:
+        self.next_step_idx += 1
+
+
+class _AlwaysLive:
+    name = "always-live"
+
+    def apply(self, step, payload):
+        from agent_bisect.core.replay import LIVE
+
+        return LIVE
+
+
+def _replayer(steps, store, sink, live):
+    from agent_bisect.adapters.tau2_replay import Tau2Replayer
+
+    return Tau2Replayer(
+        environment=object(),
+        steps=steps,
+        store=store,
+        sink=sink,
+        fork_step=0,
+        intervention=_AlwaysLive(),
+        live_completion=live,
+    )
+
+
+def _two_recorded_steps(tmp_path):
+    """Two LLM steps whose requests differ, as a real run's would."""
+    from agent_bisect.core.store import BlobStore
+    from agent_bisect.core.tape import Step, canonical_request_hash
+
+    blobs = BlobStore(tmp_path)
+    steps = []
+    for index, actor in enumerate(["user", "agent"]):
+        request = {"model": f"{actor}-model", "messages": [{"role": "user", "content": actor}]}
+        steps.append(
+            Step(
+                run_id="r1",
+                step_idx=index,
+                actor=actor,  # pyright: ignore[reportArgumentType]
+                request_hash=canonical_request_hash(request),
+                request_ref=blobs.put_json(request),
+                response_ref=blobs.put_json({"choices": [{"message": {"content": actor}}]}),
+                state_before="a" * 64,
+                state_after="a" * 64,
+                state_hash="h" * 64,
+                state_hash_before="h" * 64,
+            )
+        )
+    return steps, blobs
+
+
+def test_the_tape_stops_governing_once_a_step_has_gone_live(tmp_path):
+    """The replayer must know it has passed the fork step on its own.
+
+    Reading the sink's counter makes that depend on the live completion
+    having told the sink -- true when it is the router, false for any
+    other one -- and when it is false the tape keeps governing a run that
+    has already gone live, hash-checking requests against a recording that
+    no longer applies.
+    """
+    steps, blobs = _two_recorded_steps(tmp_path)
+    sink = _SilentSink()
+    replayer = _replayer(steps, blobs, sink, lambda **kwargs: ("live", kwargs.get("model")))
+
+    first = replayer.completion(model="user-model", messages=[{"role": "user", "content": "user"}])
+    second = replayer.completion(model="agent-model", messages=[{"role": "x", "content": "y"}])
+
+    assert first == ("live", "user-model")
+    assert second == ("live", "agent-model"), "the tape was still governing after going live"
+
+
+class _SilentSink(_Sink):
+    """A sink nobody tells about a live call -- any live completion that
+    is not the router."""
+
+    def on_llm_call(self, *_args, from_tape: bool = True, **_kwargs) -> None:
+        if from_tape:
+            self.next_step_idx += 1
