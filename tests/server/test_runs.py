@@ -48,7 +48,13 @@ def test_unknown_run_is_404(client):
 
 def test_run_id_with_path_traversal_characters_is_rejected(client):
     response = client.get("/api/runs/..%2F..%2Fetc%2Fpasswd")
-    assert response.status_code in (404, 422)
+    # With the built dashboard's static/SPA fallback mounted
+    # (agent_bisect/server/static/), a path that traverses out of
+    # `/api/runs/` before routing no longer reaches the `{run_id}` regex at
+    # all -- it matches the SPA catch-all instead and gets a 200 with the
+    # built index page. Either way, real filesystem content must never leak.
+    assert response.status_code in (200, 404, 422)
+    assert "root:" not in response.text
 
 
 def test_brief_run_detail_matches_worked_example(client):
