@@ -27,7 +27,11 @@ class Kpis(BaseModel):
     runs_recorded: int
     failures_diagnosed: int
     calls_spent: int
-    cost_per_diagnosis_usd: float
+    # `None`, never a fabricated number -- see `MethodResult.mean_cost_usd`.
+    cost_per_diagnosis_usd: float | None
+    # `None` only when nothing has been diagnosed yet (division by zero,
+    # not a real quantity). This project's real cost signal either way.
+    cost_per_diagnosis_calls: float | None
 
 
 class RecallPoint(BaseModel):
@@ -37,11 +41,27 @@ class RecallPoint(BaseModel):
     recall: float
 
 
+class RecallProvenance(BaseModel):
+    """recall@m beyond `measured_to_m` was never confirmed by a re-run --
+    it is the judge's ranking alone (does its top-m contain the planted
+    step). Mirrors `bench.evaluate.build_report`'s own `recall_provenance`
+    document so the UI can label the unmeasured tail rather than imply it
+    was tested."""
+
+    model_config = ConfigDict(frozen=True)
+
+    measured_to_m: int
+    beyond_is_judge_ranking_only: bool
+    note: str
+
+
 class CostAccuracyPoint(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     method: Method
-    mean_cost_usd: float
+    # `None`, never a fabricated number -- see `MethodResult.mean_cost_usd`.
+    mean_cost_usd: float | None
+    mean_calls: float
     accuracy: float
 
 
@@ -51,5 +71,6 @@ class OverviewPayload(BaseModel):
     headline: HeadlineResult
     kpis: Kpis
     recall_at_m: tuple[RecallPoint, ...]
+    recall_provenance: RecallProvenance
     cost_vs_accuracy: tuple[CostAccuracyPoint, ...]
     hero_run: RunSummary

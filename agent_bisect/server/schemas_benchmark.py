@@ -11,6 +11,10 @@ from agent_bisect.server.schemas_runs import FaultType, PositionBucket
 Method = Literal["bisect", "judge_all_at_once", "judge_step_by_step", "rerun_live", "no_control"]
 SankeyLabel = Literal["exact", "earlier", "later", "none"]
 
+#: `CostBucket`'s bin width, shared by the fixture builder and the real
+#: repository so a bucket means the same thing regardless of `data_source`.
+COST_BUCKET_WIDTH_CALLS = 400
+
 
 class CiValue(BaseModel):
     """A point estimate with its 95% bootstrap CI. An estimate never appears without one."""
@@ -27,7 +31,11 @@ class MethodResult(BaseModel):
 
     method: Method
     accuracy: CiValue
-    mean_cost_usd: float
+    # `None`, never a fabricated number -- real mode has no per-model USD
+    # price list (the NIM free tier this project evaluates against isn't
+    # priced); this project's spend is measured in calls, which is real in
+    # both modes.
+    mean_cost_usd: float | None
     mean_calls: float
 
 
@@ -106,5 +114,8 @@ class BenchmarkSummary(BaseModel):
     heatmap: tuple[HeatmapCell, ...]
     by_position: tuple[PositionAccuracy, ...]
     sankey: tuple[SankeyFlow, ...]
-    flaky_ablation: FlakyAblation
+    # `None` when no flaky-world run exists to ablate -- absent, never a
+    # fabricated comparison (`bench.evaluate.build_report`'s own rule).
+    # Fixture mode always has one.
+    flaky_ablation: FlakyAblation | None
     cost_histogram: tuple[CostBucket, ...]
