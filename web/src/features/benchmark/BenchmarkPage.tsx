@@ -7,6 +7,10 @@ import type { BenchmarkSummary } from './api'
 import { useBenchmarkQuery } from './api'
 import { AccuracyHeatmap } from './AccuracyHeatmap'
 import { BenchmarkSkeleton } from './BenchmarkSkeleton'
+import { BlameFlowSankey } from './BlameFlowSankey'
+import { CostHistogram } from './CostHistogram'
+import { DatasetExplorer } from './DatasetExplorer'
+import { FlakyAblation } from './FlakyAblation'
 import { MethodComparison } from './MethodComparison'
 import { PositionSlope } from './PositionSlope'
 
@@ -32,6 +36,12 @@ function BenchmarkSections({ summary }: { readonly summary: BenchmarkSummary }) 
         <AccuracyHeatmap cells={summary.heatmap} />
         <PositionSlope rows={summary.by_position} />
       </div>
+      <FlakyAblation ablation={summary.flaky_ablation} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <BlameFlowSankey rows={summary.sankey} />
+        <CostHistogram histogram={summary.cost_histogram} methods={summary.methods} />
+      </div>
+      <DatasetExplorer />
     </div>
   )
 }
