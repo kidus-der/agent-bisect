@@ -4,7 +4,6 @@ import { useReducedMotion } from 'motion/react'
 import { ChartFrame } from '@/components/chart-theme/ChartFrame'
 import { roleColour } from '@/components/chart-theme/chartTheme'
 import { Ring } from '@/components/charts/ring'
-import { RingCenter } from '@/components/charts/ring-center'
 import { RingChart } from '@/components/charts/ring-chart'
 import { formatNumber } from '@/lib/format'
 import { formatPercent } from '@/lib/stats'
@@ -30,7 +29,9 @@ export function HeadroomRing({ rateLimit }: HeadroomRingProps) {
   const tight = headroomFraction <= TIGHT_HEADROOM
   const colour = tight ? roleColour('fail') : roleColour('measure')
 
-  const data = [{ label: 'headroom', value: headroom, maxValue: limit || 1, color: colour }]
+  // Filled = used, like every other gauge. The centre label stays the headroom,
+  // which is the number an operator acts on.
+  const data = [{ label: 'in use', value: current, maxValue: limit || 1, color: colour }]
 
   return (
     <ChartFrame
@@ -53,18 +54,34 @@ export function HeadroomRing({ rateLimit }: HeadroomRingProps) {
           const size = Math.floor(Math.min(width, height))
           if (size <= 0) return null
           return (
-            <RingChart
-              data={data}
-              size={size}
-              strokeWidth={RING_STROKE}
-              ringGap={RING_GAP}
-              baseInnerRadius={INNER_RADIUS}
-              enterTransition={reduced ? NO_MOTION : undefined}
-              enterStaggerScale={reduced ? 0 : undefined}
-            >
-              <Ring index={0} animate={!reduced} showGlow={false} />
-              <RingCenter defaultLabel="rpm free" />
-            </RingChart>
+            <div className="relative" style={{ width: size, height: size }}>
+              <RingChart
+                data={data}
+                size={size}
+                strokeWidth={RING_STROKE}
+                ringGap={RING_GAP}
+                baseInnerRadius={INNER_RADIUS}
+                enterTransition={reduced ? NO_MOTION : undefined}
+                enterStaggerScale={reduced ? 0 : undefined}
+              >
+                <Ring index={0} animate={!reduced} showGlow={false} />
+              </RingChart>
+              {/*
+              The ring fills what is used, like every other gauge; the centre
+              states what is left, which is the number an operator acts on.
+              RingCenter's own render prop only fires while hovering, so the
+              label is drawn here instead.
+            */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"
+              >
+                <span className="num text-stat text-ink">
+                  {formatNumber(headroom, { decimals: 0 })}
+                </span>
+                <span className="label-instrument">rpm free</span>
+              </span>
+            </div>
           )
         }}
       </ParentSize>
