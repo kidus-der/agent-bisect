@@ -1,6 +1,7 @@
 import { Panel } from '@/components/primitives/Panel'
 import { cn } from '@/lib/utils'
 
+import { type EventGroup, formatAge, groupEvents } from './eventGroups'
 import type { LiveEvent } from './liveBuffer'
 import { EVENT_BUFFER_LIMIT } from './liveBuffer'
 
@@ -15,29 +16,6 @@ const LEVEL_STYLES: Readonly<Record<LiveEvent['level'], { glyph: string; classNa
   error: { glyph: '✕', className: 'text-fail' },
 }
 
-/**
- * The server's messages are shaped `simulated: <phase> batch <id> progressed`,
- * so eight rows carried about one row of information. The phase is lifted into
- * a chip and the simulated marker into a tag, leaving the message itself.
- */
-const MESSAGE_PATTERN = /^(simulated:\s*)?(\w+)\s+(batch\s+\S+.*)$/
-
-interface ParsedMessage {
-  readonly simulated: boolean
-  readonly phase: string | null
-  readonly detail: string
-}
-
-export function parseEventMessage(message: string): ParsedMessage {
-  const match = MESSAGE_PATTERN.exec(message.trim())
-  if (!match) return { simulated: false, phase: null, detail: message }
-  return {
-    simulated: Boolean(match[1]),
-    phase: match[2] ?? null,
-    detail: match[3] ?? message,
-  }
-}
-
 /** Local wall-clock, to the second: the feed is read against what is happening now. */
 function formatTime(ts: string): string {
   const parsed = Date.parse(ts)
@@ -45,33 +23,54 @@ function formatTime(ts: string): string {
   return new Date(parsed).toLocaleTimeString('en-GB', { hour12: false })
 }
 
-function EventMessage({ message }: { readonly message: string }) {
-  const parsed = parseEventMessage(message)
+function GroupRow({ group, now }: { readonly group: EventGroup; readonly now: number }) {
+  const level = LEVEL_STYLES[group.level]
   return (
-    <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      {parsed.simulated ? (
-        <span className="rounded-step border border-line px-1 label-instrument">sim</span>
-      ) : null}
-      {parsed.phase ? (
-        <span className="rounded-step border border-line-strong bg-elevated px-1.5 label-instrument text-ink">
-          {parsed.phase}
+    <li className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-baseline gap-x-3 border-b border-line py-2 last:border-b-0">
+      <span className="num text-[12px] text-ink-muted">{formatTime(group.ts)}</span>
+      <span className="flex items-baseline gap-1.5">
+        <span className={cn('label-instrument whitespace-nowrap', level.className)}>
+          <span aria-hidden="true">{level.glyph}</span> {group.level}
         </span>
-      ) : null}
-      <span className="min-w-0 text-small text-pretty text-ink">{parsed.detail}</span>
-    </span>
+        {group.phase ? (
+          <span className="rounded-step border border-line-strong bg-elevated px-1 label-instrument text-ink">
+            {group.phase}
+          </span>
+        ) : null}
+      </span>
+      <span className="min-w-0 text-small text-pretty text-ink">
+        {group.batch ? (
+          <>
+            <span className="num text-ink-muted">batch {group.batch}</span> {group.detail}
+          </>
+        ) : (
+          group.detail
+        )}
+        {/* One entry can stand for several ticks; saying how many keeps it honest. */}
+        {group.count > 1 ? (
+          <span className="num text-[12px] text-ink-muted"> ×{group.count}</span>
+        ) : null}
+      </span>
+      <span className="text-right num text-[12px] whitespace-nowrap text-ink-muted">
+        {formatAge(group.ts, now)}
+      </span>
+    </li>
   )
 }
 
 interface EventFeedProps {
   readonly events: readonly LiveEvent[]
+  /** The clock the ages are measured against; passed in so it is not read per row. */
+  readonly now: number
 }
 
 /**
- * Newest first, capped at the ring's length. Announced politely: a feed that
- * interrupts a screen-reader user every two seconds is unusable, so only the
- * arrival of new lines is announced, not the whole list.
+ * Newest first, capped at the ring's length, consecutive ticks for one batch
+ * collapsed. Announced politely: a feed that interrupts a screen-reader user
+ * every two seconds is unusable, so only new lines are announced.
  */
-export function EventFeed({ events }: EventFeedProps) {
+export function EventFeed({ events, now }: EventFeedProps) {
+  const groups = groupEvents(events)
   return (
     <Panel
       variant="card"
@@ -83,7 +82,7 @@ export function EventFeed({ events }: EventFeedProps) {
         </span>
       }
     >
-      {events.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="py-6 text-ink-muted">No events yet on this connection.</p>
       ) : (
         // A scrollable region must be reachable by keyboard and needs a name once
@@ -102,28 +101,9 @@ export function EventFeed({ events }: EventFeedProps) {
             aria-relevant="additions"
             className="m-0 flex list-none flex-col p-0"
           >
-            {events.map((event) => {
-              const level = LEVEL_STYLES[event.level]
-              return (
-                <li
-                  key={`${event.ts}-${event.message}`}
-                  className="flex items-baseline gap-3 border-b border-line py-2 last:border-b-0"
-                >
-                  <span className="shrink-0 num text-[12px] text-ink-muted">
-                    {formatTime(event.ts)}
-                  </span>
-                  <span
-                    className={cn(
-                      'w-14 shrink-0 label-instrument whitespace-nowrap',
-                      level.className,
-                    )}
-                  >
-                    <span aria-hidden="true">{level.glyph}</span> {event.level}
-                  </span>
-                  <EventMessage message={event.message} />
-                </li>
-              )
-            })}
+            {groups.map((group) => (
+              <GroupRow key={group.key} group={group} now={now} />
+            ))}
           </ol>
         </div>
       )}

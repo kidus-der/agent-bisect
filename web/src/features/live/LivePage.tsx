@@ -17,8 +17,11 @@ import { LiveSkeleton } from './LiveSkeleton'
 import { LiveStatus } from './LiveStatus'
 import { mergeEvents } from './liveBuffer'
 import { useLiveStream } from './useLiveStream'
+import { useNow } from './useNow'
 
 export const BLAME_COMMAND = 'bisect blame RUN_ID --top 3 --n 8'
+/** Coarse: the ages printed are to the second, and a finer tick buys nothing. */
+const CLOCK_TICK_MS = 5000
 
 function isIdle(snapshot: LiveSnapshot): boolean {
   return (
@@ -31,9 +34,10 @@ interface LiveBodyProps {
   readonly events: readonly LiveSnapshot['events'][number][]
   readonly simulated: boolean
   readonly status: React.ReactNode
+  readonly now: number
 }
 
-function LiveBody({ snapshot, events, simulated, status }: LiveBodyProps) {
+function LiveBody({ snapshot, events, simulated, status, now }: LiveBodyProps) {
   if (isIdle(snapshot)) {
     return (
       <Panel variant="canvas">
@@ -56,7 +60,7 @@ function LiveBody({ snapshot, events, simulated, status }: LiveBodyProps) {
         </div>
       </div>
       <JobQueue jobs={snapshot.jobs} />
-      <EventFeed events={events} />
+      <EventFeed events={events} now={now} />
     </div>
   )
 }
@@ -64,6 +68,7 @@ function LiveBody({ snapshot, events, simulated, status }: LiveBodyProps) {
 export function LivePage() {
   const initial = useLiveSnapshotQuery()
   const stream = useLiveStream()
+  const now = useNow(CLOCK_TICK_MS)
 
   const initialSplit = initial.data ? splitNotAvailable<LiveSnapshot>(initial.data.data) : null
   const snapshot = stream.snapshot ?? initialSplit?.payload ?? null
@@ -111,10 +116,13 @@ export function LivePage() {
           snapshot={snapshot}
           events={events}
           simulated={simulated}
+          now={now}
           status={
             <LiveStatus
               connection={stream.connection}
               updates={stream.updates}
+              lastFrameAt={stream.lastFrameAt}
+              now={now}
               onRetry={stream.retryNow}
             />
           }

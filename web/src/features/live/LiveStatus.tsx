@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 
+import { formatAge } from './eventGroups'
 import type { LiveConnectionState } from './useLiveStream'
 
 interface StatusCopy {
@@ -55,6 +56,9 @@ const PULSE_SECONDS = 1.6
 interface LiveStatusProps {
   readonly connection: LiveConnectionState
   readonly updates: number
+  /** When the newest frame arrived, and the clock to measure it against. */
+  readonly lastFrameAt: number | null
+  readonly now: number
   readonly onRetry: () => void
 }
 
@@ -63,7 +67,7 @@ interface LiveStatusProps {
  * decoration rather than the message; only `offline` spends a semantic colour
  * (fail), because amber means blame and nothing else (§3, principle 2).
  */
-export function LiveStatus({ connection, updates, onRetry }: LiveStatusProps) {
+export function LiveStatus({ connection, updates, lastFrameAt, now, onRetry }: LiveStatusProps) {
   const reduced = useReducedMotion() ?? false
   const status = STATUS[connection]
   const animate = status.pulse && !reduced
@@ -90,6 +94,8 @@ export function LiveStatus({ connection, updates, onRetry }: LiveStatusProps) {
       </span>
       <span className="num text-[12px] text-ink-muted" aria-live="off">
         {updates} {updates === 1 ? 'update' : 'updates'}
+        {/* The count alone cannot show a stalled stream; the age can. */}
+        {lastFrameAt === null ? '' : ` · ${formatAge(new Date(lastFrameAt).toISOString(), now)}`}
       </span>
       {connection === 'offline' || connection === 'reconnecting' ? (
         <button
@@ -101,7 +107,11 @@ export function LiveStatus({ connection, updates, onRetry }: LiveStatusProps) {
         </button>
       ) : null}
       <span role="status" className="sr-only">
-        Live connection {status.label}. {updates} updates received.
+        Live connection {status.label}. {updates} updates received
+        {lastFrameAt === null
+          ? ''
+          : `, newest ${formatAge(new Date(lastFrameAt).toISOString(), now)}`}
+        .
       </span>
     </div>
   )

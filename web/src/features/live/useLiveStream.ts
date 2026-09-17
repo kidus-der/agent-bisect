@@ -48,6 +48,8 @@ export interface LiveStream {
   readonly connection: LiveConnectionState
   /** How many snapshots have arrived on this page. */
   readonly updates: number
+  /** When the newest frame arrived, so a stalled stream is visible. */
+  readonly lastFrameAt: number | null
   /** Set when the server answered `not_available`; the page must not draw numbers then. */
   readonly notAvailableReason: string | null
   readonly retryNow: () => void
@@ -94,6 +96,7 @@ export function useLiveStream(options: UseLiveStreamOptions = {}): LiveStream {
   const [meta, setMeta] = useState<ResponseMeta | null>(null)
   const [events, setEvents] = useState<readonly LiveEvent[]>([])
   const [updates, setUpdates] = useState(0)
+  const [lastFrameAt, setLastFrameAt] = useState<number | null>(null)
   const [notAvailableReason, setNotAvailableReason] = useState<string | null>(null)
   const [socketState, setSocketState] = useState<SocketState>('connecting')
   const [generation, setGeneration] = useState(0)
@@ -161,6 +164,7 @@ export function useLiveStream(options: UseLiveStreamOptions = {}): LiveStream {
       setNotAvailableReason(parsed.reason)
       setSnapshot(parsed.snapshot)
       setUpdates((current) => current + 1)
+      setLastFrameAt(Date.now())
       if (parsed.snapshot) {
         setEvents((current) => mergeEvents(current, parsed.snapshot?.events ?? []))
       }
@@ -192,5 +196,14 @@ export function useLiveStream(options: UseLiveStreamOptions = {}): LiveStream {
   // Derived, not stored: a hidden tab is paused whatever the socket last was.
   const connection: LiveConnectionState = hidden ? 'paused' : socketState
 
-  return { snapshot, meta, events, connection, updates, notAvailableReason, retryNow }
+  return {
+    snapshot,
+    meta,
+    events,
+    connection,
+    updates,
+    lastFrameAt,
+    notAvailableReason,
+    retryNow,
+  }
 }
