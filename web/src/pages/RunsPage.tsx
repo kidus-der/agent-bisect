@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
 import { Panel } from '@/components/primitives/Panel'
+import { StatePanel } from '@/components/primitives/StatePanel'
 import { LoadingRegion } from '@/components/primitives/Skeleton'
 import { RunsFilters } from '@/features/runs/RunsFilters'
 import { RunsTable } from '@/features/runs/RunsTable'
@@ -94,14 +95,14 @@ export function RunsPage() {
     return (
       <>
         {header}
-        <Panel variant="card">
+        <StatePanel>
           <ErrorState
             title="Cannot load the run list"
             message={query.error.message}
             code={query.error.code}
             onRetry={() => void query.refetch()}
           />
-        </Panel>
+        </StatePanel>
       </>
     )
   }

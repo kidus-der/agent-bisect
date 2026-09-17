@@ -4,6 +4,7 @@ import { useMetaQuery } from '@/api/queries'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
 import { Panel } from '@/components/primitives/Panel'
+import { StatePanel } from '@/components/primitives/StatePanel'
 import { LoadingRegion } from '@/components/primitives/Skeleton'
 
 import { PageHeader } from './PageHeader'
@@ -36,14 +37,14 @@ export function PageStub({ label, title, description, empty, skeleton }: PageStu
       {meta.isPending ? (
         <LoadingRegion subject={title}>{skeleton}</LoadingRegion>
       ) : meta.isError ? (
-        <Panel variant="card">
+        <StatePanel>
           <ErrorState
             title="Cannot reach the Bisect server"
             message={meta.error.message}
             code={meta.error.code}
             onRetry={() => void meta.refetch()}
           />
-        </Panel>
+        </StatePanel>
       ) : (
         <Panel variant="canvas">
           <EmptyState {...empty} />

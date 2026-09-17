@@ -4,6 +4,7 @@ import { availableOrNull } from '@/api/client'
 import { EmptyState } from '@/components/primitives/EmptyState'
 import { ErrorState } from '@/components/primitives/ErrorState'
 import { Panel } from '@/components/primitives/Panel'
+import { StatePanel } from '@/components/primitives/StatePanel'
 import { LoadingRegion } from '@/components/primitives/Skeleton'
 import { CostAccuracyScatter, toScatterPoints } from '@/features/overview/CostAccuracyScatter'
 import { HeadlineBars } from '@/features/overview/HeadlineBars'
@@ -58,14 +59,14 @@ export function OverviewPage() {
   if (overview.isError) {
     return (
       <TitledState>
-        <Panel variant="card">
+        <StatePanel>
           <ErrorState
             title="Cannot reach the Bisect server"
             message={overview.error.message}
             code={overview.error.code}
             onRetry={() => void overview.refetch()}
           />
-        </Panel>
+        </StatePanel>
       </TitledState>
     )
   }
@@ -75,14 +76,14 @@ export function OverviewPage() {
   if (payload !== null && !isOverviewPayload(payload)) {
     return (
       <TitledState>
-        <Panel variant="card">
+        <StatePanel>
           <ErrorState
             title="The server answered with an unexpected shape"
             message="/api/overview returned a payload this dashboard does not recognise. Rather than draw a number that might be the wrong one, it draws none — check that the server and this build are the same version."
             code="unexpected_payload"
             onRetry={() => void overview.refetch()}
           />
-        </Panel>
+        </StatePanel>
       </TitledState>
     )
   }
