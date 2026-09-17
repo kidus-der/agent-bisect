@@ -134,8 +134,11 @@ test('a dot in the matrix opens the re-run it stands for', async ({ page }) => {
 
   await expect(page.getByRole('heading', { level: 1, name: /-t7-0$/ })).toBeVisible()
   await expect(page.getByText(/forked at k=7/)).toBeVisible()
-  await expect(page.getByText('fork · intervention applied here')).toBeVisible()
-  await expect(page.getByText('read from tape · 0 calls').first()).toBeVisible()
+  // The tail is drawn twice: as recorded, and as this re-run produced it.
+  await expect(page.getByRole('heading', { name: 'recorded' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'this re-run' })).toBeVisible()
+  await expect(page.getByText('fork · intervention applied here')).toHaveCount(2)
+  await expect(page.getByText(/Only the intervention at step 7 differs/)).toBeVisible()
 })
 
 test('the judge panel compares both protocols with the measured effect', async ({ page }) => {
