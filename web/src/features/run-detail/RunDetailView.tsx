@@ -197,12 +197,10 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
         </Panel>
       ) : null}
 
+      {/* The judge heading lives in the panel body, not in Panel's truncating
+          title slot: a heading that ends in an ellipsis at 390px is not a heading. */}
       {detail.judge ? (
-        <Panel
-          variant="card"
-          label="judge vs replay"
-          title="What the judge guessed, and what re-running measured"
-        >
+        <Panel variant="card" label="judge vs replay">
           <JudgeVsReplay
             judge={detail.judge}
             effects={effects}

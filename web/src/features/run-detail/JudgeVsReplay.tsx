@@ -101,6 +101,9 @@ function JudgeVsReplayImpl({
 
   return (
     <div>
+      <h3 className="mb-3 text-h3 text-pretty text-ink">
+        What the judge guessed, and what re-running measured
+      </h3>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SegmentedControl
           label="Judge protocol"
