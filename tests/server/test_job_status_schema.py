@@ -6,14 +6,20 @@ one."""
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
+from agent_bisect.server.schemas_live import JobStatus
 from pydantic import ValidationError
 
-from agent_bisect.server.schemas_live import JobStatus
 
-
-def _job(**overrides):
-    base = dict(job_id="job-1", kind="record", progress=0.0, state="queued")
+def _job(**overrides: Any) -> JobStatus:
+    base: dict[str, Any] = {
+        "job_id": "job-1",
+        "kind": "record",
+        "progress": 0.0,
+        "state": "queued",
+    }
     base.update(overrides)
     return JobStatus(**base)
 
