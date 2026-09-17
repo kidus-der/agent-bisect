@@ -43,7 +43,7 @@ export function ProvenancePanel() {
   return (
     <section
       aria-label="Provenance"
-      className="rounded-kpi border border-line-strong bg-elevated px-4 py-3"
+      className="rounded-kpi border border-line-strong bg-recessed px-4 py-3"
     >
       <InstrumentLabel>provenance</InstrumentLabel>
       {meta.isPending ? (
