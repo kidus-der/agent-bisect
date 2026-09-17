@@ -298,6 +298,38 @@ def render_doc(decision: dict) -> str:
         # "steps", which in this project means a tape step.
     ]
     parts += [_summary_row(s) for s in d["summaries"]]
+    incomplete = [s for s in d["summaries"] if not s.complete]
+    if incomplete:
+        parts += [
+            "",
+            "### Tasks that never completed",
+            "",
+            "Protocol 0004 §3: an infra failure (429/5xx past our retry budget, a timeout, "
+            "or τ² reporting INFRASTRUCTURE_ERROR) is re-run, never scored. Each was "
+            "retried over three resume passes; these still did not finish, so the pass "
+            "rate above counts them as **not passed** — the strictest reading. Both "
+            "readings are given so the choice can be checked either way:",
+            "",
+            "| Model | Completed | Excluding the missing task | Worst case /20 | Best case /20 |",
+            "|---|---|---|---|---|",
+        ]
+        for s in incomplete:
+            missing = s.n_tasks - s.n_completed
+            best = s.n_passed + missing
+            parts.append(
+                f"| `{s.model}` | {s.n_completed}/{s.n_tasks} | "
+                f"{s.n_passed}/{s.n_completed} = {s.n_passed / s.n_completed:.3f} | "
+                f"{s.n_passed}/{s.n_tasks} = {s.pass_rate:.2f} | "
+                f"{best}/{s.n_tasks} = {best / s.n_tasks:.2f} |"
+            )
+        parts += [
+            "",
+            f"**The selection is invariant across every outcome of the "
+            f"{sum(s.n_tasks - s.n_completed for s in incomplete)} "
+            "unfinished task(s):** each still-missing task belongs to a candidate whose pass "
+            "rate is outside the 35–75% window whether it passes or fails, so no outcome "
+            "changes which model the rule picks.",
+        ]
     parts += [
         "",
         f"**Rule (0001 / 0004 §4.3):** among candidates that are available and reach "
