@@ -30,9 +30,10 @@ interface LiveBodyProps {
   readonly snapshot: LiveSnapshot
   readonly events: readonly LiveSnapshot['events'][number][]
   readonly simulated: boolean
+  readonly status: React.ReactNode
 }
 
-function LiveBody({ snapshot, events, simulated }: LiveBodyProps) {
+function LiveBody({ snapshot, events, simulated, status }: LiveBodyProps) {
   if (isIdle(snapshot)) {
     return (
       <Panel variant="canvas">
@@ -48,16 +49,14 @@ function LiveBody({ snapshot, events, simulated }: LiveBodyProps) {
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,1.6fr)]">
-        <CallsPerModel rows={snapshot.calls_series} simulated={simulated} />
+        <CallsPerModel rows={snapshot.calls_series} simulated={simulated} status={status} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           <BudgetGauge budget={snapshot.budget} />
           <HeadroomRing rateLimit={snapshot.rate_limit} />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <JobQueue jobs={snapshot.jobs} />
-        <EventFeed events={events} />
-      </div>
+      <JobQueue jobs={snapshot.jobs} />
+      <EventFeed events={events} />
     </div>
   )
 }
@@ -81,13 +80,6 @@ export function LivePage() {
         label="live"
         title="Live"
         description="Jobs in flight, the call budget and rate-limit headroom, as the server streams them."
-        actions={
-          <LiveStatus
-            connection={stream.connection}
-            updates={stream.updates}
-            onRetry={stream.retryNow}
-          />
-        }
       />
       {snapshot === null && reason !== null ? (
         <Panel variant="canvas">
@@ -115,7 +107,18 @@ export function LivePage() {
           <LiveSkeleton />
         </LoadingRegion>
       ) : (
-        <LiveBody snapshot={snapshot} events={events} simulated={simulated} />
+        <LiveBody
+          snapshot={snapshot}
+          events={events}
+          simulated={simulated}
+          status={
+            <LiveStatus
+              connection={stream.connection}
+              updates={stream.updates}
+              onRetry={stream.retryNow}
+            />
+          }
+        />
       )}
     </>
   )
