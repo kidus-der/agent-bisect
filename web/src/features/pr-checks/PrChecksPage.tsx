@@ -12,6 +12,8 @@ import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/pages/PageHeader'
 
+import { checkBadge } from './checkRef'
+
 import { GATE_COMMAND, type PrCheckSummary, usePrChecksQuery } from './api'
 import { GateSummaryPanel } from './GateSummaryPanel'
 
@@ -78,7 +80,9 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
   {
     id: 'pr',
     header: 'pr · suite',
-    sortValue: (row) => row.pr_number,
+    // A ref-to-ref run has no number; it sorts below every numbered one
+    // rather than being read as pull request zero.
+    sortValue: (row) => row.pr_number ?? Number.NEGATIVE_INFINITY,
     // Below `sm` the suite and the verdict have no column of their own, so they
     // stack under the number: the suite name is the row's identity and a
     // verdict carried by colour alone would not be a verdict.
@@ -89,7 +93,7 @@ const COLUMNS: ReadonlyArray<DataTableColumn<PrCheckSummary>> = [
           params={{ checkId: row.check_id }}
           className="num text-measure underline-offset-2 hover:underline"
         >
-          #{row.pr_number}
+          {checkBadge(row.pr_number) ?? row.title}
         </Link>
         {/* A hard cap, not just `truncate`: the table does not use a fixed
             layout, so an unbounded cell simply widens the row. */}

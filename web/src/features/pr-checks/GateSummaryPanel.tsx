@@ -6,6 +6,8 @@ import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { Panel } from '@/components/primitives/Panel'
 import { forestDotMotion, forestRowDelay, forestWhiskerMotion } from '@/design/forestEntrance'
 import { formatPoints } from '@/lib/stats'
+
+import { checkBadge } from './checkRef'
 import { cn } from '@/lib/utils'
 
 import type { PrCheckSummary } from './api'
@@ -57,7 +59,7 @@ function DeltaRow({ entry, bound, index, total, entered }: DeltaRowProps) {
         params={{ checkId: entry.checkId }}
         className="num text-[12px] text-measure underline-offset-2 hover:underline"
       >
-        #{entry.prNumber}
+        {checkBadge(entry.prNumber) ?? entry.title}
       </Link>
       <span
         aria-hidden="true"

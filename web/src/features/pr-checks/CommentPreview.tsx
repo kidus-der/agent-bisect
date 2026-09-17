@@ -5,6 +5,8 @@ import { Panel } from '@/components/primitives/Panel'
 import { type CopyStatus, useCopy } from '@/lib/useCopy'
 import { cn } from '@/lib/utils'
 
+import { checkBadge } from './checkRef'
+
 import { type CommentBlock, type Span, parseCommentMarkdown } from './commentMarkdown'
 
 const COPY_LABELS: Readonly<Record<CopyStatus, string>> = {
@@ -123,7 +125,8 @@ function Block({ block }: { readonly block: CommentBlock }) {
 
 interface CommentPreviewProps {
   readonly markdown: string
-  readonly prNumber: number
+  /** Absent when the gate compared two refs rather than a pull request. */
+  readonly prNumber: number | null
 }
 
 /**
@@ -157,8 +160,12 @@ export function CommentPreview({ markdown, prNumber }: CommentPreviewProps) {
           />
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-t-card border-b border-line-strong bg-elevated px-4 py-2">
             <span className="num text-small font-semibold text-ink">bisect-bot</span>
-            <span className="text-small text-ink-muted">commented on</span>
-            <span className="num text-small text-ink-muted">#{prNumber}</span>
+            <span className="text-small text-ink-muted">
+              {prNumber === null ? 'would comment' : 'commented on'}
+            </span>
+            {prNumber === null ? null : (
+              <span className="num text-small text-ink-muted">{checkBadge(prNumber)}</span>
+            )}
             <span className="ml-auto rounded-pill border border-line px-1.5 py-0.5 label-instrument">
               bot
             </span>

@@ -15,7 +15,8 @@ export const RUNS_PER_REF = 96
 
 export interface CheckDelta {
   readonly checkId: string
-  readonly prNumber: number
+  /** Null when the gate compared two refs rather than a pull request. */
+  readonly prNumber: number | null
   readonly title: string
   readonly isRegression: boolean
   readonly delta: number
