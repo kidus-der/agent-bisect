@@ -21,9 +21,10 @@ describe('wilsonInterval', () => {
     // Arrange / Act
     const interval = wilsonInterval(0.81, 100)
 
-    // Assert — Wilson 95% for 81/100 is [0.7215, 0.8745].
-    expect(interval?.low).toBeCloseTo(0.7215, 3)
-    expect(interval?.high).toBeCloseTo(0.8745, 3)
+    // Assert — Wilson 95% (no continuity correction) for 81/100 is
+    // [0.7222, 0.8749]; centre 0.7985, half-width 0.0763.
+    expect(interval?.low).toBeCloseTo(0.7222, 3)
+    expect(interval?.high).toBeCloseTo(0.8749, 3)
   })
 
   test('stays inside zero and one at the extremes', () => {
