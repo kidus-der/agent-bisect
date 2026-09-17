@@ -73,6 +73,7 @@ export function HeatStripe({
   const pitch = trackWidth === undefined ? cellWidth + CELL_GAP : trackWidth / count
   const gap = pitch >= MIN_GAPPED_CELL_PX + CELL_GAP ? CELL_GAP : 0
   const drawnCellWidth = Math.max(pitch - gap, 1)
+  const hatchPitch = Math.min(HATCH_SIZE, Math.max(2, drawnCellWidth))
   const width = trackWidth ?? count * pitch - CELL_GAP
   const scale = buildHeatScale(steps, blamedStep)
   const blamed = steps.find((entry) => entry.step === blamedStep)
@@ -88,14 +89,26 @@ export function HeatStripe({
         className="shrink-0"
       >
         <defs>
+          {/*
+            "Not measured". The pattern pitch scales down with the cell, or a
+            narrow cell falls between two hatch lines and reads as empty rather
+            than as untested.
+          */}
           <pattern
             id={hatchId}
-            width={HATCH_SIZE}
-            height={HATCH_SIZE}
+            width={hatchPitch}
+            height={hatchPitch}
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(45)"
           >
-            <line x1={0} y1={0} x2={0} y2={HATCH_SIZE} stroke="var(--bx-tape)" strokeWidth={2} />
+            <line
+              x1={0}
+              y1={0}
+              x2={0}
+              y2={hatchPitch}
+              stroke="var(--bx-tape)"
+              strokeWidth={hatchPitch / 2}
+            />
           </pattern>
           {/* The blamed cell is a fill: vivid amber to coral in both themes. */}
           <linearGradient id={blameId} x1="0" y1="0" x2="1" y2="1">
