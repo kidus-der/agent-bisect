@@ -144,6 +144,17 @@ def recording_hook(request: dict, response: Any, meta: Any) -> None:
     recorder.on_llm_call(request, response, meta)
 
 
+def current_run_id() -> str | None:
+    """The run this thread is recording, if any.
+
+    `route_tau2_llm` asks per call, so the ledger row for every LLM call a
+    run makes carries that run's id -- which is what lets a run say what
+    it cost, and what `RunSummary.calls` is served from.
+    """
+    recorder = _active.get()
+    return None if recorder is None else recorder.run_id
+
+
 class Tau2Recorder:
     """Writes one run's steps to the tape, each before its result is used."""
 
@@ -168,6 +179,10 @@ class Tau2Recorder:
         self._state_ref: str | None = None
         self._state_hash: str | None = None
         self._llm_calls_by_actor: dict[str, int] = {}
+
+    @property
+    def run_id(self) -> str:
+        return self._run_id
 
     @property
     def next_step_idx(self) -> int:
@@ -388,6 +403,7 @@ def recording_session(
         api_key=api_key,
         api_base=api_base,
         limiter_for=limiter_for,
+        run_id_for=current_run_id,
     ) as router:
         yield router
 
