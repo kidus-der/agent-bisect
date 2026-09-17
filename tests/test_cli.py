@@ -78,7 +78,6 @@ def test_doctor_json_output_is_valid_json(monkeypatch):
         ("blame", "P5"),
         ("inject", "P3"),
         ("eval", "P5"),
-        ("serve", "P6"),
         ("gate", "P7"),
     ],
 )
@@ -200,7 +199,7 @@ def test_serve_real_flag_refuses_when_there_is_no_tape(monkeypatch, tmp_path):
     result = runner.invoke(cli.app, ["serve", "--real", "--runs-dir", str(tmp_path)])
 
     assert result.exit_code != 0
-    assert "no recorded runs" in result.stdout
+    assert "no recorded runs" in result.output
 
 
 def test_serve_passes_an_explicit_host_through_as_explicit(monkeypatch, tmp_path):
