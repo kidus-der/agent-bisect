@@ -147,10 +147,7 @@ export function GateSummaryPanel({ checks }: GateSummaryPanelProps) {
   if (summary.deltas.length === 0) return null
 
   return (
-    <Panel
-      variant="kpi"
-      bodyClassName="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]"
-    >
+    <Panel variant="card" bodyClassName="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <InstrumentLabel>gate_history</InstrumentLabel>
