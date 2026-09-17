@@ -76,7 +76,6 @@ def test_doctor_json_output_is_valid_json(monkeypatch):
     ("command", "phase"),
     [
         ("blame", "P5"),
-        ("inject", "P3"),
         ("eval", "P5"),
         ("gate", "P7"),
     ],
@@ -226,3 +225,16 @@ def test_serve_prints_the_url_it_is_about_to_bind(monkeypatch, tmp_path):
     result = runner.invoke(cli.app, ["serve", "--port", "9001", "--runs-dir", str(tmp_path)])
 
     assert "http://127.0.0.1:9001" in result.stdout
+
+
+def test_inject_is_registered_with_its_three_commands():
+    """`bisect inject collect | status | freeze` (P3). Registered in cli.py
+    so the collection is driven by the shipped CLI rather than a script."""
+    from agent_bisect.cli import app
+    from typer.testing import CliRunner
+
+    result = CliRunner().invoke(app, ["inject", "--help"])
+
+    assert result.exit_code == 0
+    for command in ("collect", "status", "freeze"):
+        assert command in result.output

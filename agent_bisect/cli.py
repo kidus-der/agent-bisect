@@ -13,6 +13,7 @@ from typing import Annotated
 
 import typer
 
+from agent_bisect.cli_inject import app as inject_app
 from agent_bisect.cli_record import record
 from agent_bisect.cli_replay import replay
 from agent_bisect.core.config import get_settings
@@ -70,6 +71,7 @@ def doctor(
 
 app.command()(record)
 app.command()(replay)
+app.add_typer(inject_app, name="inject")
 
 
 @app.command()
@@ -78,10 +80,6 @@ def blame() -> None:
     _not_implemented("P5")
 
 
-@app.command()
-def inject() -> None:
-    """Plant a fault into a recorded run (phase P3)."""
-    _not_implemented("P3")
 
 
 @app.command(name="eval")
