@@ -113,3 +113,35 @@ def test_an_unreadable_checkpoint_is_ignored_rather_than_crashing(_probe_dir):
     path.write_text("{not json")
 
     assert load_checkpoint(MODEL, "5") is None
+
+
+def test_tau2s_own_infrastructure_error_is_also_an_infra_failure(_probe_dir):
+    """τ² can finish a run and report INFRASTRUCTURE_ERROR ("e.g. API disconnect").
+
+    That is our protocol 0004 §3 definition of an infra failure even though
+    our own call path raised nothing, so it must be retried rather than
+    scored as the agent failing the task.
+    """
+    row = TaskProbeResult(
+        **{**_result("6").__dict__, "termination_reason": "infrastructure_error",
+           "reward": 0.0, "passed": False}
+    )
+
+    save_checkpoint(row, '{"messages": []}')
+
+    assert load_checkpoint(MODEL, "6") is None
+    assert list((_probe_dir / MODEL.replace("/", "__")).glob("6.error.json"))
+
+
+def test_an_agent_caused_failure_is_kept_as_a_result(_probe_dir):
+    """max_steps and too_many_errors are the agent's doing and DO count."""
+    for task_id, reason in (("7", "max_steps"), ("8", "too_many_errors")):
+        row = TaskProbeResult(
+            **{**_result(task_id).__dict__, "termination_reason": reason,
+               "reward": 0.0, "passed": False}
+        )
+        save_checkpoint(row, '{"messages": []}')
+
+        loaded = load_checkpoint(MODEL, task_id)
+
+        assert loaded is not None and loaded.passed is False
