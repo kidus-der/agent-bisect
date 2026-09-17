@@ -303,7 +303,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <Kbd>↓</Kbd> navigate
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Kbd>↵</Kbd> run
+                  <Kbd>↵</Kbd> open
                 </span>
               </div>
             </Command>
