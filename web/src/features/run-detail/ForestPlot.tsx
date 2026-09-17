@@ -138,8 +138,13 @@ interface ForestAxisProps {
 
 function ForestAxis({ x, width, domain }: ForestAxisProps) {
   // d3's nice ticks: uniform, round intervals instead of the domain split five ways.
+  // Zero is already drawn as a solid rule with its own label, so a "0.0" tick
+  // underneath it renders as "0|0".
   const ticks = useMemo(
-    () => scaleLinear<number>({ domain: [...domain] }).ticks(AXIS_TICKS),
+    () =>
+      scaleLinear<number>({ domain: [...domain] })
+        .ticks(AXIS_TICKS)
+        .filter((t) => t !== 0),
     [domain],
   )
   return (
@@ -202,6 +207,12 @@ function ForestPlotImpl({ rows, domain, delta, selectedStep, onSelectStep }: For
           )}
         >
           <span className="absolute inset-y-0 w-px bg-ink-muted" style={{ left: x(0) }} />
+          <span
+            className="absolute top-0 rounded-[3px] bg-surface px-1 num text-[10px] text-ink-muted"
+            style={{ left: x(0), transform: 'translateX(-50%)' }}
+          >
+            0
+          </span>
           <span
             className="absolute inset-y-0 border-l border-dashed border-ink-muted"
             style={{ left: x(delta) }}
