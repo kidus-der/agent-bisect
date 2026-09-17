@@ -7,7 +7,13 @@
  */
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 
-import { type ApiError, type ApiResult, type NotAvailable, type Schemas, apiFetch } from '@/api/client'
+import {
+  type ApiError,
+  type ApiResult,
+  type NotAvailable,
+  type Schemas,
+  apiFetch,
+} from '@/api/client'
 
 export type OverviewPayload = Readonly<Schemas['OverviewPayload']>
 export type HeadlineResult = Readonly<Schemas['HeadlineResult']>
@@ -17,11 +23,15 @@ export type RecallPoint = Readonly<Schemas['RecallPoint']>
 export type CostAccuracyPoint = Readonly<Schemas['CostAccuracyPoint']>
 export type RunSummary = Readonly<Schemas['RunSummary']>
 export type MethodName = CostAccuracyPoint['method']
+export type BenchmarkSummary = Readonly<Schemas['BenchmarkSummary']>
+export type MethodResult = Readonly<Schemas['MethodResult']>
 
 export const OVERVIEW_PATH = '/overview'
+export const BENCHMARK_PATH = '/benchmark'
 
 export const overviewKeys = {
   overview: ['overview'] as const,
+  benchmark: ['benchmark'] as const,
 } as const
 
 export function useOverviewQuery(): UseQueryResult<
@@ -30,9 +40,32 @@ export function useOverviewQuery(): UseQueryResult<
 > {
   return useQuery<ApiResult<OverviewPayload | NotAvailable>, ApiError>({
     queryKey: overviewKeys.overview,
-    queryFn: ({ signal }) =>
-      apiFetch<OverviewPayload | NotAvailable>(OVERVIEW_PATH, { signal }),
+    queryFn: ({ signal }) => apiFetch<OverviewPayload | NotAvailable>(OVERVIEW_PATH, { signal }),
   })
+}
+
+/**
+ * The Overview's `cost_vs_accuracy` points carry a bare accuracy; the intervals
+ * for the same five methods live on `/api/benchmark`. The scatter reads them
+ * from there rather than plotting a point estimate with no interval — and
+ * degrades to "intervals unavailable" if this request fails.
+ */
+export function useBenchmarkMethodsQuery(): UseQueryResult<
+  ApiResult<BenchmarkSummary | NotAvailable>,
+  ApiError
+> {
+  return useQuery<ApiResult<BenchmarkSummary | NotAvailable>, ApiError>({
+    queryKey: overviewKeys.benchmark,
+    queryFn: ({ signal }) =>
+      apiFetch<BenchmarkSummary | NotAvailable>(BENCHMARK_PATH, { signal }),
+  })
+}
+
+/** Accuracy interval per method, keyed by method name. Empty when none were served. */
+export function accuracyIntervals(
+  methods: readonly MethodResult[] | null,
+): ReadonlyMap<MethodName, CiValue> {
+  return new Map((methods ?? []).map((entry) => [entry.method, entry.accuracy]))
 }
 
 /** Human labels for the five methods the benchmark compares. */
