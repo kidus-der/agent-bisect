@@ -13,10 +13,15 @@ function delta(row: ScenarioRow): number {
   return row.head_pass_rate - row.base_pass_rate
 }
 
-/** A small bar either side of a centre line: which way, and how far. */
-function DeltaBar({ value }: { readonly value: number }) {
+/**
+ * A bar either side of a centre zero line, scaled against the largest change in
+ * the suite — so the longest bar is the worst scenario and every other bar is
+ * readable against it. Scaled against the full 0-100 range instead, every row
+ * drew the same stub and the mark encoded nothing.
+ */
+function DeltaBar({ value, scale }: { readonly value: number; readonly scale: number }) {
   const worse = value < WORSE_THRESHOLD
-  const magnitude = Math.min(1, Math.abs(value))
+  const magnitude = scale > 0 ? Math.min(1, Math.abs(value) / scale) : 0
   return (
     <span aria-hidden="true" className="relative inline-block h-3 w-24 align-middle">
       <span className="absolute inset-y-0 left-1/2 w-px bg-line-strong" />
@@ -31,56 +36,63 @@ function DeltaBar({ value }: { readonly value: number }) {
   )
 }
 
-const COLUMNS: ReadonlyArray<DataTableColumn<ScenarioRow>> = [
-  {
-    id: 'scenario',
-    header: 'scenario',
-    sortValue: (row) => row.scenario,
-    cell: (row) => <span className="num text-ink">{row.scenario}</span>,
-  },
-  {
-    id: 'delta',
-    header: 'change',
-    numeric: true,
-    sortValue: (row) => delta(row),
-    cell: (row) => {
-      const value = delta(row)
-      const worse = value < WORSE_THRESHOLD
-      return (
-        <span className="inline-flex items-center justify-end gap-2">
-          <DeltaBar value={value} />
-          <span className={cn('w-20 num', worse ? 'text-fail' : 'text-pass')}>
-            <span aria-hidden="true">{worse ? '▼' : '▲'}</span> {formatPoints(value, 0)}
-          </span>
-        </span>
-      )
+function buildColumns(scale: number): ReadonlyArray<DataTableColumn<ScenarioRow>> {
+  return [
+    {
+      id: 'scenario',
+      header: 'scenario',
+      sortValue: (row) => row.scenario,
+      cell: (row) => <span className="num text-ink">{row.scenario}</span>,
     },
-  },
-  {
-    id: 'base',
-    header: 'base',
-    numeric: true,
-    sortValue: (row) => row.base_pass_rate,
-    cell: (row) => (
-      <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
-    ),
-  },
-  {
-    id: 'head',
-    header: 'head',
-    numeric: true,
-    sortValue: (row) => row.head_pass_rate,
-    cell: (row) => <span className="num text-ink">{formatPercent(row.head_pass_rate, 0)}</span>,
-  },
-  {
-    id: 'n',
-    header: 'runs',
-    numeric: true,
-    hideOnMobile: true,
-    sortValue: (row) => row.n,
-    cell: (row) => <span className="num text-ink-muted">{row.n}</span>,
-  },
-]
+    {
+      id: 'delta',
+      header: 'change',
+      numeric: true,
+      sortValue: (row) => delta(row),
+      cell: (row) => {
+        const value = delta(row)
+        const worse = value < WORSE_THRESHOLD
+        return (
+          <span className="inline-flex items-center justify-end gap-2">
+            <DeltaBar value={value} scale={scale} />
+            <span className={cn('w-20 num', worse ? 'text-fail' : 'text-pass')}>
+              <span aria-hidden="true">{worse ? '▼' : '▲'}</span> {formatPoints(value, 0)}
+            </span>
+          </span>
+        )
+      },
+    },
+    {
+      id: 'base',
+      header: 'base',
+      numeric: true,
+      sortValue: (row) => row.base_pass_rate,
+      cell: (row) => (
+        <span className="num text-ink-muted">{formatPercent(row.base_pass_rate, 0)}</span>
+      ),
+    },
+    {
+      id: 'head',
+      header: 'head',
+      numeric: true,
+      sortValue: (row) => row.head_pass_rate,
+      cell: (row) => <span className="num text-ink">{formatPercent(row.head_pass_rate, 0)}</span>,
+    },
+    {
+      id: 'n',
+      header: 'runs',
+      numeric: true,
+      hideOnMobile: true,
+      sortValue: (row) => row.n,
+      cell: (row) => <span className="num text-ink-muted">{row.n}</span>,
+    },
+  ]
+}
+
+/** The largest absolute change in the suite; every bar is drawn against it. */
+function deltaScale(scenarios: readonly ScenarioRow[]): number {
+  return scenarios.reduce((largest, row) => Math.max(largest, Math.abs(delta(row))), 0)
+}
 
 interface ScenarioTableProps {
   readonly scenarios: readonly ScenarioRow[]
@@ -103,7 +115,7 @@ export function ScenarioTable({ scenarios }: ScenarioTableProps) {
         <p className="py-6 text-ink-muted">This check ran no scenarios.</p>
       ) : (
         <DataTable
-          columns={COLUMNS}
+          columns={buildColumns(deltaScale(scenarios))}
           rows={scenarios}
           getRowId={(row) => row.scenario}
           caption="Pass rate per scenario on base and head, with the change between them."
