@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils'
 
 import type { Kpis } from './api'
 
+/** The four numbers read in sequence rather than all landing at once. */
+const KPI_STAGGER_SECONDS = 0.09
+
 interface KpiRowProps {
   readonly kpis: Kpis
   readonly className?: string
@@ -65,7 +68,7 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
         className,
       )}
     >
-      {kpiSpecs(kpis).map((spec) => (
+      {kpiSpecs(kpis).map((spec, index) => (
         <div key={spec.id} className="flex min-h-21 flex-col justify-center px-4 py-3">
           <StatTicker
             label={spec.label}
@@ -73,6 +76,7 @@ export function KpiRow({ kpis, className }: KpiRowProps) {
             caption={spec.caption}
             decimals={spec.decimals}
             prefix={spec.prefix}
+            delaySeconds={index * KPI_STAGGER_SECONDS}
           />
         </div>
       ))}

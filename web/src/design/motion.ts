@@ -91,6 +91,7 @@ export function useStagger(
 export function useNumberTicker<T extends HTMLElement>(
   value: number,
   format: (current: number) => string,
+  delaySeconds = 0,
 ): React.RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previous = useRef(0)
@@ -107,6 +108,7 @@ export function useNumberTicker<T extends HTMLElement>(
     const controls = animate(previous.current, value, {
       type: 'spring',
       ...springs.ticker,
+      delay: delaySeconds,
       onUpdate: (current) => {
         node.textContent = format(current)
       },
@@ -116,7 +118,7 @@ export function useNumberTicker<T extends HTMLElement>(
     })
     previous.current = value
     return () => controls.stop()
-  }, [value, format, reduced])
+  }, [value, format, reduced, delaySeconds])
 
   return ref
 }

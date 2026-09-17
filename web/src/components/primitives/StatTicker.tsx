@@ -12,6 +12,8 @@ interface StatTickerProps extends NumberFormatOptions {
   /** Short line under the number: the unit, the n, or the interval. */
   readonly caption?: string
   readonly size?: 'stat' | 'display'
+  /** Staggers this number behind its neighbours, so a row of them reads in sequence. */
+  readonly delaySeconds?: number
   readonly className?: string
 }
 
@@ -21,6 +23,7 @@ export function StatTicker({
   value,
   caption,
   size = 'stat',
+  delaySeconds = 0,
   decimals,
   prefix,
   suffix,
@@ -31,7 +34,7 @@ export function StatTicker({
     (current: number) => formatNumber(current, { decimals, prefix, suffix, signed }),
     [decimals, prefix, suffix, signed],
   )
-  const tickerRef = useNumberTicker<HTMLSpanElement>(value, format)
+  const tickerRef = useNumberTicker<HTMLSpanElement>(value, format, delaySeconds)
   return (
     <div data-slot="stat-ticker" className={cn('flex flex-col gap-1', className)}>
       <InstrumentLabel>{label}</InstrumentLabel>
