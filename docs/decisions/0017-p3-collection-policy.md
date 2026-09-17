@@ -96,6 +96,22 @@ present.
 
 ## 6. Throughput
 
+**Amendment, 2026-09-17, before the collection that produced the dataset.**
+The replay seam was made thread-safe (`adapters/tau2_replay`: a `ContextVar`
+dispatcher in place of a module-global rebind), so forks parallelise and the
+collection runs several tasks at once inside one process rather than one task
+per process.
+
+One consequence has to be stated rather than discovered later: the fault-type
+**balancer is global and draws in whatever order the threads finish**, so a
+concurrent collection is reproducible in *what it tries* — which base runs,
+which steps, which mutation, all seeded — but not in *which fault type each
+kept item ended up with*. The balance property itself is unaffected, and so is
+every threshold. A re-run from the same seeds would produce the same steps with
+a possibly different assignment of the four types across them.
+
+
+
 Pure engineering, no protocol change. P0/P1 were latency-bound (~13 s per call)
 at concurrency 3–12, far under the measured limiter (agent 108 rpm, user sim
 60 rpm ⇒ ≈ 8k calls/h). The collection runs enough work in flight that the
