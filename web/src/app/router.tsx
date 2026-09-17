@@ -34,6 +34,12 @@ const runDetailRoute = createRoute({
   component: lazyRouteComponent(() => import('@/pages/RunDetailPage'), 'RunDetailPage'),
   errorComponent: RouteError,
 })
+const rerunRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/runs/$runId/reruns/$rerunId',
+  component: lazyRouteComponent(() => import('@/pages/RerunPage'), 'RerunPage'),
+  errorComponent: RouteError,
+})
 const benchmarkRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/benchmark',
@@ -63,6 +69,7 @@ const routeTree = rootRoute.addChildren([
   overviewRoute,
   runsRoute,
   runDetailRoute,
+  rerunRoute,
   benchmarkRoute,
   liveRoute,
   prChecksRoute,
