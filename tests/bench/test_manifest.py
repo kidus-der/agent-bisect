@@ -209,3 +209,17 @@ def test_splits_can_be_read_off_a_frozen_manifest(tmp_path):
 
     assert len(loaded.split("dev")) + len(loaded.split("test")) == 30
     assert {entry.split for entry in loaded.split("test")} == {"test"}
+
+
+def test_a_set_nothing_is_tuned_on_freezes_without_a_split(tmp_path):
+    """The flaky-world set (`0017` section 4): a split there would be a
+    split for its own sake."""
+    path = tmp_path / "manifest_flaky.json"
+
+    freeze(many(12), path=path, models=MODELS, tau2_commit="abc123",
+           config=CONFIG, counts={"kept": 12}, created_at=FROZEN_AT, assign_split=False)
+
+    loaded = load_frozen(path)
+    assert {entry.split for entry in loaded.items} == {None}
+    assert loaded.counts["dev"] == 0
+    assert loaded.counts["test"] == 0

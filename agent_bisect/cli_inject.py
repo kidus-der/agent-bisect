@@ -36,6 +36,7 @@ import typer
 
 from agent_bisect.adapters.tau2 import recording_session, tau2_commit
 from agent_bisect.adapters.tau2_batch import tasks_from_range
+from agent_bisect.adapters.tau2_flaky import FlakyConfig, canonical_rewards
 from agent_bisect.adapters.tau2_inject import Tau2InjectRunner
 from agent_bisect.adapters.tau2_tasks import collection_order, shard_of
 from agent_bisect.bench.inject import InjectConfig
@@ -104,6 +105,10 @@ def collect(
     ledger_path: Annotated[
         Path, typer.Option("--ledger", help="Call ledger to reserve against.")
     ] = DEFAULT_LEDGER_PATH,
+    flaky: bool = typer.Option(
+        False, "--flaky", help="Collect in the flaky world (decisions 0011, 0017 section 4)."
+    ),
+    flaky_error_rate: float = typer.Option(0.05, help="Injected tool-error probability."),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Record, check, fault and re-run, resuming from whatever is on disk."""
@@ -134,7 +139,14 @@ def collect(
             f"(floor {floor}), cap {max_calls} calls"
         )
 
-    with own_stdout() as stdout, recording_session(ledger=ledger, phase=phase):
+    world = (
+        FlakyConfig(seed=collection_seed, p_error=flaky_error_rate) if flaky else None
+    )
+    with (
+        own_stdout() as stdout,
+        recording_session(ledger=ledger, phase=phase),
+        canonical_rewards(),
+    ):
         runner = Tau2InjectRunner(
             store=BlobStore(runs_dir),
             tape=TapeWriter(runs_dir),
@@ -143,6 +155,7 @@ def collect(
             user_model=user_model or chosen.user_sim,
             seed=seed,
             temperature=chosen.agent_temperature,
+            flaky=world,
         )
         result = run_collection(
             runner,
@@ -188,6 +201,10 @@ def freeze(
     = DEFAULT_WORK_DIR,
     out: Annotated[Path, typer.Option(help="Manifest path.")] = DEFAULT_MANIFEST_PATH,
     judge_model: str = typer.Option("", help="Judge model id. Default: the P0 choice."),
+    unsplit: bool = typer.Option(
+        False, "--unsplit",
+        help="Freeze without a dev:test split, for a set nothing is tuned on (the flaky world).",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Freeze the 1:2 dev:test split. Refuses to overwrite a frozen manifest."""
@@ -208,6 +225,7 @@ def freeze(
             config=InjectConfig().as_dict(),
             counts=_funnel(journal),
             created_at=datetime.now(UTC),
+            assign_split=not unsplit,
         )
     except ManifestExistsError as exc:
         typer.echo(str(exc), err=True)

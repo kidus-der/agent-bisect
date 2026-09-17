@@ -230,14 +230,24 @@ def build_manifest(
     config: Mapping[str, Any],
     counts: Mapping[str, Any],
     created_at: datetime,
+    assign_split: bool = True,
 ) -> dict[str, Any]:
-    """The manifest dict, split assigned and items in a stable order."""
+    """The manifest dict, split assigned and items in a stable order.
+
+    `assign_split=False` leaves every item unsplit, for a set nothing is
+    tuned on — the flaky-world set of
+    `docs/decisions/0017-p3-collection-policy.md` §4. A split there would
+    be a split for its own sake.
+    """
     parsed = [_as_item(entry) for entry in items]
     if not parsed:
         raise ValueError("no items to freeze: an empty dataset is not a dataset")
-    assignment = assign_splits(parsed)
+    assignment = assign_splits(parsed) if assign_split else {}
     placed = sorted(
-        (item.model_copy(update={"split": assignment[item.group]}) for item in parsed),
+        (
+            item.model_copy(update={"split": assignment.get(item.group)})
+            for item in parsed
+        ),
         key=lambda item: item.item_id,
     )
     return {
@@ -270,6 +280,7 @@ def freeze(
     config: Mapping[str, Any],
     counts: Mapping[str, Any],
     created_at: datetime,
+    assign_split: bool = True,
 ) -> Path:
     """Write the frozen manifest and its hash. Never overwrites one."""
     if path.exists():
@@ -279,7 +290,7 @@ def freeze(
         )
     manifest = build_manifest(
         items, models=models, tau2_commit=tau2_commit, config=config,
-        counts=counts, created_at=created_at,
+        counts=counts, created_at=created_at, assign_split=assign_split,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json_bytes(manifest))

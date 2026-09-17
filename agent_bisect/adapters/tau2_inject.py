@@ -23,14 +23,26 @@ from __future__ import annotations
 
 import contextlib
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
-from agent_bisect.adapters.tau2 import RunSpec, record_run
+from agent_bisect.adapters.tau2 import (
+    INFRA_TERMINATIONS,
+    RecordedRun,
+    RunSpec,
+    Tau2Recorder,
+    build_orchestrator,
+    record_run,
+    tau2_commit,
+)
 from agent_bisect.adapters.tau2_batch import BatchItem, free_run_id
 from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
-from agent_bisect.adapters.tau2_fault_injector import FaultSpec
+from agent_bisect.adapters.tau2_fault_injector import FaultSpec, fault_injected
+from agent_bisect.adapters.tau2_flaky import FlakyConfig, flaky_world
+from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
 from agent_bisect.attribution.interventions import (
     ReplaceToolResult,
     Resample,
@@ -38,8 +50,8 @@ from agent_bisect.attribution.interventions import (
 )
 from agent_bisect.bench.inject import BaseRun, RerunResult, ToolStep
 from agent_bisect.core.runner import ForkSpec, PrefixMode, run_fork
-from agent_bisect.core.store import BlobStore
-from agent_bisect.core.tape import Step, TapeReader, TapeWriter
+from agent_bisect.core.store import BlobStore, sha256_hex
+from agent_bisect.core.tape import RunManifest, Step, TapeReader, TapeWriter
 
 
 class BaseRecordingAbortedError(RuntimeError):
@@ -68,14 +80,23 @@ class Tau2InjectRunner:
     prefix_tools: PrefixMode = "snapshot"
     #: Left unset, the live completion is read off tau2's seam per call.
     live_completion: Callable[..., Any] | None = None
+    #: Set to collect in the flaky world (`docs/decisions/0011-flaky-world.md`).
+    #: The seed here is a base: each run gets its own, derived from its id
+    #: and recorded in its manifest, so a recording is self-consistent
+    #: while re-executing the same calls later is not.
+    flaky: FlakyConfig | None = None
 
     # -- recording ---------------------------------------------------------
 
     def record_base(self, domain: str, task_id: str, trial: int) -> BaseRun:
         item = BatchItem(domain=domain, task_id=task_id, trial=trial)
         run_id = free_run_id(self.reader, item)
-        recorded = record_run(
-            self._spec(domain, task_id), run_id=run_id, store=self.store, tape=self.tape
+        recorded = (
+            self._record_flaky(domain, task_id, run_id)
+            if self.flaky is not None
+            else record_run(
+                self._spec(domain, task_id), run_id=run_id, store=self.store, tape=self.tape
+            )
         )
         if recorded.outcome is None:
             raise BaseRecordingAbortedError(
@@ -87,6 +108,67 @@ class Tau2InjectRunner:
             task_id=task_id,
             passed=recorded.outcome.passed,
             steps=recorded.steps,
+        )
+
+    def _record_flaky(self, domain: str, task_id: str, run_id: str) -> Any:
+        """`record_run`, with the flaky world installed under the recorder.
+
+        `record_run` builds its own orchestrator, so there is no seam for
+        putting the world on the environment before the recorder wraps
+        `get_response` — and installed after it, the tape would record the
+        deterministic answer while the agent saw the flaky one. The world's
+        own seed and its generated-id trail go into the manifest, which is
+        what makes the recording explainable and its reward canonicalisable.
+        """
+        from tau2.evaluator.evaluator import EvaluationType
+        from tau2.runner.simulation import run_simulation
+
+        spec = self._spec(domain, task_id)
+        config = self._flaky_for(run_id)
+        orchestrator = build_orchestrator(spec, run_id)
+        recorder = Tau2Recorder(run_id, self.store, self.tape, orchestrator.environment)
+        with flaky_world(orchestrator.environment, config) as world:
+            recorder.start(self._flaky_manifest(spec, run_id, config))
+            with recorder.bind(orchestrator.environment):
+                simulation = run_simulation(orchestrator, evaluation_type=EvaluationType.ALL)
+            termination = str(
+                getattr(simulation.termination_reason, "value", simulation.termination_reason)
+            )
+            outcome = None
+            if termination not in INFRA_TERMINATIONS and simulation.reward_info is not None:
+                outcome = recorder.record_outcome(
+                    reward=simulation.reward_info.reward,
+                    termination_reason=termination,
+                    breakdown={
+                        **simulation.reward_info.model_dump(mode="json"),
+                        "flaky": world.manifest(),
+                    },
+                )
+        return RecordedRun(
+            run_id=run_id,
+            steps=recorder.next_step_idx,
+            outcome=outcome,
+            termination_reason=termination,
+            llm_calls_by_actor=recorder.llm_calls_by_actor,
+        )
+
+    def _flaky_for(self, run_id: str) -> FlakyConfig:
+        """This run's own flaky world: same settings, its own RNG."""
+        assert self.flaky is not None
+        seed = int(sha256_hex(f"{self.flaky.seed}:{run_id}".encode())[:8], 16)
+        return FlakyConfig(**{**self.flaky.as_dict(), "seed": seed})
+
+    def _flaky_manifest(self, spec: RunSpec, run_id: str, config: FlakyConfig) -> RunManifest:
+        return RunManifest(
+            run_id=run_id,
+            domain=spec.domain,
+            task_id=spec.task_id,
+            agent_model=spec.agent_model,
+            user_model=spec.user_model,
+            params={**spec.manifest_params, "flaky": config.as_dict()},
+            seed=spec.seed,
+            tau2_commit=tau2_commit(),
+            created_at=datetime.now(UTC),
         )
 
     def _spec(self, domain: str, task_id: str) -> RunSpec:
@@ -211,6 +293,8 @@ class Tau2InjectRunner:
             seed=None,
         )
         reference = self.store.put_json(intervention.to_ref())
+        if self.flaky is not None:
+            return self._flaky_fork(spec, intervention, reference, run_id, fault)
         driver = FaultedForkDriver(
             spec,
             store=self.store,
@@ -218,6 +302,41 @@ class Tau2InjectRunner:
             tape=self.tape,
             live_completion=shaped_completion(intervention, self._live()),
             fault=fault,
+        )
+        outcome = run_fork(driver, spec, intervention)
+        return RerunResult(run_id=run_id, passed=outcome.passed, intervention_ref=reference)
+
+    def _flaky_fork(
+        self,
+        spec: ForkSpec,
+        intervention: Any,
+        reference: str,
+        run_id: str,
+        fault: FaultSpec | None,
+    ) -> RerunResult:
+        """A fork whose world is flaky as well as faulted.
+
+        Both layers go on through the one `environment_hook`, in order:
+        the world first, the faulty tool on top of it, then the recorder
+        and the replayer outside both.
+        """
+        config = self._flaky_for(run_id)
+
+        @contextmanager
+        def hook(environment: Any) -> Iterator[None]:
+            with ExitStack() as stack:
+                stack.enter_context(flaky_world(environment, config))
+                if fault is not None:
+                    stack.enter_context(fault_injected(environment, fault))
+                yield
+
+        driver = Tau2ForkDriver(
+            spec,
+            store=self.store,
+            reader=self.reader,
+            tape=self.tape,
+            live_completion=shaped_completion(intervention, self._live()),
+            environment_hook=hook,
         )
         outcome = run_fork(driver, spec, intervention)
         return RerunResult(run_id=run_id, passed=outcome.passed, intervention_ref=reference)
