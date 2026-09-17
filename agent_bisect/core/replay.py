@@ -25,7 +25,7 @@ rehydration of a payload into a provider response object lives in
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
 from agent_bisect.core.config import redact
 from agent_bisect.core.store import canonical_json_bytes
@@ -380,9 +380,15 @@ class Intervention(Protocol):
     at it — an LLM response payload for an agent/user step, a tool result
     payload for a tool step — and returns what should be used instead, or
     `LIVE` to sample fresh.
+
+    `name` is a `ClassVar` because an intervention's name identifies its
+    *kind*, not one instance of it: every implementation in
+    `attribution/interventions.py` is a frozen dataclass whose `name` is
+    fixed per class, and a plain `name: str` here would make each of them
+    look like it declared an unset dataclass field.
     """
 
-    name: str
+    name: ClassVar[str]
 
     def apply(self, step: Step, payload: Any) -> Any: ...
 
@@ -390,7 +396,7 @@ class Intervention(Protocol):
 class NoOpIntervention:
     """Change nothing: the control arm, and what full-run replay uses."""
 
-    name = "noop"
+    name: ClassVar[str] = "noop"
 
     def apply(self, step: Step, payload: Any) -> Any:
         return payload
