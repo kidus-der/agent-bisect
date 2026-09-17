@@ -18,12 +18,19 @@ import { springTransition } from '@/design/motion'
 import { formatNumber } from '@/lib/format'
 
 import type { CiValue, CostAccuracyPoint, MethodName } from './api'
+import { placeLabels } from './labelPlacement'
 import { methodLabel } from './api'
 import { formatPercent } from './headline'
 
 const MARGIN = { top: 18, right: 28, bottom: 46, left: 44 } as const
 const MIN_HEIGHT = 240
-const Y_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
+/**
+ * Accuracies here run 0.67 to 0.99 including their intervals, so the axis starts
+ * at 0.5 rather than spending half the plot on empty space. Every tick is
+ * labelled, and these are points, not bars — no length is being compared.
+ */
+const Y_DOMAIN = [0.5, 1] as const
+const Y_TICKS = [0.5, 0.6, 0.7, 0.8, 0.9, 1] as const
 const X_TICKS = [0.03, 0.1, 0.3, 1, 3] as const
 const POINT_RADIUS = 5
 const HEADLINE_RADIUS = 7
@@ -37,10 +44,7 @@ const MIN_COST_USD = 0.02
  * re-run the agent, judge violet for the ones that ask a model. Each point is
  * named in text, so colour never has to carry which method it is.
  */
-const JUDGE_METHODS: ReadonlySet<MethodName> = new Set([
-  'judge_all_at_once',
-  'judge_step_by_step',
-])
+const JUDGE_METHODS: ReadonlySet<MethodName> = new Set(['judge_all_at_once', 'judge_step_by_step'])
 
 function methodColour(method: MethodName): string {
   return JUDGE_METHODS.has(method) ? chartColours.judge : chartColours.treated
@@ -89,20 +93,26 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
     domain: [Math.min(...costs, MIN_COST_USD) * 0.6, Math.max(...costs) * 1.7],
     range: [0, innerWidth],
   })
-  const y = scaleLinear<number>({ domain: [0, 1], range: [innerHeight, 0] })
+  const y = scaleLinear<number>({ domain: [...Y_DOMAIN], range: [innerHeight, 0] })
+  const pointX = (point: ScatterPoint): number => x(Math.max(point.mean_cost_usd, MIN_COST_USD))
+  const labels = new Map(
+    placeLabels(
+      points.map((point) => ({
+        id: point.method,
+        x: pointX(point),
+        y: y(point.accuracy),
+        length: methodLabel(point.method).length,
+      })),
+      innerWidth,
+    ).map((entry) => [entry.id, entry]),
+  )
 
   return (
     <svg width={width} height={height} aria-hidden="true">
       <Group left={MARGIN.left} top={MARGIN.top}>
         {Y_TICKS.map((tick) => (
           <g key={tick}>
-            <line
-              x1={0}
-              x2={innerWidth}
-              y1={y(tick)}
-              y2={y(tick)}
-              stroke={chartColours.grid}
-            />
+            <line x1={0} x2={innerWidth} y1={y(tick)} y2={y(tick)} stroke={chartColours.grid} />
             <text
               x={-10}
               y={y(tick)}
@@ -139,13 +149,21 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
         >
           mean cost per diagnosis (USD, log scale)
         </text>
+        <text
+          transform={`translate(${-MARGIN.left + 12} ${innerHeight / 2}) rotate(-90)`}
+          textAnchor="middle"
+          fontSize={11}
+          fill={chartColours.label}
+        >
+          step accuracy (%)
+        </text>
 
         {points.map((point, index) => {
           const colour = methodColour(point.method)
           const isHeadline = point.method === 'bisect'
-          const cx = x(Math.max(point.mean_cost_usd, MIN_COST_USD))
+          const cx = pointX(point)
           const cy = y(point.accuracy)
-          const labelBelow = point.accuracy > 0.9
+          const label = labels.get(point.method)
           return (
             <motion.g
               key={point.method}
@@ -159,7 +177,12 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
             >
               {point.interval ? (
                 <g stroke={colour} strokeWidth={1.5}>
-                  <line x1={cx} x2={cx} y1={y(point.interval.ci_low)} y2={y(point.interval.ci_high)} />
+                  <line
+                    x1={cx}
+                    x2={cx}
+                    y1={y(point.interval.ci_low)}
+                    y2={y(point.interval.ci_high)}
+                  />
                   <line
                     x1={cx - CAP_HALF}
                     x2={cx + CAP_HALF}
@@ -184,9 +207,9 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
               />
               {/* Direct labels: no legend to cross-reference. */}
               <text
-                x={cx}
-                y={cy + (labelBelow ? 26 : -18)}
-                textAnchor="middle"
+                x={cx + (label?.dx ?? 0)}
+                y={cy + (label?.dy ?? 0)}
+                textAnchor={label?.anchor ?? 'start'}
                 fontSize={12}
                 fontWeight={isHeadline ? 650 : 500}
                 fill={isHeadline ? colour : chartColours.foreground}
