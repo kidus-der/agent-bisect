@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import type { SeriesPoint } from './callsSeries'
-import { nearestPoint } from './traceCursor'
+import { nearestPoint, stepCursor } from './traceCursor'
 
 const POINTS: readonly SeriesPoint[] = [
   { time: 100, value: 1 },
@@ -30,5 +30,26 @@ describe('nearestPoint', () => {
 
   test('has nothing to snap to in an empty series', () => {
     expect(nearestPoint([], 120)).toBeNull()
+  })
+})
+
+describe('stepCursor', () => {
+  test('moves one sample at a time in either direction', () => {
+    expect(stepCursor(POINTS, 130, 1)).toBe(160)
+    expect(stepCursor(POINTS, 130, -1)).toBe(100)
+  })
+
+  test('stops at the ends rather than wrapping round', () => {
+    expect(stepCursor(POINTS, 160, 1)).toBe(160)
+    expect(stepCursor(POINTS, 100, -1)).toBe(100)
+  })
+
+  test('snaps a cursor resting between samples onto the series first', () => {
+    // Arrange / Act — 136 is nearest 130, so one step right is 160.
+    expect(stepCursor(POINTS, 136, 1)).toBe(160)
+  })
+
+  test('has nowhere to step in an empty series', () => {
+    expect(stepCursor([], 120, 1)).toBeNull()
   })
 })
