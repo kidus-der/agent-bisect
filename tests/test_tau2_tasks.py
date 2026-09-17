@@ -37,10 +37,19 @@ def test_the_judged_tasks_come_last():
     assert len(order) == 164
 
 
-def test_airline_comes_before_retail_among_the_cheap_tasks():
-    cheap = [task for task in collection_order() if task[0] == "airline"] 
+def test_tasks_a_fault_can_bite_come_first():
+    """Three bands: cheap-to-score tasks that require writes, then cheap
+    tasks that require none, then the judged ones. A perception fault has
+    least to bite on in the middle band, so it goes after the band where
+    a wrong value becomes a wrong action."""
+    order = collection_order()
+    writes = {(d, t) for d in ("airline", "retail")
+              for t in task_ids(d, judged=False, writes=True)}
+    judged = {(d, t) for d in ("airline", "retail") for t in task_ids(d, judged=True)}
 
-    assert collection_order()[: len(cheap)] == cheap
+    assert set(order[: len(writes)]) == writes
+    assert set(order[-len(judged):]) == judged
+    assert order[0][0] == "airline"
 
 
 def test_a_task_without_evaluation_criteria_needs_no_judge():
