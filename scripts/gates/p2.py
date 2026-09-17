@@ -52,8 +52,28 @@ from agent_bisect.adapters.tau2_replay import replay_run  # noqa: E402
 from agent_bisect.core.replay import DivergenceError  # noqa: E402
 from agent_bisect.core.store import BlobStore  # noqa: E402
 from agent_bisect.core.tape import TapeReader, canonical_request_hash  # noqa: E402
+from scripts.gates.evidence import (  # noqa: E402
+    current_commit,
+    format_evidence,
+    provenance_for,
+    render_table,
+)
 
 REQUIRED_RUNS = 20
+DEFAULT_EVIDENCE_PATH = REPO_ROOT / "docs" / "gates" / "P2.md"
+#: The files whose commits actually produced this verdict.
+EVIDENCE_SOURCES = (
+    "scripts/gates/p2.py",
+    "agent_bisect/adapters/tau2_replay.py",
+    "agent_bisect/core/replay.py",
+    "agent_bisect/core/runner.py",
+    "agent_bisect/cli_replay.py",
+    "docs/decisions/0010-replay-mechanism.md",
+)
+GATE_TEXT = (
+    "20/20 runs replay step-identical with the same reward while the network is blocked; "
+    "an altered request raises `DivergenceError`."
+)
 
 #: Not copied into the divergence check's scratch store: the replay needs
 #: the tape and the blobs, and nothing else. Other phases' artifacts are
@@ -244,10 +264,66 @@ def write_report(runs_dir: Path, criteria: list[Criterion]) -> Path:
     return path
 
 
+def _replay_rows(runs_dir: Path, run_ids: list[str]) -> list[tuple[str, str]]:
+    """Per run: how many steps came off the tape, and the reward reproduced."""
+    reader = TapeReader(runs_dir)
+    rows = []
+    for run_id in run_ids:
+        outcome = reader.get_outcome(run_id)
+        steps = reader.get_steps(run_id)
+        rows.append(
+            (
+                f"`{run_id}`",
+                str(len(steps)),
+                str(sum(1 for step in steps if step.actor != "tool")),
+                "—" if outcome is None else f"{outcome.reward}",
+            )
+        )
+    return rows
+
+
+def write_evidence(runs_dir: Path, criteria: list[Criterion], path: Path) -> Path:
+    run_ids = recorded_run_ids(runs_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        format_evidence(
+            gate="P2",
+            title="replay",
+            script="scripts/gates/p2.py",
+            criteria=criteria,
+            gate_text=GATE_TEXT,
+            commands=[
+                "uv run python scripts/gates/p2.py --write-evidence",
+                "uv run bisect replay airline-0-t0",
+            ],
+            provenance=provenance_for(EVIDENCE_SOURCES),
+            sections={
+                "Runs replayed": (
+                    "Every response served from the tape with its request hash checked, "
+                    "every tool re-executed and checked against its recorded result and "
+                    "state hash, the whole tape consumed, and the same reward reached — "
+                    "with `socket.socket` replaced by something that raises for the "
+                    "duration.\n\n"
+                    + render_table(
+                        ("Run", "Steps", "LLM responses from tape", "Reward"),
+                        _replay_rows(runs_dir, run_ids),
+                    )
+                ),
+                "Cost": "0 API calls. A replay makes none, by construction.",
+            },
+            commit=current_commit(),
+        )
+    )
+    return path
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-dir", type=Path, default=REPO_ROOT / "runs")
     parser.add_argument("--required-runs", type=int, default=REQUIRED_RUNS)
+    parser.add_argument(
+        "--write-evidence", action="store_true", help="Regenerate docs/gates/P2.md."
+    )
     return parser.parse_args(argv)
 
 
@@ -259,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
     report = write_report(args.runs_dir, criteria)
     passed = all(criterion.passed for criterion in criteria)
     print(f"P2 gate: {'PASS' if passed else 'FAILED'} — report at {report}")
+    if args.write_evidence:
+        print(f"wrote {write_evidence(args.runs_dir, criteria, DEFAULT_EVIDENCE_PATH)}")
     return 0 if passed else 1
 
 
