@@ -6,19 +6,15 @@ from __future__ import annotations
 
 import pytest
 from agent_bisect.adapters.tau2_fake_llm import (
-    ScriptExhaustedError,
     ScriptedLLM,
     ScriptedToolCall,
     ScriptedTurn,
+    ScriptExhaustedError,
     UnscriptedModelError,
 )
 
 AGENT = "fake/agent"
 USER = "fake/user"
-
-
-def _llm(**scripts) -> ScriptedLLM:
-    return ScriptedLLM(scripts)
 
 
 def test_serves_the_scripted_turns_in_order():
