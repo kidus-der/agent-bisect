@@ -40,6 +40,8 @@ DEFAULT_MANIFEST_PATH = Path("data/manifest.json")
 MANIFEST_VERSION = 1
 #: 1:2 dev:test.
 DEV_SHARE = 1 / 3
+#: Floating-point slack when asking "would dev still be at or under 1/3?".
+_SHARE_EPSILON = 1e-9
 
 Split = Literal["dev", "test"]
 
@@ -161,8 +163,13 @@ def _better_side(
         return "test"
     # A dead heat, which is the normal case early on and whenever every
     # stratum is a singleton: fall back on the overall ratio so 1:2 still
-    # holds when the strata cannot express it.
-    return "dev" if _size(placed["dev"]) * 2 <= _size(placed["test"]) else "test"
+    # holds when the strata cannot express it. The test is on the share
+    # dev WOULD have after taking this group, not the one it has -- a
+    # group is indivisible, so the question is whether it still fits.
+    group_size = sum(strata.values())
+    placed_dev = _size(placed["dev"])
+    projected = (placed_dev + group_size) / (placed_dev + _size(placed["test"]) + group_size)
+    return "dev" if projected <= DEV_SHARE + _SHARE_EPSILON else "test"
 
 
 def _need(

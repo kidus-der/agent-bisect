@@ -218,6 +218,41 @@ def test_the_dry_run_freezes_to_a_verifiable_manifest(dry_run):
     assert _no_task_spans_both_splits(loaded)
 
 
+def test_the_p3_gate_passes_on_the_dry_run(dry_run):
+    """The gate's own end-to-end test: every criterion, including the
+    replay of the faulted recordings, against data this pipeline made.
+
+    Two criteria cannot hold on a toy and are asserted to fail, which is
+    the gate doing its job: the count is relaxed to the dry run's own
+    size (the real bar is 120), and `strata` fails because the scripted
+    agent ignores the tool in its late bucket by construction, so no late
+    fault ever flips a run.
+    """
+    from scripts.gates.p3 import run_gate
+
+    items = dry_run["result"].items
+    path = Path(dry_run["root"]) / "gate" / "manifest.json"
+    freeze(
+        items,
+        path=path,
+        models={"agent": AGENT_MODEL, "user_sim": USER_MODEL, "judge": "none"},
+        tau2_commit="offline-dry-run",
+        config=CONFIG.as_dict(),
+        counts=dry_run["result"].counts,
+        created_at=datetime(2026, 9, 17, tzinfo=UTC),
+    )
+
+    criteria = run_gate(
+        path, dry_run["store"].root, len(items), 3, Path("docs/decisions/absent.md")
+    )
+
+    assert {criterion.name: criterion.passed for criterion in criteria} == {
+        "hash": True, "count": True, "thresholds": True,
+        "split": True, "replay": True, "strata": False,
+    }
+    assert "missing: ['late']" in next(c for c in criteria if c.name == "strata").detail
+
+
 # ---- resume ----
 
 

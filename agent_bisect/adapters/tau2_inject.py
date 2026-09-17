@@ -166,13 +166,20 @@ class Tau2InjectRunner:
     def _fork(
         self, base_run_id: str, *, run_id: str, fork_step: int, intervention: Any, seed: int
     ) -> RerunResult:
-        # The fork keeps its parent's run seed on purpose. tau2 passes the
-        # run seed into every model request, so a fork that re-pinned it
-        # would change the *prefix* requests too -- and the prefix is
-        # served from the tape and hash-checked, so the re-run would die
-        # of a divergence that says nothing about the intervention. The
-        # re-run's own seed is applied to the live suffix instead, which
-        # is the only part that is sampled at all.
+        # The fork keeps its parent's run seed, and `seed` does not reach
+        # the model. tau2 puts the run seed into every model request, so:
+        # re-pinning it would change the hash-checked *prefix* and the
+        # re-run would die of a divergence that says nothing about the
+        # intervention; injecting it into the live suffix only would make
+        # the forked recording unreplayable, because its prefix rows and
+        # its suffix rows would then want two different orchestrator
+        # seeds. Both were tried. Re-run variation therefore comes from
+        # the provider, which is not deterministic even at temperature 0,
+        # and `seed` is kept on the record so each re-run is identifiable.
+        # Carrying a per-fork suffix seed needs the replay engine to
+        # record it on the fork manifest and re-apply it from the fork
+        # step onward -- an additive change in core/runner.fork_manifest
+        # and adapters/tau2_replay, owned elsewhere.
         spec = ForkSpec(
             parent_run_id=base_run_id,
             run_id=run_id,
@@ -186,7 +193,7 @@ class Tau2InjectRunner:
             store=self.store,
             reader=self.reader,
             tape=self.tape,
-            live_completion=_reseeded(shaped_completion(intervention, self._live()), seed),
+            live_completion=shaped_completion(intervention, self._live()),
         )
         outcome = run_fork(driver, spec, intervention)
         return RerunResult(run_id=run_id, passed=outcome.passed, intervention_ref=reference)
@@ -197,22 +204,6 @@ class Tau2InjectRunner:
         import tau2.utils.llm_utils as llm_utils
 
         return llm_utils.completion
-
-
-def _reseeded(completion: Callable[..., Any], seed: int | None) -> Callable[..., Any]:
-    """`completion` with `seed` on every request it makes.
-
-    Only the live suffix of a fork goes through here, so this is what
-    makes N re-runs of the same fork genuinely different samples without
-    disturbing the prefix they share with their parent.
-    """
-    if seed is None:
-        return completion
-
-    def call(**kwargs: Any) -> Any:
-        return completion(**{**kwargs, "seed": seed})
-
-    return call
 
 
 def _plain_text(payload: Any) -> str:
