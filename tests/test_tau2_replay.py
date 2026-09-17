@@ -782,3 +782,81 @@ def test_a_fork_accepts_the_parents_own_seed(store):
         outcome = run_fork(driver, spec, NoOpIntervention())
 
     assert outcome is not None
+
+
+# ---- forks in parallel (P3 runs sixteen per dataset item) ----
+
+
+def test_four_forks_run_at_once_without_serving_each_other_their_tapes(store):
+    """The end of the module-global seam: four forks of different runs, in
+    four threads, each reaching its own recorded outcome."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
+
+    # Four different tasks, so the four tapes ask four different things:
+    # a fork served another's tape would diverge rather than pass quietly.
+    recorded = {}
+    for index in range(4):
+        run_id = f"parent-{index}"
+        result, _ = record(AIRLINE_READS, store, run_id=run_id, task_id=str(index))
+        recorded[run_id] = result
+
+    with scripted_session(AIRLINE_READS, store.root):
+        import tau2.utils.llm_utils as llm_utils
+
+        live = llm_utils.completion
+
+        def fork(run_id: str):
+            spec = ForkSpec(parent_run_id=run_id, run_id=f"{run_id}-fork", fork_step=2)
+            driver = Tau2ForkDriver(
+                spec,
+                store=store.blobs,
+                reader=store.reader,
+                tape=store.tape,
+                live_completion=live,
+            )
+            return run_id, run_fork(driver, spec, NoOpIntervention())
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            outcomes = dict(pool.map(fork, list(recorded)))
+
+    assert len(outcomes) == 4
+    for run_id, outcome in outcomes.items():
+        assert outcome.reward == reward_of(recorded[run_id]), run_id
+
+
+def test_parallel_forks_each_write_only_their_own_steps(store):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from agent_bisect.adapters.tau2_replay import Tau2ForkDriver
+
+    for index in range(3):
+        record(AIRLINE_READS, store, run_id=f"p-{index}", task_id=str(index))
+
+    with scripted_session(AIRLINE_READS, store.root):
+        import tau2.utils.llm_utils as llm_utils
+
+        live = llm_utils.completion
+
+        def fork(index: int) -> str:
+            spec = ForkSpec(
+                parent_run_id=f"p-{index}", run_id=f"p-{index}-fork", fork_step=3
+            )
+            driver = Tau2ForkDriver(
+                spec,
+                store=store.blobs,
+                reader=store.reader,
+                tape=store.tape,
+                live_completion=live,
+            )
+            run_fork(driver, spec, NoOpIntervention())
+            return spec.run_id
+
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            fork_ids = list(pool.map(fork, range(3)))
+
+    for fork_id in fork_ids:
+        steps = store.reader.get_steps(fork_id)
+        assert {step.run_id for step in steps} == {fork_id}
+        assert [step.step_idx for step in steps] == list(range(len(steps)))

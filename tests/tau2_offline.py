@@ -6,7 +6,7 @@ over a real domain with sockets blocked; only the model is scripted.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -92,12 +92,29 @@ def ledger_for(root: Path) -> BudgetLedger:
 
 @contextmanager
 def scripted_session(
-    scenario: Scenario, root: Path, *, phase: str = "test"
+    scenario: Scenario | Sequence[Scenario], root: Path, *, phase: str = "test"
 ) -> Iterator[ScriptedLLM]:
-    """A `recording_session` whose model is `scenario`'s script."""
+    """A `recording_session` whose model is `scenario`'s script.
+
+    Several scenarios may share one session as long as they script
+    different models -- the scripted model dispatches on the model name,
+    so merging scripts that disagree about a model would silently serve
+    one scenario's turns to the other, and that is refused here rather
+    than debugged later.
+    """
     from agent_bisect.adapters.tau2 import recording_session
 
-    llm = ScriptedLLM(scenario.scripts)
+    scenarios = [scenario] if isinstance(scenario, Scenario) else list(scenario)
+    scripts: dict[str, list] = {}
+    for one in scenarios:
+        for model, turns in one.scripts.items():
+            existing = scripts.setdefault(model, turns)
+            if existing is not turns and existing != turns:
+                raise ValueError(
+                    f"{one.name!r} scripts {model!r} differently from an earlier scenario; "
+                    "one session cannot serve both"
+                )
+    llm = ScriptedLLM(scripts)
     with recording_session(
         ledger=ledger_for(root),
         phase=phase,
@@ -109,7 +126,9 @@ def scripted_session(
         yield llm
 
 
-def record(scenario: Scenario, store: Store, *, run_id: str | None = None, **spec_overrides: Any):
+def record(  # noqa: D401
+    scenario: Scenario, store: Store, *, run_id: str | None = None, **spec_overrides: Any
+):
     """Record one scripted scenario and return `(RecordedRun, ScriptedLLM)`."""
     from agent_bisect.adapters.tau2 import record_run
 
