@@ -373,9 +373,15 @@ def short_window_duration(budget_left: int, models: int) -> float:
 
 async def short_ramp(
     ramp: Ramp, client: httpx.AsyncClient, model: str, measured_rpm: int, duration_s: float
-) -> int:
-    """3 windows around the found limit. Returns this model's measured rpm."""
-    measured = 0
+) -> int | None:
+    """3 windows around the found limit.
+
+    Returns the highest rate this model sustained with zero 429s, or **None**
+    when even the lowest window was throttled: that is "ceiling below this
+    rate, not bracketed", which is not the same as a measured 0 and must not
+    be recorded as one.
+    """
+    measured: int | None = None
     for fraction in SHORT_RAMP_FRACTIONS:
         rate = max(1, round(measured_rpm * fraction))
         row = await ramp.window(client, "short", model, rate, duration_s)
@@ -422,7 +428,12 @@ async def _run_others(ramp: Ramp, client: httpx.AsyncClient, measured: int) -> N
     print(f"short ramps: {duration:.0f}s windows, {ramp.budget_left()} calls left")
     for model in SHORT_RAMP_MODELS:
         try:
-            ramp.set_measured(model, await short_ramp(ramp, client, model, measured, duration))
+            rpm = await short_ramp(ramp, client, model, measured, duration)
+            if rpm is None:
+                ramp.note(f"{model}: 429 at the lowest window tried; ceiling below it and "
+                          f"not bracketed -- deliberately left unmeasured")
+            else:
+                ramp.set_measured(model, rpm)
         except RampBudgetExhausted as exc:
             ramp.note(f"short ramp for {model} skipped: {exc}")
             print(f"  skip {model}: {exc}")

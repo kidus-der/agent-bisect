@@ -232,6 +232,19 @@ def render_doc(decision: dict) -> str:
     ]
     for model, rpm in sorted(d["measured_rpm"].items()):
         parts.append(f"| `{model}` | {rpm} | {d['limiter_rpm'][model]} |")
+    if d["unbracketed"]:
+        parts += [
+            "",
+            "**Not bracketed.** These returned 429s at the lowest rate they were tried at, so "
+            "their ceiling is below it and no clean rate was located. They are recorded as "
+            "unmeasured rather than as a number, and the limiter is set conservatively for "
+            "them (`config/limits.toml`):",
+            "",
+            "| Model | What was observed |",
+            "|---|---|",
+        ]
+        for model, note in sorted(d["unbracketed"].items()):
+            parts.append(f"| `{model}` | {note} |")
     parts += [
         "",
         f"Sustainable concurrency: {d['concurrency']} (the probe ran at this and the limiter, "
@@ -364,6 +377,7 @@ def build_decision(concurrency: int) -> dict:
         "limiter_rpm": {m: limiter_rpm(v) for m, v in measured.items()},
         "scope": "model",
         "scope_evidence": rate_state.get("scope_evidence", SCOPE_EVIDENCE),
+        "unbracketed": rate_state.get("unbracketed", {}),
         "rate_limit_state": rate_state,
         "availability": {m: "" for m in AGENT_CANDIDATES},
         "toolcheck_note": (
