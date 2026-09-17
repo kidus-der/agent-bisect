@@ -36,6 +36,8 @@
   --bx-fail-tint: #311F25;
   --bx-tape: #5B6478;
   --bx-tape-tint: #1C2029;
+  --bx-blame-fill: #F5A524;
+  --bx-blame-coral-fill: #F7625B;
   --bx-on-role: #0B0D12;
   --bx-on-tape: #FFFFFF;
   --bx-glow-blame: 0 0 24px -8px rgb(245 165 36 / 0.35);
@@ -66,10 +68,10 @@
   --chart-4: var(--bx-fail);
   --chart-5: var(--bx-tape);
   --chart-6: var(--bx-blame);
-  --chart-scale-01: #1B323E;
-  --chart-scale-02: #265264;
-  --chart-scale-03: #31768E;
-  --chart-scale-04: #3E9EBD;
+  --chart-scale-01: #2E6D83;
+  --chart-scale-02: #36849E;
+  --chart-scale-03: #3D9BBA;
+  --chart-scale-04: #45B2D5;
   --chart-scale-05: #4CC9F0;
   --chart-scale-pattern-color: var(--bx-surface);
   --chart-background: var(--bx-surface);
@@ -120,6 +122,8 @@
   --bx-fail-tint: #FAEFEF;
   --bx-tape: #5B6478;
   --bx-tape-tint: #F2F3F4;
+  --bx-blame-fill: #C4841D;
+  --bx-blame-coral-fill: #E8574F;
   --bx-on-role: #FFFFFF;
   --bx-on-tape: #FFFFFF;
   --bx-glow-blame: 0 0 24px -8px rgb(156 91 8 / 0.35);
@@ -150,11 +154,11 @@
   --chart-4: var(--bx-fail);
   --chart-5: var(--bx-tape);
   --chart-6: var(--bx-blame);
-  --chart-scale-01: #D8E9EF;
-  --chart-scale-02: #ACCFDC;
-  --chart-scale-03: #7BB3C7;
-  --chart-scale-04: #4695B1;
-  --chart-scale-05: #0B7398;
+  --chart-scale-01: #509AB5;
+  --chart-scale-02: #4086A0;
+  --chart-scale-03: #2F718B;
+  --chart-scale-04: #1F5D75;
+  --chart-scale-05: #0E4860;
   --chart-scale-pattern-color: var(--bx-surface);
   --chart-background: var(--bx-surface);
   --chart-foreground: var(--bx-text);
@@ -191,6 +195,8 @@
   --color-ink: var(--bx-text);
   --color-ink-muted: var(--bx-muted);
   --color-focus: var(--bx-focus);
+  --color-blame-fill: var(--bx-blame-fill);
+  --color-blame-coral-fill: var(--bx-blame-coral-fill);
   --color-on-role: var(--bx-on-role);
   --color-on-tape: var(--bx-on-tape);
   --color-blame: var(--bx-blame);

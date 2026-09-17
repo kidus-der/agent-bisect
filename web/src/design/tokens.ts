@@ -39,6 +39,32 @@ export interface RoleColors {
 
 export type RoleName = keyof RoleColors
 
+/**
+ * Blame as a *fill*. No text sits on it, so the AA text floor that drags the
+ * light theme's amber down to `#9C5B08` does not apply — and that value was the
+ * bug: at 1.01:1 against the fail red it has the *same luminance*, which is why
+ * a blamed heat cell was indistinguishable from a failure beside it.
+ *
+ * A fill is still a data mark, so it must clear 3:1 on `surface` (WCAG 1.4.11);
+ * the vivid `#F5A524` manages only 2.04:1 on white. The light theme therefore
+ * keeps the amber hue and darkens just far enough to clear the mark floor while
+ * staying well clear of the fail red's luminance.
+ */
+export interface FillColors {
+  readonly blame: Hex
+  readonly blameCoral: Hex
+}
+
+/**
+ * Sequential heat ramp anchors. Every step between them is a data mark and
+ * clears 3:1 on `surface` (WCAG 1.4.11) — the dark end of the light ramp goes
+ * past `role.measure` toward ink so all five steps stay separable on white.
+ */
+export interface HeatAnchors {
+  readonly from: Hex
+  readonly to: Hex
+}
+
 /** Text colours that sit on top of a solid role fill. */
 export interface OnRoleColors {
   readonly onRole: Hex
@@ -49,6 +75,8 @@ export interface ThemeTokens {
   readonly scheme: ThemeName
   readonly neutral: NeutralColors
   readonly role: RoleColors
+  readonly fill: FillColors
+  readonly heat: HeatAnchors
   readonly on: OnRoleColors
   /** How much of a role colour is composited over `surface` for opaque tints. */
   readonly tintAmount: number
@@ -76,6 +104,8 @@ const dark: ThemeTokens = {
     fail: '#F25F5C',
     tape: '#5B6478',
   },
+  fill: { blame: '#F5A524', blameCoral: '#F7625B' },
+  heat: { from: '#2E6D83', to: '#4CC9F0' },
   on: { onRole: '#0B0D12', onTape: '#FFFFFF' },
   tintAmount: 0.14,
 }
@@ -104,6 +134,8 @@ const light: ThemeTokens = {
     fail: '#C63432',
     tape: '#5B6478',
   },
+  fill: { blame: '#C4841D', blameCoral: '#E8574F' },
+  heat: { from: '#509AB5', to: '#0E4860' },
   on: { onRole: '#FFFFFF', onTape: '#FFFFFF' },
   tintAmount: 0.08,
 }
@@ -138,12 +170,13 @@ export const CHART_SERIES_ORDER = [
   'blame',
 ] as const satisfies readonly RoleName[]
 
-/** Steps of the sequential (heatmap) scale: measure composited over surface. */
-export const SEQUENTIAL_SCALE_AMOUNTS = [0.16, 0.34, 0.54, 0.76, 1] as const
+/** Steps of the sequential (heatmap) scale, interpolated between the theme's anchors. */
+export const SEQUENTIAL_SCALE_STEPS = 5
 
 export function sequentialScale(theme: ThemeTokens): readonly Hex[] {
-  return SEQUENTIAL_SCALE_AMOUNTS.map((amount) =>
-    mixHex(theme.role.measure, theme.neutral.surface, amount),
+  const last = SEQUENTIAL_SCALE_STEPS - 1
+  return Array.from({ length: SEQUENTIAL_SCALE_STEPS }, (_, index) =>
+    mixHex(theme.heat.to, theme.heat.from, index / last),
   )
 }
 

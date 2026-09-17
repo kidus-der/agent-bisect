@@ -53,6 +53,8 @@ function bisectDeclarations(theme: ThemeTokens): Declarations {
   return [
     ...neutrals,
     ...roles,
+    ['--bx-blame-fill', theme.fill.blame],
+    ['--bx-blame-coral-fill', theme.fill.blameCoral],
     ['--bx-on-role', theme.on.onRole],
     ['--bx-on-tape', theme.on.onTape],
     ...glows,
@@ -140,6 +142,8 @@ const BISECT_COLOR_UTILITIES: Declarations = [
   ['ink', '--bx-text'],
   ['ink-muted', '--bx-muted'],
   ['focus', '--bx-focus'],
+  ['blame-fill', '--bx-blame-fill'],
+  ['blame-coral-fill', '--bx-blame-coral-fill'],
   ['on-role', '--bx-on-role'],
   ['on-tape', '--bx-on-tape'],
   ...ROLE_NAMES.flatMap((role) => [

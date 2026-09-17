@@ -10,6 +10,7 @@ import {
   THEME_NAMES,
   type ThemeTokens,
   roleTint,
+  SEQUENTIAL_SCALE_STEPS,
   sequentialScale,
   themes,
 } from './tokens'
@@ -108,17 +109,15 @@ function nonTextPairs(theme: ThemeTokens): readonly Pair[] {
     background,
     minimum: AA_NON_TEXT,
   }))
-  const topOfScale = sequentialScale(theme).at(-1) ?? surface
-  return [
-    ...marks,
-    ...focusRing,
-    {
-      name: 'strongest heat cell on surface',
-      foreground: topOfScale,
-      background: surface,
-      minimum: AA_NON_TEXT,
-    },
-  ]
+  // Every step of the heat ramp is a data mark, not just the strongest: the
+  // lowest one has to be separable from the card it sits on too.
+  const heatCells = sequentialScale(theme).map((fill, index) => ({
+    name: `heat cell ${index + 1} of ${SEQUENTIAL_SCALE_STEPS} on surface`,
+    foreground: fill,
+    background: surface,
+    minimum: AA_NON_TEXT,
+  }))
+  return [...marks, ...focusRing, ...heatCells]
 }
 
 describe.each(THEME_NAMES)('%s theme contrast', (themeName) => {
@@ -177,5 +176,40 @@ describe('worst ratios', () => {
     )
     expect(worstText.ratio).toBeGreaterThanOrEqual(AA_TEXT)
     expect(worstMark.ratio).toBeGreaterThanOrEqual(AA_NON_TEXT)
+  })
+})
+
+describe('the heat ramp', () => {
+  test.each(THEME_NAMES)('%s reads as a ramp, each step darker than the last', (themeName) => {
+    const scale = sequentialScale(themes[themeName])
+    const surface = themes[themeName].neutral.surface
+    const ratios = scale.map((fill) => contrastRatio(fill, surface))
+    expect(scale).toHaveLength(SEQUENTIAL_SCALE_STEPS)
+    for (let step = 1; step < ratios.length; step += 1) {
+      expect(ratios[step]).toBeGreaterThan(ratios[step - 1] ?? 0)
+    }
+  })
+
+  test.each(THEME_NAMES)('%s keeps adjacent steps visibly apart', (themeName) => {
+    const scale = sequentialScale(themes[themeName])
+    for (let step = 1; step < scale.length; step += 1) {
+      expect(contrastRatio(scale[step] ?? '#000000', scale[step - 1] ?? '#000000')).toBeGreaterThan(
+        1.2,
+      )
+    }
+  })
+
+  test.each(THEME_NAMES)('%s blame fill clears the data-mark floor', (themeName) => {
+    const theme = themes[themeName]
+    for (const fill of [theme.fill.blame, theme.fill.blameCoral]) {
+      expect(contrastRatio(fill, theme.neutral.surface)).toBeGreaterThanOrEqual(AA_NON_TEXT)
+    }
+  })
+
+  test.each(THEME_NAMES)('%s blame fill is separable from the fail red', (themeName) => {
+    const theme = themes[themeName]
+    // The old light-theme value sat at 1.01:1 against fail — identical
+    // luminance, so a blamed cell and a failed one looked like one colour.
+    expect(contrastRatio(theme.fill.blame, theme.role.fail)).toBeGreaterThan(1.4)
   })
 })
