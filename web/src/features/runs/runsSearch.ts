@@ -56,6 +56,12 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | nul
   return allowed.find((candidate) => candidate === value) ?? null
 }
 
+/**
+ * What the route declares. Every key is optional: a bare `/runs` link must stay
+ * a bare link, and anything absent falls back to `DEFAULT_RUNS_SEARCH`.
+ */
+export type RunsSearchInput = Partial<RunsSearch>
+
 export function validateRunsSearch(input: Record<string, unknown>): RunsSearch {
   return {
     q: text(input.q),
@@ -70,21 +76,19 @@ export function validateRunsSearch(input: Record<string, unknown>): RunsSearch {
 }
 
 /** Default values are dropped, so a shared link carries only what was chosen. */
-export function toSearchParams(search: RunsSearch): Record<string, string | undefined> {
-  const same = <K extends keyof RunsSearch>(key: K): boolean =>
-    search[key] === DEFAULT_RUNS_SEARCH[key]
-  const value = <K extends keyof RunsSearch>(key: K): string | undefined =>
-    same(key) || search[key] === null ? undefined : String(search[key])
-  return {
-    q: search.q === '' ? undefined : search.q,
-    domain: value('domain'),
-    outcome: value('outcome'),
-    status: value('status'),
-    model: value('model'),
-    fault: value('fault'),
-    sort: value('sort'),
-    dir: value('dir'),
-  }
+export function toSearchParams(search: RunsSearch): RunsSearchInput {
+  const params: {
+    -readonly [K in keyof RunsSearch]?: RunsSearch[K]
+  } = {}
+  if (search.q !== '') params.q = search.q
+  if (search.domain !== null) params.domain = search.domain
+  if (search.outcome !== null) params.outcome = search.outcome
+  if (search.status !== null) params.status = search.status
+  if (search.model !== null) params.model = search.model
+  if (search.fault !== null) params.fault = search.fault
+  if (search.sort !== DEFAULT_RUNS_SEARCH.sort) params.sort = search.sort
+  if (search.dir !== DEFAULT_RUNS_SEARCH.dir) params.dir = search.dir
+  return params
 }
 
 export function serverFilters(search: RunsSearch): ServerRunFilters {

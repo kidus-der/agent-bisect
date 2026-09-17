@@ -69,16 +69,7 @@ describe('validateRunsSearch', () => {
 
 describe('toSearchParams', () => {
   test('omits defaults so a shared link carries only what was chosen', () => {
-    expect(toSearchParams(DEFAULT_RUNS_SEARCH)).toEqual({
-      q: undefined,
-      domain: undefined,
-      outcome: undefined,
-      status: undefined,
-      model: undefined,
-      fault: undefined,
-      sort: undefined,
-      dir: undefined,
-    })
+    expect(toSearchParams(DEFAULT_RUNS_SEARCH)).toEqual({})
   })
 
   test('round-trips a chosen view', () => {
