@@ -54,6 +54,18 @@ describe('timelineGeometry', () => {
     expect(geometry.bandWidth).toBeGreaterThan(0)
   })
 
+  it('does not claim it scrolls before `react-use-measure` reports a real width', () => {
+    // Arrange / Act: `availableWidth: 0` is the one render every tape starts
+    // on, before its container is measured -- not a container that is
+    // actually 0px wide. Reporting `scrolls: true` here means the minimap
+    // mounts and then unmounts a frame later for the common case (a tape
+    // that fits), which is a layout shift on every single page load.
+    const geometry = timelineGeometry({ nSteps: 60, availableWidth: 0 })
+
+    // Assert
+    expect(geometry.scrolls).toBe(false)
+  })
+
   it('maps a step to a band and back from its centre', () => {
     // Arrange
     const geometry = timelineGeometry({ nSteps: 12, availableWidth: 900 })
