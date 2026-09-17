@@ -12,10 +12,23 @@ const META_PAYLOAD = {
   generated_at: '2026-01-01T00:00:00Z',
 }
 
-/** The e2e suite owns its API: no dependency on a running `bisect serve`. */
+const NOT_AVAILABLE = { status: 'not_available', reason: 'nothing recorded yet (e2e)' }
+
+function envelope(data: unknown): Record<string, unknown> {
+  return { success: true, data, error: null, meta: META }
+}
+
+/**
+ * The e2e suite owns its API: no dependency on a running `bisect serve`. The
+ * list endpoints answer `not_available`, which is what puts the Overview and
+ * Runs pages into the designed empty states these tests are about.
+ */
 async function mockApi(page: Page): Promise<void> {
-  await page.route('**/api/meta', (route) =>
-    route.fulfill({ json: { success: true, data: META_PAYLOAD, error: null, meta: META } }),
+  await page.route('**/api/meta', (route) => route.fulfill({ json: envelope(META_PAYLOAD) }))
+  await page.route('**/api/overview', (route) => route.fulfill({ json: envelope(NOT_AVAILABLE) }))
+  await page.route(
+    (url) => url.pathname === '/api/runs',
+    (route) => route.fulfill({ json: envelope(NOT_AVAILABLE) }),
   )
 }
 
@@ -37,10 +50,17 @@ test('shell loads with navigation, the simulated-data flag and a designed empty 
 
 test('API offline shows the error state and retry recovers', async ({ page }) => {
   await page.unroute('**/api/meta')
+  await page.unroute((url) => url.pathname === '/api/runs')
   await page.route('**/api/meta', (route) => route.abort('connectionrefused'))
+  // The page's own endpoint has to be down too: that is what it reports on.
+  await page.route(
+    (url) => url.pathname === '/api/runs',
+    (route) => route.abort('connectionrefused'),
+  )
   await page.goto('/runs')
   await expect(page.getByRole('alert')).toContainText('Cannot reach the Bisect server')
   await page.unroute('**/api/meta')
+  await page.unroute((url) => url.pathname === '/api/runs')
   await mockApi(page)
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect(page.getByText('bisect record --domain airline --tasks 0-19')).toBeVisible()
