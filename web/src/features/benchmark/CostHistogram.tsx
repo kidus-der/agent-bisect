@@ -209,7 +209,7 @@ export function CostHistogram({ histogram, methods }: CostHistogramProps) {
 
   return (
     <ChartFrame
-      variant="elevated"
+      variant="kpi"
       label="calls_per_diagnosis"
       title="What a diagnosis costs"
       description={description}

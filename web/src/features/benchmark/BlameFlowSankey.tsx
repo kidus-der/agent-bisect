@@ -81,7 +81,7 @@ export function BlameFlowSankey({ rows }: BlameFlowSankeyProps) {
 
   return (
     <ChartFrame
-      variant="elevated"
+      variant="kpi"
       label="fault_to_blame"
       title="Where the blame landed"
       description={describeBlameFlow(rows, graph.total)}

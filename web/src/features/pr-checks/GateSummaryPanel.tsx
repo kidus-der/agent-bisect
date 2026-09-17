@@ -148,7 +148,7 @@ export function GateSummaryPanel({ checks }: GateSummaryPanelProps) {
 
   return (
     <Panel
-      variant="elevated"
+      variant="kpi"
       bodyClassName="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]"
     >
       <div className="flex flex-col gap-4">
