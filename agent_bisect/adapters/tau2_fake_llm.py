@@ -16,6 +16,17 @@ names, so a script keyed by model needs no privileged knowledge of the
 orchestrator's internals — and a test that scripts the wrong participant
 fails loudly instead of quietly serving the other one's turn.
 
+**Which turn to serve is read off the request, not off a call counter.**
+A real model at temperature 0 is a function of its request, and so is
+this one — which is what makes it usable for a fork: a fork replays its
+prefix straight off the tape and only *then* asks the model, so a model
+counting its own calls would answer turn 0 in the middle of a
+conversation and invent a different run. The position is the number of
+assistant messages in the history, ignoring the canned greeting tau2's
+orchestrator opens with (`DEFAULT_FIRST_AGENT_MESSAGE`), which costs no
+LLM call. The user simulator sees its own past turns as `assistant` too
+(`UserState.flip_roles`), so one rule serves both.
+
 Responses are built as real `litellm.ModelResponse` objects (that is what
 `tau2.utils.llm_utils.generate` unpacks) with deterministic `id`/`created`
 fields, so replaying the same script produces byte-identical payloads.
@@ -74,6 +85,28 @@ def _strip_provider(model: str) -> str:
     return model.split("/", 1)[1] if model.startswith("openai/") else model
 
 
+def turn_index(messages: Sequence[Any]) -> int:
+    """How many turns this participant has already taken in `messages`.
+
+    Assistant messages *before* the first message from anyone else are the
+    conversation's canned opening, not something a model produced, so they
+    do not count. Everything after it does, whatever its content — an
+    intervention may have replaced a turn, and the replacement still
+    occupies its place in the conversation.
+    """
+    index = 0
+    others_have_spoken = False
+    for message in messages:
+        role = message.get("role") if isinstance(message, dict) else getattr(message, "role", None)
+        if role == "system":
+            continue
+        if role != "assistant":
+            others_have_spoken = True
+        elif others_have_spoken:
+            index += 1
+    return index
+
+
 def _message(turn: ScriptedTurn) -> dict[str, Any]:
     message: dict[str, Any] = {"role": "assistant", "content": turn.content}
     if turn.tool_calls:
@@ -93,7 +126,7 @@ class ScriptedLLM:
 
     def __init__(self, scripts: Mapping[str, Sequence[ScriptedTurn]]) -> None:
         self._scripts = {model: tuple(turns) for model, turns in scripts.items()}
-        self._positions: dict[str, int] = dict.fromkeys(self._scripts, 0)
+        self._calls_by_model: dict[str, int] = {}
         self._requests: list[dict[str, Any]] = []
 
     @property
@@ -103,7 +136,7 @@ class ScriptedLLM:
 
     @property
     def calls_by_model(self) -> dict[str, int]:
-        return {model: position for model, position in self._positions.items() if position}
+        return dict(self._calls_by_model)
 
     @property
     def requests(self) -> list[dict[str, Any]]:
@@ -119,12 +152,12 @@ class ScriptedLLM:
             raise UnscriptedModelError(
                 f"no script for model {name!r}; scripted models: {sorted(self._scripts)}"
             )
-        position = self._positions[name]
+        position = turn_index(messages)
         if position >= len(script):
             raise ScriptExhaustedError(
                 f"script for {name!r} has {len(script)} turns; turn {position} was asked for"
             )
-        self._positions[name] = position + 1
+        self._calls_by_model[name] = self._calls_by_model.get(name, 0) + 1
         self._requests.append({"model": model, "messages": messages, **kwargs})
         return litellm.ModelResponse(
             id=f"fake-{name}-{position}",
