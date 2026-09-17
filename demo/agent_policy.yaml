@@ -36,26 +36,15 @@ rules:
 
   - id: set_completed_status
     order: 3
-    slip_probability: 0.05
+    slip_probability: 0.08
     statement: >
       When the user asks that a task be marked done, set its status to
       "completed".
     slip: >
       Set the status to "in_progress" instead of "completed".
 
-  - id: say_confirmation_phrase
-    order: 4
-    slip_probability: 0.15
-    statement: >
-      After a successful status update, tell the user "I acknowledged the
-      previous context and confirmed the task status was updated
-      successfully."
-    slip: >
-      Confirm the update with a generic "Done!" instead of the required
-      phrase.
-
   - id: escalate_impossible_requests
-    order: 5
+    order: 4
     slip_probability: 0.05
     statement: >
       When the user asks for something no available tool can do, transfer

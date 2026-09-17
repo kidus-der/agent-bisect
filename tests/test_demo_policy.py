@@ -26,10 +26,9 @@ def test_the_shipped_policy_loads_five_ordered_rules():
         "use_stated_title",
         "use_correct_task_id",
         "set_completed_status",
-        "say_confirmation_phrase",
         "escalate_impossible_requests",
     ]
-    assert [rule.order for rule in policy.rules] == [1, 2, 3, 4, 5]
+    assert [rule.order for rule in policy.rules] == [1, 2, 3, 4]
 
 
 def test_a_rule_is_looked_up_by_id():
@@ -40,7 +39,7 @@ def test_a_rule_is_looked_up_by_id():
     rule = policy.rule("set_completed_status")
 
     # Assert
-    assert rule.slip_probability == pytest.approx(0.05)
+    assert rule.slip_probability == pytest.approx(0.08)
     assert "completed" in rule.statement
 
 
@@ -56,7 +55,7 @@ def test_looking_up_an_unknown_rule_raises():
 def test_slip_draws_are_a_pure_function_of_the_rng_state():
     # Arrange
     policy = load_policy(POLICY_PATH)
-    rule = policy.rule("say_confirmation_phrase")  # slip_probability 0.15
+    rule = policy.rule("use_correct_task_id")  # slip_probability 0.10
 
     # Act
     first = [policy.slips(rule, random.Random(f"seed-{i}")) for i in range(200)]
