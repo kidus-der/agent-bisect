@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { buildHeatScale } from '@/components/primitives/heatScale'
+
 import { BlameHeatStripe } from './BlameHeatStripe'
 import type { HeatCell } from './blame'
 import { timelineGeometry } from './timelineScale'
@@ -24,6 +26,7 @@ function bucketsOf(cells: readonly HeatCell[], blamedStep: number | null): Set<s
       cells={cells}
       geometry={timelineGeometry({ nSteps: cells.length, availableWidth: 800 })}
       blamedStep={blamedStep}
+      scale={buildHeatScale(cells, blamedStep ?? undefined)}
       height={14}
     />,
   )
@@ -48,6 +51,7 @@ describe('BlameHeatStripe ramp', () => {
         cells={CELLS}
         geometry={timelineGeometry({ nSteps: CELLS.length, availableWidth: 800 })}
         blamedStep={7}
+        scale={buildHeatScale(CELLS, 7)}
         height={14}
       />,
     )
@@ -64,6 +68,7 @@ describe('BlameHeatStripe ramp', () => {
         cells={cells}
         geometry={timelineGeometry({ nSteps: cells.length, availableWidth: 800 })}
         blamedStep={7}
+        scale={buildHeatScale(cells, 7)}
         height={14}
       />,
     )

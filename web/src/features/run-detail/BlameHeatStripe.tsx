@@ -2,7 +2,7 @@ import { useId, memo } from 'react'
 
 import { formatEffect } from '@/lib/format'
 
-import { buildHeatScale, bucketVariable } from '@/components/primitives/heatScale'
+import { type HeatScale, bucketVariable } from '@/components/primitives/heatScale'
 
 import type { HeatCell } from './blame'
 import type { TimelineGeometry } from './timelineScale'
@@ -14,6 +14,8 @@ interface BlameHeatStripeProps {
   readonly cells: readonly HeatCell[]
   readonly geometry: TimelineGeometry
   readonly blamedStep: number | null
+  /** Built once by the caller, so the legend can print the same domain. */
+  readonly scale: HeatScale
   readonly height: number
   readonly onHoverStep?: (step: number | null) => void
 }
@@ -23,15 +25,13 @@ function BlameHeatStripeImpl({
   cells,
   geometry,
   blamedStep,
+  scale,
   height,
   onHoverStep,
 }: BlameHeatStripeProps) {
   const uid = useId()
   const hatchId = `${uid}-hatch`
   const blameId = `${uid}-blame`
-  // The shared ramp, built from the tested effects excluding the blamed step,
-  // so one large blamed effect cannot flatten every other cell.
-  const scale = buildHeatScale(cells, blamedStep ?? undefined)
   return (
     <svg
       aria-hidden="true"

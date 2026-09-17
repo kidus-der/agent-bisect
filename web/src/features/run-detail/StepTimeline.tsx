@@ -3,6 +3,8 @@ import { useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useMeasure from 'react-use-measure'
 
+import { HeatLegend } from '@/components/primitives/HeatLegend'
+import { buildHeatScale } from '@/components/primitives/heatScale'
 import { InstrumentLabel } from '@/components/primitives/InstrumentLabel'
 import { formatEffect, formatInterval } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -111,6 +113,11 @@ export function StepTimeline({
     [nSteps, frame.width],
   )
   const ticks = useMemo(() => axisTicks(nSteps), [nSteps])
+  // One ramp for the stripe and its legend: the domain they print must match.
+  const heatScale = useMemo(
+    () => buildHeatScale(cells, blamedStep ?? undefined),
+    [cells, blamedStep],
+  )
 
   const setFromClientX = useCallback(
     (clientX: number): void => {
@@ -308,6 +315,7 @@ export function StepTimeline({
               cells={cells}
               geometry={geometry}
               blamedStep={blamedStep}
+              scale={heatScale}
               height={HEAT_HEIGHT}
               onHoverStep={setHovered}
             />
@@ -329,6 +337,10 @@ export function StepTimeline({
           </div>
         </div>
       </div>
+
+      {/* One stripe on this page, so the legend can print its real range
+          rather than "scaled per run". */}
+      <HeatLegend domain={heatScale.domain} format={formatEffect} className="mt-3" />
 
       {/* A recording run's tape does not end at its last cell: say so where the
           cells stop, instead of leaving the rest of the panel blank. */}
