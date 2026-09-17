@@ -7,14 +7,7 @@ import { Tabs } from '@/components/primitives/Tabs'
 import type { ApiError } from '@/api/client'
 import { cn } from '@/lib/utils'
 
-import {
-  availableOrNull,
-  useInterventionDiffQuery,
-  useStateDiffQuery,
-  useStepQuery,
-  type StepView,
-} from './api'
-import { StateDiffTree } from './StateDiffTree'
+import { availableOrNull, useInterventionDiffQuery, useStepQuery, type StepView } from './api'
 import { type ReactNode, memo } from 'react'
 
 interface StepInspectorProps {
@@ -81,7 +74,6 @@ function Messages({ messages }: { readonly messages: readonly Record<string, str
 function StepInspectorImpl({ runId, step, stepIdx }: StepInspectorProps) {
   const payload = useStepQuery(runId, stepIdx)
   const intervention = useInterventionDiffQuery(runId, stepIdx)
-  const stateDiff = useStateDiffQuery(runId, stepIdx)
 
   if (payload.isPending) return <InspectorSkeleton />
   if (payload.isError) {
@@ -97,7 +89,6 @@ function StepInspectorImpl({ runId, step, stepIdx }: StepInspectorProps) {
 
   const data = payload.data.data
   const diff = intervention.data ? availableOrNull(intervention.data.data) : null
-  const state = stateDiff.data ? availableOrNull(stateDiff.data.data) : null
 
   const payloadTab = (
     <div className="flex flex-col gap-3">
@@ -133,16 +124,6 @@ function StepInspectorImpl({ runId, step, stepIdx }: StepInspectorProps) {
     ),
   )
 
-  const stateTab = tabContent(stateDiff, 'database state diff', () =>
-    state ? (
-      <StateDiffTree entries={state.entries} stepIdx={state.step_idx} />
-    ) : (
-      <p className="text-small text-ink-muted">
-        The database state around this step is not available from this recording.
-      </p>
-    ),
-  )
-
   return (
     <div>
       <p className="mb-3 flex flex-wrap items-center gap-2 text-small">
@@ -159,7 +140,6 @@ function StepInspectorImpl({ runId, step, stepIdx }: StepInspectorProps) {
         items={[
           { value: 'payload', label: 'Payload', content: payloadTab },
           { value: 'intervention', label: 'Intervention', content: interventionTab },
-          { value: 'state', label: 'DB state', content: stateTab },
         ]}
       />
     </div>

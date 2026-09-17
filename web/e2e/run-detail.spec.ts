@@ -169,7 +169,7 @@ test('the judge panel compares both protocols with the measured effect', async (
 test('the DB-state diff counts what step 7 changed', async ({ page }) => {
   await openRun(page, BRIEF_RUN)
 
-  await page.getByRole('tab', { name: 'DB state' }).click()
+  // The state diff is its own panel beside the matrix, not a tab.
   await expect(page.getByText('~1 changed')).toBeVisible()
   await expect(page.getByText('membership')).toBeVisible()
 })

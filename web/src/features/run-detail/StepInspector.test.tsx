@@ -24,7 +24,7 @@ const PAYLOAD = {
   tool_result: { reservation_id: 'NM1VX1' },
 }
 
-type Fails = 'intervention-diff' | 'state-diff' | null
+type Fails = 'intervention-diff' | null
 
 /** Every endpoint answers except the one under test, which refuses the connection. */
 function stubApi(fails: Fails): void {
@@ -71,16 +71,6 @@ describe('StepInspector error handling', () => {
     // Assert: a fetch failure must never read as a fact about the run.
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the Bisect server')
     expect(screen.queryByText(/was never intervened on/)).not.toBeInTheDocument()
-  })
-
-  it('says the DB-state diff failed rather than "not available"', async () => {
-    stubApi('state-diff')
-    renderInspector()
-
-    await userEvent.click(await screen.findByRole('tab', { name: 'DB state' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the Bisect server')
-    expect(screen.queryByText(/is not available from this recording/)).not.toBeInTheDocument()
   })
 
   it('offers a retry that refetches the failed diff', async () => {

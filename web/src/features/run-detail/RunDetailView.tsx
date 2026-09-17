@@ -19,6 +19,7 @@ import { interventionSummary } from './intervention'
 import { JudgeVsReplay } from './JudgeVsReplay'
 import { NoStepBlamed, NotBisected, RunDetailSkeleton, RunNotFound } from './RunDetailStates'
 import { RunDetailHeader } from './RunDetailHeader'
+import { StateDiffPanel } from './StateDiffPanel'
 import { StepInspector } from './StepInspector'
 import { StepTimeline } from './StepTimeline'
 import { tapeStepStates } from './tapeState'
@@ -175,28 +176,36 @@ export function RunDetailView({ runId }: RunDetailViewProps) {
         ) : null}
       </div>
 
-      {rerunsView.status === 'error' ? (
-        <Panel variant="chart" label="treated vs control">
-          <ErrorState
-            title="The individual re-runs failed to load"
-            message={rerunsView.reason ?? 'The request failed.'}
-            onRetry={() => void reruns.refetch()}
-          />
+      {/* The matrix and the state diff both answer "what happened at this step",
+          and either alone leaves half the row empty. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[2fr_1fr]">
+        {rerunsView.status === 'error' ? (
+          <Panel variant="chart" label="treated vs control">
+            <ErrorState
+              title="The individual re-runs failed to load"
+              message={rerunsView.reason ?? 'The request failed.'}
+              onRetry={() => void reruns.refetch()}
+            />
+          </Panel>
+        ) : rerunRows.length > 0 ? (
+          <Panel
+            variant="chart"
+            label="treated vs control"
+            title={`${rerunRows.length} individual re-runs`}
+          >
+            <DotMatrix
+              rows={rerunRows}
+              runId={runId}
+              selectedStep={playhead}
+              onSelectStep={setPlayhead}
+            />
+          </Panel>
+        ) : null}
+
+        <Panel variant="card" label="db state" title={`What step ${playhead} changed`}>
+          <StateDiffPanel runId={runId} stepIdx={playhead} />
         </Panel>
-      ) : rerunRows.length > 0 ? (
-        <Panel
-          variant="chart"
-          label="treated vs control"
-          title={`${rerunRows.length} individual re-runs`}
-        >
-          <DotMatrix
-            rows={rerunRows}
-            runId={runId}
-            selectedStep={playhead}
-            onSelectStep={setPlayhead}
-          />
-        </Panel>
-      ) : null}
+      </div>
 
       {/* The judge heading lives in the panel body, not in Panel's truncating
           title slot: a heading that ends in an ellipsis at 390px is not a heading. */}
