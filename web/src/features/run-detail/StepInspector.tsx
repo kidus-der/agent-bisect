@@ -4,6 +4,7 @@ import { ErrorState } from '@/components/primitives/ErrorState'
 import { JsonView } from '@/components/primitives/JsonView'
 import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 import { Tabs } from '@/components/primitives/Tabs'
+import type { ApiError } from '@/api/client'
 import { cn } from '@/lib/utils'
 
 import {
@@ -14,11 +15,39 @@ import {
   type StepView,
 } from './api'
 import { StateDiffTree } from './StateDiffTree'
+import type { ReactNode } from 'react'
 
 interface StepInspectorProps {
   readonly runId: string
   readonly step: StepView | undefined
   readonly stepIdx: number
+}
+
+interface TabQuery {
+  readonly isPending: boolean
+  readonly isError: boolean
+  readonly error: ApiError | null
+  readonly refetch: () => void
+}
+
+/**
+ * A tab whose own fetch failed shows the failure. Rendering "never intervened
+ * on" or "not available" for a network error would state a fact about the run
+ * that nobody measured.
+ */
+function tabContent(query: TabQuery, subject: string, body: () => ReactNode): ReactNode {
+  if (query.isPending) return <Skeleton className="h-20 w-full rounded-chart" />
+  if (query.isError && query.error) {
+    return (
+      <ErrorState
+        title={`The ${subject} failed to load`}
+        message={query.error.message}
+        code={query.error.code}
+        onRetry={query.refetch}
+      />
+    )
+  }
+  return body()
 }
 
 function InspectorSkeleton() {
@@ -83,35 +112,35 @@ export function StepInspector({ runId, step, stepIdx }: StepInspectorProps) {
     </div>
   )
 
-  const interventionTab = intervention.isPending ? (
-    <Skeleton className="h-20 w-full rounded-chart" />
-  ) : diff ? (
-    <div className="flex flex-col gap-3">
-      <DiffBlock
-        label={`step ${diff.step_idx} · tool result replaced`}
-        before={JSON.stringify(diff.original_tool_result)}
-        after={JSON.stringify(diff.replaced_tool_result)}
-      />
-      <div className="grid gap-3 md:grid-cols-2">
-        <JsonView label="recorded" value={diff.original_tool_result} />
-        <JsonView label="replaced" value={diff.replaced_tool_result} />
+  const interventionTab = tabContent(intervention, 'intervention diff', () =>
+    diff ? (
+      <div className="flex flex-col gap-3">
+        <DiffBlock
+          label={`step ${diff.step_idx} · tool result replaced`}
+          before={JSON.stringify(diff.original_tool_result)}
+          after={JSON.stringify(diff.replaced_tool_result)}
+        />
+        <div className="grid gap-3 md:grid-cols-2">
+          <JsonView label="recorded" value={diff.original_tool_result} />
+          <JsonView label="replaced" value={diff.replaced_tool_result} />
+        </div>
       </div>
-    </div>
-  ) : (
-    <p className="text-small text-ink-muted">
-      Step {stepIdx} was never intervened on, so there is nothing to diff. Only tested steps have a
-      treated arm.
-    </p>
+    ) : (
+      <p className="text-small text-ink-muted">
+        Step {stepIdx} was never intervened on, so there is nothing to diff. Only tested steps have
+        a treated arm.
+      </p>
+    ),
   )
 
-  const stateTab = stateDiff.isPending ? (
-    <Skeleton className="h-20 w-full rounded-chart" />
-  ) : state ? (
-    <StateDiffTree entries={state.entries} stepIdx={state.step_idx} />
-  ) : (
-    <p className="text-small text-ink-muted">
-      The database state around this step is not available from this recording.
-    </p>
+  const stateTab = tabContent(stateDiff, 'database state diff', () =>
+    state ? (
+      <StateDiffTree entries={state.entries} stepIdx={state.step_idx} />
+    ) : (
+      <p className="text-small text-ink-muted">
+        The database state around this step is not available from this recording.
+      </p>
+    ),
   )
 
   return (
