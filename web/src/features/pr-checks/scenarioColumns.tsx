@@ -28,7 +28,7 @@ function PassPair({ row }: { readonly row: ScenarioRow }) {
   return (
     <span className="num whitespace-nowrap text-ink-muted">
       {formatPercent(row.base_pass_rate, 0)}
-      <span aria-hidden="true"> → </span>
+      <span aria-hidden="true">→</span>
       <span className="text-ink">{formatPercent(row.head_pass_rate, 0)}</span>
     </span>
   )
@@ -43,7 +43,12 @@ export function scenarioColumns(
     header: 'scenario',
     sortValue: (row) => row.scenario,
     cell: (row) => (
-      <span className={cn('num text-ink', narrow && 'block max-w-[9rem] truncate')}>
+      // At 390 the name wraps rather than truncating. Every scenario in a suite
+      // shares a long prefix, so an ellipsis after eight characters would make
+      // all 24 rows read the same; wrapping costs height and keeps them apart.
+      <span
+        className={cn('num text-ink', narrow && 'block max-w-[5rem] break-all whitespace-normal')}
+      >
         {row.scenario}
       </span>
     ),
