@@ -232,10 +232,20 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     Nothing matches. Try a run id, a page name or “copy”.
                   </Command.Empty>
                   {searching ? (
-                    <Command.Group heading="Runs" className={GROUP_HEADING}>
+                    // cmdk hides a group with no matching items, and the status line is not an
+                    // item: without forceMount a search with zero hits showed nothing at all.
+                    <Command.Group
+                      heading="Runs"
+                      forceMount={hits.length === 0}
+                      className={GROUP_HEADING}
+                    >
                       {hits.length === 0 ? (
-                        <p className="px-2 py-1.5 text-small text-ink-muted">
-                          {search.isPending ? 'Searching…' : 'No run matches.'}
+                        <p role="status" className="px-2 py-1.5 text-small text-ink-muted">
+                          {search.isPending
+                            ? 'Searching…'
+                            : search.isError
+                              ? 'Run search is unavailable.'
+                              : 'No run matches.'}
                         </p>
                       ) : (
                         hits.map((hit) => (
