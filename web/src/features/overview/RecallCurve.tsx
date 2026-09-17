@@ -18,7 +18,8 @@ import { chartColours } from '@/components/chart-theme/chartTheme'
 import { springTransition } from '@/design/motion'
 import { formatPercent } from '@/lib/stats'
 
-import type { RecallPoint } from './api'
+import type { RecallPoint, RecallProvenance } from './api'
+import { splitRecall } from './recallProvenance'
 
 /** δ = 0.10 and m = 3 are pre-registered (docs/decisions/0001-preregistration.md). */
 const PREREGISTERED_M = 3
@@ -48,13 +49,14 @@ function describe(points: readonly RecallPoint[]): string {
 
 interface PlotProps {
   readonly points: readonly RecallPoint[]
+  readonly provenance: RecallProvenance
   readonly width: number
   readonly height: number
   readonly revealed: boolean
   readonly reduced: boolean
 }
 
-function Plot({ points, width, height, revealed, reduced }: PlotProps) {
+function Plot({ points, provenance, width, height, revealed, reduced }: PlotProps) {
   const clipId = useId()
   const gradientId = useId()
   const innerWidth = Math.max(width - MARGIN.left - MARGIN.right, 0)
@@ -64,6 +66,7 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
 
   const x = scaleLinear<number>({ domain: [firstM, lastM], range: [0, innerWidth] })
   const y = scaleLinear<number>({ domain: [0, 1], range: [innerHeight, 0] })
+  const { measured, ranked } = splitRecall(points, provenance.measured_to_m)
   const preregistered = points.find((point) => point.m === PREREGISTERED_M)
   const last = points.at(-1)
 
@@ -127,8 +130,14 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
             curve={curveMonotoneX}
             fill={`url(#${gradientId})`}
           />
+          {/*
+            Two segments, because they are two kinds of claim. Up to
+            measured_to_m every shortlist was replayed; past it the curve is the
+            judge's own ranking, drawn dashed with hollow markers so it cannot
+            be read as the same evidence.
+          */}
           <LinePath<RecallPoint>
-            data={[...points]}
+            data={[...measured]}
             x={(point) => x(point.m)}
             y={(point) => y(point.recall)}
             curve={curveMonotoneX}
@@ -136,17 +145,43 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
             strokeWidth={2}
             strokeLinecap="round"
           />
-          {points.map((point) => (
-            <circle
-              key={point.m}
-              cx={x(point.m)}
-              cy={y(point.recall)}
-              r={MARKER_RADIUS}
-              fill={chartColours.background}
-              stroke={chartColours.treated}
-              strokeWidth={1.5}
-            />
-          ))}
+          <LinePath<RecallPoint>
+            data={[...ranked]}
+            x={(point) => x(point.m)}
+            y={(point) => y(point.recall)}
+            curve={curveMonotoneX}
+            stroke={chartColours.label}
+            strokeWidth={2}
+            strokeDasharray="4 4"
+            strokeLinecap="round"
+          />
+          {points.map((point) => {
+            const replayed = point.m <= provenance.measured_to_m
+            return replayed ? (
+              <circle
+                key={point.m}
+                cx={x(point.m)}
+                cy={y(point.recall)}
+                r={MARKER_RADIUS}
+                fill={chartColours.background}
+                stroke={chartColours.treated}
+                strokeWidth={1.5}
+              />
+            ) : (
+              // A hollow square, not a smaller dot: the difference has to read
+              // as a different kind of point, not a quieter one.
+              <rect
+                key={point.m}
+                x={x(point.m) - MARKER_RADIUS}
+                y={y(point.recall) - MARKER_RADIUS}
+                width={MARKER_RADIUS * 2}
+                height={MARKER_RADIUS * 2}
+                fill={chartColours.background}
+                stroke={chartColours.label}
+                strokeWidth={1.5}
+              />
+            )
+          })}
         </g>
 
         {/* Direct label instead of a legend: the series names itself at its end. */}
@@ -193,9 +228,10 @@ function Plot({ points, width, height, revealed, reduced }: PlotProps) {
 
 interface RecallCurveProps {
   readonly points: readonly RecallPoint[]
+  readonly provenance: RecallProvenance
 }
 
-export function RecallCurve({ points }: RecallCurveProps) {
+export function RecallCurve({ points, provenance }: RecallCurveProps) {
   const reduced = useReducedMotion() ?? false
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inView = useInView(containerRef, { amount: IN_VIEW_AMOUNT, once: true })
@@ -204,8 +240,25 @@ export function RecallCurve({ points }: RecallCurveProps) {
     <ChartFrame
       label="recall@m"
       title="Is the culprit even on the shortlist?"
-      description={describe(points)}
+      description={`${describe(points)} ${provenance.note}`}
       heightClassName="h-64"
+      legend={
+        provenance.beyond_is_judge_ranking_only ? (
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-muted">
+            <span className="flex items-center gap-1.5">
+              <span aria-hidden="true" className="h-0.5 w-4 rounded-full bg-measure" />
+              replayed to m={provenance.measured_to_m}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="h-0 w-4 border-t-2 border-dashed border-line-strong"
+              />
+              judge ranking only
+            </span>
+          </span>
+        ) : null
+      }
     >
       <div ref={containerRef} className="size-full">
         {points.length === 0 ? (
@@ -218,6 +271,7 @@ export function RecallCurve({ points }: RecallCurveProps) {
               width === 0 ? null : (
                 <Plot
                   points={points}
+                  provenance={provenance}
                   width={width}
                   height={Math.max(height, MIN_HEIGHT)}
                   revealed={inView}

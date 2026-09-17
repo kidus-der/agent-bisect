@@ -131,7 +131,7 @@ export function OverviewPage() {
         <HeroRewind run={payload.hero_run} />
 
         <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
-          <RecallCurve points={payload.recall_at_m} />
+          <RecallCurve points={payload.recall_at_m} provenance={payload.recall_provenance} />
           <CostAccuracyScatter
             points={scatterPoints}
             intervalsUnavailable={!benchmark.isPending && methods === null}

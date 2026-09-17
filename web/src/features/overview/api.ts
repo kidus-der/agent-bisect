@@ -20,6 +20,7 @@ export type HeadlineResult = Readonly<Schemas['HeadlineResult']>
 export type CiValue = Readonly<Schemas['CiValue']>
 export type Kpis = Readonly<Schemas['Kpis']>
 export type RecallPoint = Readonly<Schemas['RecallPoint']>
+export type RecallProvenance = Readonly<Schemas['RecallProvenance']>
 export type CostAccuracyPoint = Readonly<Schemas['CostAccuracyPoint']>
 export type RunSummary = Readonly<Schemas['RunSummary']>
 export type MethodName = CostAccuracyPoint['method']
