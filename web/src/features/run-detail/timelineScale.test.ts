@@ -23,6 +23,22 @@ describe('timelineGeometry', () => {
     expect(geometry.scrolls).toBe(false)
   })
 
+  it('lets a 12-step tape use a wide panel instead of floating in the middle', () => {
+    // Arrange / Act: the run-detail panel width beside the blame rail.
+    const geometry = timelineGeometry({ nSteps: 12, availableWidth: 1100 })
+
+    // Assert: cells grow towards the cap rather than stopping at a token size.
+    expect(geometry.bandWidth).toBeGreaterThan(60)
+    expect(geometry.contentWidth).toBe(1100)
+  })
+
+  it('never shrinks a cell below a usable target', () => {
+    const geometry = timelineGeometry({ nSteps: 60, availableWidth: 900 })
+
+    expect(geometry.bandWidth).toBeCloseTo(MIN_CELL_WIDTH_PX, 6)
+    expect(MIN_CELL_WIDTH_PX).toBeGreaterThanOrEqual(40)
+  })
+
   it('keeps a 60-step run legible by scrolling instead of shrinking the cells', () => {
     const geometry = timelineGeometry({ nSteps: 60, availableWidth: 900 })
 
