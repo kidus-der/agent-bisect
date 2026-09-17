@@ -24,7 +24,9 @@ interface PanelProps {
 
 const VARIANT_STYLES: Readonly<Record<PanelVariant, string>> = {
   card: 'rounded-card border-line bg-surface border',
-  kpi: 'rounded-kpi border-line bg-surface border',
+  // Secondary tiles step up a fill and take the stronger hairline: in the light theme
+  // white-on-near-white with a faint line read as empty boxes.
+  kpi: 'rounded-kpi border-line-strong bg-elevated border',
   chart: 'rounded-chart border-line bg-surface border',
   // Blueprint canvas: square corners so the registration marks land on them.
   canvas: 'border-line-strong bg-ground blueprint-dots border border-dashed',
