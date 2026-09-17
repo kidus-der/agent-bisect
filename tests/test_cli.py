@@ -75,8 +75,6 @@ def test_doctor_json_output_is_valid_json(monkeypatch):
 @pytest.mark.parametrize(
     ("command", "phase"),
     [
-        ("blame", "P5"),
-        ("eval", "P5"),
         ("gate", "P7"),
     ],
 )
@@ -238,3 +236,17 @@ def test_inject_is_registered_with_its_three_commands():
     assert result.exit_code == 0
     for command in ("collect", "status", "freeze"):
         assert command in result.output
+
+
+def test_blame_and_eval_are_registered_not_stubbed():
+    """P5's real commands replace the stubs; typer keeps whichever is
+    registered last, so a stub left alongside would be silently ambiguous."""
+    from agent_bisect.cli import app
+    from typer.testing import CliRunner
+
+    runner = CliRunner()
+
+    for command in ("blame", "eval"):
+        result = runner.invoke(app, [command, "--help"])
+        assert result.exit_code == 0, command
+        assert "not implemented" not in result.output.lower()

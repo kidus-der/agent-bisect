@@ -13,6 +13,8 @@ from typing import Annotated
 
 import typer
 
+from agent_bisect.cli_blame import blame
+from agent_bisect.cli_eval import eval_
 from agent_bisect.cli_inject import app as inject_app
 from agent_bisect.cli_record import record
 from agent_bisect.cli_replay import replay
@@ -71,21 +73,15 @@ def doctor(
 
 app.command()(record)
 app.command()(replay)
+app.command()(blame)
+app.command(name="eval")(eval_)
 app.add_typer(inject_app, name="inject")
 
 
-@app.command()
-def blame() -> None:
-    """Attribute a failure to its earliest causal step (phase P5)."""
-    _not_implemented("P5")
 
 
 
 
-@app.command(name="eval")
-def eval_() -> None:
-    """Evaluate Bisect against baselines on the frozen test split (phase P5)."""
-    _not_implemented("P5")
 
 
 @app.command()
