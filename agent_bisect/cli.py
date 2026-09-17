@@ -15,6 +15,7 @@ import typer
 
 from agent_bisect.cli_blame import blame
 from agent_bisect.cli_eval import eval_
+from agent_bisect.cli_gate import gate
 from agent_bisect.cli_inject import app as inject_app
 from agent_bisect.cli_record import record
 from agent_bisect.cli_replay import replay
@@ -123,10 +124,7 @@ def serve(
     run_server(host, port, data_source, explicit_host=host != DEFAULT_HOST, runs_dir=runs_dir)
 
 
-@app.command()
-def gate() -> None:
-    """Run the PR regression gate (phase P7)."""
-    _not_implemented("P7")
+app.command()(gate)
 
 
 if __name__ == "__main__":
