@@ -1,8 +1,8 @@
 # Bisect dashboard API contract
 
 `agent_bisect/server/` — a read-only FastAPI JSON API backing `bisect serve`.
-Full machine-readable schema: `agent_bisect/server/openapi.json` (regenerate
-with `uv run python scripts/export_openapi.py` after any route/schema change).
+Schema: `agent_bisect/server/openapi.json` (regenerate with `uv run python
+scripts/export_openapi.py` after any route/schema change).
 
 ## Envelope
 
@@ -44,11 +44,9 @@ HTTP 422. Both still carry the envelope shape.
 
 `run_id`/`check_id`/`rerun_id` path params: `^[A-Za-z0-9_-]+$`, else 422/404.
 `limit` ≤ 200. `sort` is checked against `run_sorting.SORTABLE_RUN_FIELDS`
-(`run_id`, `n_steps`, `cost_usd`, `calls`, `outcome`, `domain`; `-`-prefixed
-= descending) — one allow-list shared by `FixtureRepository` and
-`RealRepository.list_runs`, so real mode can't silently ignore the
-requested field; an unrecognized value falls back to `run_id` rather than
-erroring, since it only affects ordering, not correctness.
+(`run_id`, `n_steps`, `cost_usd`, `calls`, `outcome`, `domain`; `-` prefix =
+descending) — one allow-list shared by both repositories; an unrecognized
+value falls back to `run_id` rather than erroring.
 
 **Nullable, honestly:** `RunSummary.cost_usd`/`calls`, `SparkPoint.latency_ms`/
 `tokens`, and `RunDetail.reward` are `T | null` — fixture mode always has a
@@ -107,8 +105,12 @@ same dataset.
  "status": "complete", "outcome": "fail", "reward": 0.0,
  "steps": [{"step_idx": 1, "actor": "user", "tool_name": null, "text": "confirms the requested change",
             "from_tape": true, "state_changed": false}, "..."],
- "estimate": {"blamed_step": 7, "step_effects": ["..."], "control_mode": "shared"}, "judge": {"...": "..."}}}
+ "estimate": {"blamed_step": 7, "step_effects": ["..."], "control_mode": "shared",
+  "config": {"delta": 0.1, "batch": 4, "max_n": 16, "conf": 0.95, "efficacy_boundary": "obf",
+             "control_mode": "shared", "shortlist_m": 3}}, "judge": {"...": "..."}}}
 ```
+`estimate.config` is the real `SequentialConfig` used (never hard-code delta
+client-side); `shortlist_m` is the pre-registered judge-shortlist size.
 
 **`GET /api/runs/{run_id}/steps/{step_idx}`**
 ```json
@@ -163,15 +165,14 @@ same dataset.
  "is_regression": true, "base_pass_rate": 0.875, "head_pass_rate": 0.5833, "p_value": 0.023}, "..."]}
 ```
 
-## `not_available` example (real mode, before any recording exists)
-
+**`not_available` example** (real mode, before any recording exists)
 ```json
 {"success": true, "data": {"status": "not_available",
  "reason": "no recordings yet (runs/index.sqlite not found)"}, "error": null,
  "meta": {"simulated": false, "data_source": "real", "total": null, "page": null, "limit": null, "next_cursor": null}}
 ```
 
-## Real-mode `null` example (a run recorded but not yet cost-attributed)
+**Real-mode `null` example** (a run recorded but not yet cost-attributed)
 
 ```json
 {"data": {"runs": [{"run_id": "real-run-1", "domain": "airline", "status": "complete", "outcome": "pass",
