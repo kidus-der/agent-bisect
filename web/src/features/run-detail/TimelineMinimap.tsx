@@ -1,7 +1,8 @@
 import { useCallback, useRef, memo } from 'react'
 
+import { buildHeatScale, bucketVariable } from '@/components/primitives/heatScale'
+
 import type { HeatCell } from './blame'
-import { heatBucket } from './heatScale'
 
 const HEIGHT = 20
 const TICK_GAP = 1
@@ -54,6 +55,7 @@ function TimelineMinimapImpl({
   }
 
   const total = Math.max(cells.length, 1)
+  const scale = buildHeatScale(cells, blamedStep ?? undefined)
   return (
     <div
       ref={trackRef}
@@ -76,7 +78,7 @@ function TimelineMinimapImpl({
                 cell.step === blamedStep && cell.tested
                   ? 'linear-gradient(90deg, var(--bx-blame-fill), var(--bx-blame-coral-fill))'
                   : cell.tested
-                    ? heatBucket(cell.effect ?? 0)
+                    ? bucketVariable(scale.bucket(cell.effect ?? 0))
                     : undefined,
             }}
           />

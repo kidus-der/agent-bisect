@@ -2,8 +2,9 @@ import { useId, memo } from 'react'
 
 import { formatEffect } from '@/lib/format'
 
+import { buildHeatScale, bucketVariable } from '@/components/primitives/heatScale'
+
 import type { HeatCell } from './blame'
-import { heatBucket } from './heatScale'
 import type { TimelineGeometry } from './timelineScale'
 
 const HATCH_SIZE = 5
@@ -28,6 +29,9 @@ function BlameHeatStripeImpl({
   const uid = useId()
   const hatchId = `${uid}-hatch`
   const blameId = `${uid}-blame`
+  // The shared ramp, built from the tested effects excluding the blamed step,
+  // so one large blamed effect cannot flatten every other cell.
+  const scale = buildHeatScale(cells, blamedStep ?? undefined)
   return (
     <svg
       aria-hidden="true"
@@ -60,7 +64,7 @@ function BlameHeatStripeImpl({
           ? `url(#${hatchId})`
           : blamed
             ? `url(#${blameId})`
-            : heatBucket(cell.effect ?? 0)
+            : bucketVariable(scale.bucket(cell.effect ?? 0))
         return (
           <rect
             key={cell.step}
