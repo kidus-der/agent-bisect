@@ -4,7 +4,7 @@ import { type Page, test } from '@playwright/test'
 
 import { BRIEF_RUN, EDGE_60_STEP, mockRunDetailApi } from './run-detail.fixtures'
 
-const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round3/', import.meta.url))
+const OUT_DIR = fileURLToPath(new URL('../../docs/screenshots/round4/', import.meta.url))
 
 const THEMES = ['dark', 'light'] as const
 const VIEWPORTS = [
