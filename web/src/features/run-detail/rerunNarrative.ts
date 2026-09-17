@@ -13,12 +13,21 @@ import type { RerunRow } from './api'
 export type Arm = RerunRow['arm']
 
 export function forkLabel(arm: Arm): string {
-  return arm === 'treated' ? 'fork · intervention applied here' : 'fork · control · nothing replaced'
+  return arm === 'treated'
+    ? 'fork · intervention applied here'
+    : 'fork · control · nothing replaced'
 }
 
 /** Amber means blame, so only the arm that actually intervened gets it. */
 export function forkCellState(arm: Arm): TapeStepState {
   return arm === 'treated' ? 'blamed' : 'ran'
+}
+
+/** How much of the recording this re-run replayed before going live. */
+export function tapePrefixClause(forkStep: number): string {
+  if (forkStep <= 1) return 'nothing read from tape · live from step 1'
+  if (forkStep === 2) return 'step 1 read from tape · 0 calls'
+  return `steps 1–${forkStep - 1} read from tape · 0 calls`
 }
 
 function changedClause(changed: number): string {

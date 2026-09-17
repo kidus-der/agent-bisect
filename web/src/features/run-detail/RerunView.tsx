@@ -11,7 +11,13 @@ import { LoadingRegion, Skeleton } from '@/components/primitives/Skeleton'
 import { TapeStep, type TapeStepState } from '@/components/primitives/TapeStep'
 import { cn } from '@/lib/utils'
 
-import { type Arm, forkCellState, forkLabel, rerunSummary } from './rerunNarrative'
+import {
+  type Arm,
+  forkCellState,
+  forkLabel,
+  rerunSummary,
+  tapePrefixClause,
+} from './rerunNarrative'
 import { MAX_CELL_WIDTH_PX, MIN_CELL_WIDTH_PX } from './timelineScale'
 
 import {
@@ -278,8 +284,7 @@ export function RerunView({ runId, rerunId }: RerunViewProps) {
         <div className="min-w-0 flex-1">
           <RerunTape nSteps={nSteps} forkStep={row.step} passed={row.passed} arm={row.arm} />
           <p className="mt-3 font-mono text-small text-ink-muted">
-            steps 1–{Math.max(row.step - 1, 0)} read from tape · 0 calls · forked at k={row.step} ·{' '}
-            {row.calls} calls spent
+            {tapePrefixClause(row.step)} · forked at k={row.step} · {row.calls} calls spent
           </p>
         </div>
         <div className="shrink-0 border-t border-line pt-4 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">

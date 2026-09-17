@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { forkCellState, forkLabel, rerunSummary } from './rerunNarrative'
+import { forkCellState, forkLabel, rerunSummary, tapePrefixClause } from './rerunNarrative'
 
 describe('forkLabel', () => {
   it('says an intervention was applied on the treated arm', () => {
@@ -44,5 +44,20 @@ describe('rerunSummary', () => {
 
   it('uses the singular for one changed step', () => {
     expect(rerunSummary('treated', 7, 1)).toMatch(/1 step after the fork came out differently/)
+  })
+})
+
+describe('tapePrefixClause', () => {
+  it('describes the replayed prefix', () => {
+    expect(tapePrefixClause(7)).toBe('steps 1–6 read from tape · 0 calls')
+  })
+
+  it('uses the singular for a one-step prefix', () => {
+    expect(tapePrefixClause(2)).toBe('step 1 read from tape · 0 calls')
+  })
+
+  it('never writes an empty range when the fork is the first step', () => {
+    // A control forking at k=1 replays nothing: "steps 1–0" is not a range.
+    expect(tapePrefixClause(1)).toBe('nothing read from tape · live from step 1')
   })
 })
