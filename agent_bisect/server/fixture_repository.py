@@ -23,6 +23,7 @@ from agent_bisect.server.fixtures.serialize import (
 from agent_bisect.server.fixtures.writer import build_meta
 from agent_bisect.server.live_sim import LiveSimulator
 from agent_bisect.server.repository import RunFilter
+from agent_bisect.server.run_sorting import sort_runs
 from agent_bisect.server.schemas_benchmark import BenchmarkSummary, DatasetPage
 from agent_bisect.server.schemas_live import LiveSnapshot
 from agent_bisect.server.schemas_meta import MetaPayload, SearchHit, SearchResults
@@ -39,8 +40,6 @@ from agent_bisect.server.schemas_runs import (
 )
 
 DEFAULT_FIXTURE_SEED = 20260917
-
-_SORTABLE_FIELDS = frozenset({"run_id", "n_steps", "cost_usd", "calls", "outcome", "domain"})
 
 _STATIC_PAGES: tuple[SearchHit, ...] = (
     SearchHit(kind="page", id="overview", title="Overview", href="/overview"),
@@ -99,11 +98,7 @@ class FixtureRepository:
         if filters.model:
             runs = [r for r in runs if r.model == filters.model]
 
-        sort_key = filters.sort.lstrip("-")
-        if sort_key not in _SORTABLE_FIELDS:
-            sort_key = "run_id"
-        reverse = filters.sort.startswith("-")
-        runs.sort(key=lambda r: getattr(r, sort_key), reverse=reverse)
+        runs = sort_runs(runs, filters.sort)
 
         total = len(runs)
         start = (filters.page - 1) * filters.limit

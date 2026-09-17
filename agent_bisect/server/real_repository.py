@@ -27,6 +27,7 @@ from agent_bisect.core.limits import load_limiter_settings
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step
 from agent_bisect.server.repository import DataNotAvailable, RunFilter
+from agent_bisect.server.run_sorting import sort_runs
 from agent_bisect.server.schemas_benchmark import BenchmarkSummary, DatasetPage
 from agent_bisect.server.schemas_live import (
     BudgetStatus,
@@ -184,7 +185,7 @@ class RealRepository:
             summaries = [s for s in summaries if s.outcome == filters.outcome]
         if filters.model:
             summaries = [s for s in summaries if s.model == filters.model]
-        summaries.sort(key=lambda s: s.run_id, reverse=filters.sort.startswith("-"))
+        summaries = sort_runs(summaries, filters.sort)
 
         total = len(summaries)
         start = (filters.page - 1) * filters.limit
