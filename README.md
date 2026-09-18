@@ -6,8 +6,7 @@
   <img alt="Bisect — a recorded agent run rewinds to step k, the blamed step glows amber, the rest is re-run, and the run passes" src="docs/assets/hero.svg" width="100%">
 </picture>
 
-**`git bisect`, for agent runs.** Rewind a failed run to step *k*, change exactly one thing,
-re-run the rest *N* times, and measure which step actually caused the failure.
+**`git bisect`, for agent runs.** Rewind a failed run to step *k*, change exactly one thing, re-run the rest *N* times, and measure which step actually caused the failure.
 
 <p>
   <img src="https://img.shields.io/badge/python-3.12-0B0D12?style=flat-square&logo=python&logoColor=4CC9F0" alt="Python 3.12">
@@ -23,23 +22,15 @@ re-run the rest *N* times, and measure which step actually caused the failure.
 
 <br>
 
-When an agent run fails, something has to say *which step broke it*. Today that is usually an
-LLM judge reading the transcript and picking a step it finds suspicious. Bisect does not ask.
-It puts the step back on the table and tests it.
+When an agent run fails, something has to say *which step broke it*. Today that is usually an LLM judge reading the transcript and picking a step it finds suspicious. Bisect does not ask. It puts the step back on the table and tests it.
 
-> Bisect is under active construction — the recorder, replay engine, estimator and dashboard
-> are in place; the evaluation against the judge baselines is still running.
+> Bisect is under active construction — the recorder, replay engine, estimator and dashboard are in place; the evaluation against the judge baselines is still running.
 
 ### what it is
 
-- **A recorder.** Every step of a run is written to an append-only tape: the exact model
-  request, the tool call, and a snapshot of the world before and after. Replay is byte-identical
-  and makes zero network calls; a divergence is an error, never a silent live fallback.
-- **A counterfactual engine.** Restore the world at step *k*, apply exactly one intervention —
-  a replaced tool result, a forced action, a fresh sample, an edited prompt, a swapped model —
-  and let the rest of the run happen live.
-- **An estimator with an interval.** Treated and control arms, Wilson per arm, Newcombe 95% CI
-  on the difference. No estimate is ever shown without its interval.
+- **A recorder.** Every step of a run is written to an append-only tape: the exact model request, the tool call, and a snapshot of the world before and after. Replay is byte-identical and makes zero network calls; a divergence is an error, never a silent live fallback.
+- **A counterfactual engine.** Restore the world at step *k*, apply exactly one intervention — a replaced tool result, a forced action, a fresh sample, an edited prompt, a swapped model — and let the rest of the run happen live.
+- **An estimator with an interval.** Treated and control arms, Wilson per arm, Newcombe 95% CI on the difference. No estimate is ever shown without its interval.
 
 ### how it works
 
@@ -65,16 +56,11 @@ flowchart LR
 effect(k) = P(pass | fix k) − P(pass | recorded k)
 ```
 
-The judge narrows the search; replay decides. Blame goes to the **earliest** step whose CI lower
-bound clears δ — not the largest effect, because a later fix can partially recover a run that was
-already lost. Without the control arm you would blame a step for luck.
+The judge narrows the search; replay decides. Blame goes to the **earliest** step whose CI lower bound clears δ — not the largest effect, because a later fix can partially recover a run that was already lost. Without the control arm you would blame a step for luck.
 
 ### the dashboard
 
-`bisect serve` opens a local dashboard at `127.0.0.1:8484` — the tape, the rewind, the forest
-plot, the benchmark, and a live view of a run in progress. Every number below comes from the
-simulated fixture dataset, which the dashboard labels as simulated — these show the interface,
-not a result.
+`bisect serve` opens a local dashboard at `127.0.0.1:8484` — the tape, the rewind, the forest plot, the benchmark, and a live view of a run in progress. Every number below comes from the simulated fixture dataset, which the dashboard labels as simulated — these show the interface, not a result.
 
 <table>
 <tr>
@@ -99,34 +85,24 @@ bisect blame RUN_ID --top 3 --n 8
 bisect serve                              # the dashboard, on fixtures or your own runs
 ```
 
-The key never leaves `.env` — it is scrubbed from recordings and logs, and a redaction test
-proves it. Tests never touch the network.
+The key never leaves `.env` — it is scrubbed from recordings and logs, and a redaction test proves it. Tests never touch the network.
 
 ### the pr check
 
-Bisect ships as a composite GitHub Action. On a pull request it replays a suite of scenarios
-against `base` and against `head`, and posts one sticky comment with the pass-rate delta and
-its interval. When head loses a scenario the base passed, it rewinds that run and names the
-step. Demo mode is scripted — no secret, no network call.
+Bisect ships as a composite GitHub Action. On a pull request it replays a suite of scenarios against `base` and against `head`, and posts one sticky comment with the pass-rate delta and its interval. When head loses a scenario the base passed, it rewinds that run and names the step. Demo mode is scripted — no secret, no network call.
 
-See [`.github/actions/bisect-gate`](.github/actions/bisect-gate) and the
-[workflow](.github/workflows/bisect-gate.yml).
+See [`.github/actions/bisect-gate`](.github/actions/bisect-gate) and the [workflow](.github/workflows/bisect-gate.yml).
 
 ### results
 
-Results are being collected. The pre-registered hypotheses, δ, and the stopping rules were
-committed before any of the data existed ([`docs/decisions/0001-preregistration.md`](docs/decisions/0001-preregistration.md)),
-gate outcomes are recorded as they land in [`docs/gates/`](docs/gates/) — pass *and* fail — and
-the write-up will land in `docs/report.md`. There are no numbers here yet on purpose.
+Results are being collected. The pre-registered hypotheses, δ, and the stopping rules were committed before any of the data existed ([`docs/decisions/0001-preregistration.md`](docs/decisions/0001-preregistration.md)), gate outcomes are recorded as they land in [`docs/gates/`](docs/gates/) — pass *and* fail — and the write-up will land in `docs/report.md`. There are no numbers here yet on purpose.
 
 ### prior art
 
-Bisect builds on causal-agent-replay, DoVer, Who&When, TraceElephant, CausalFlow and AgenTracer,
-and is evaluated on [τ²-bench](https://github.com/sierra-research/tau2-bench).
+Bisect builds on causal-agent-replay, DoVer, Who&When, TraceElephant, CausalFlow and AgenTracer, and is evaluated on [τ²-bench](https://github.com/sierra-research/tau2-bench).
 
 ### docs
 
-[the brief](docs/brief/summary.md) · [design direction](docs/design/direction.md) ·
-[decisions](docs/decisions/) · [phase board](docs/LOOP_STATE.md)
+[the brief](docs/brief/summary.md) · [design direction](docs/design/direction.md) · [decisions](docs/decisions/) · [phase board](docs/LOOP_STATE.md)
 
 MIT licensed. See [LICENSE](LICENSE).
