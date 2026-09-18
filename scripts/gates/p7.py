@@ -258,8 +258,25 @@ def _check_actions_available() -> None:
         raise ActionsUnavailableError("Actions is disabled for this repository")
 
 
-def _push_and_open_pr(variant: Variant) -> int:
-    _run(["git", "push", "-u", "origin", variant.branch], cwd=REPO_ROOT)
+def _origin_url() -> str:
+    return _run(["git", "remote", "get-url", "origin"], cwd=REPO_ROOT).stdout.strip()
+
+
+def _prepare_remote_clone(tmp: Path) -> Path:
+    """A fresh clone of the **real** GitHub remote, never the shared working
+    tree -- so its own `origin` is the real remote a push can reach, and its
+    history is never a stale local copy (e.g. from before a rewrite)."""
+    clone = tmp / "clone"
+    _run(
+        ["git", "clone", "--no-hardlinks", "--branch", "main", _origin_url(), str(clone)],
+        cwd=REPO_ROOT,
+    )
+    return clone
+
+
+def _push_and_open_pr(clone: Path, variant: Variant) -> int:
+    _branch_for(clone, variant)
+    _run(["git", "push", "-u", "origin", variant.branch], cwd=clone)
     result = _gh(
         [
             "pr", "create", "--repo", GATED_REPO, "--base", "main", "--head", variant.branch,
@@ -301,7 +318,7 @@ def _sticky_comment(pr_number: int) -> str | None:
     return result.stdout or None
 
 
-def _close_pr(pr_number: int, branch: str) -> None:
+def _close_pr(clone: Path, pr_number: int, branch: str) -> None:
     _gh(
         [
             "pr", "close", str(pr_number), "--repo", GATED_REPO,
@@ -309,7 +326,25 @@ def _close_pr(pr_number: int, branch: str) -> None:
         ],
         check=False,
     )
-    _run(["git", "push", "origin", "--delete", branch], cwd=REPO_ROOT, check=False)
+    _run(["git", "push", "origin", "--delete", branch], cwd=clone, check=False)
+
+
+def _record_pr_result(evidence_dir: Path, variant: Variant, number: int) -> dict[str, Any]:
+    conclusion = _wait_for_check(number)
+    comment = _sticky_comment(number)
+    run_url = _gh(
+        ["pr", "view", str(number), "--repo", GATED_REPO, "--json", "url", "--jq", ".url"],
+        check=False,
+    ).stdout.strip()
+    body = comment or "(no comment found)"
+    (evidence_dir / f"{variant.branch.replace('/', '_')}.md").write_text(
+        f"PR: {run_url}\nconclusion: {conclusion}\n\n{body}\n"
+    )
+    return {
+        "branch": variant.branch, "kind": variant.kind, "pr": number, "url": run_url,
+        "conclusion": conclusion,
+        "flagged": bool(comment and "regression detected" in comment),
+    }
 
 
 RemotePrResult = tuple[list[Criterion], list[dict[str, Any]], str | None]
@@ -325,29 +360,16 @@ def remote_pr_test(*, evidence_dir: Path) -> RemotePrResult:
     evidence_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     pending: list[tuple[Variant, int]] = []
-    for batch_start in range(0, len(VARIANTS), CONCURRENCY):
-        batch = VARIANTS[batch_start : batch_start + CONCURRENCY]
-        for variant in batch:
-            number = _push_and_open_pr(variant)
-            pending.append((variant, number))
-        for variant, number in pending[-len(batch):]:
-            conclusion = _wait_for_check(number)
-            comment = _sticky_comment(number)
-            run_url = _gh(
-                ["pr", "view", str(number), "--repo", GATED_REPO, "--json", "url", "--jq", ".url"],
-                check=False,
-            ).stdout.strip()
-            (evidence_dir / f"{variant.branch.replace('/', '_')}.md").write_text(
-                f"PR: {run_url}\nconclusion: {conclusion}\n\n{comment or '(no comment found)'}\n"
-            )
-            rows.append(
-                {
-                    "branch": variant.branch, "kind": variant.kind, "pr": number, "url": run_url,
-                    "conclusion": conclusion,
-                    "flagged": bool(comment and "regression detected" in (comment or "")),
-                }
-            )
-            _close_pr(number, variant.branch)
+    with tempfile.TemporaryDirectory(prefix="bisect-p7-remote-clone-") as tmp:
+        clone = _prepare_remote_clone(Path(tmp))
+        for batch_start in range(0, len(VARIANTS), CONCURRENCY):
+            batch = VARIANTS[batch_start : batch_start + CONCURRENCY]
+            for variant in batch:
+                number = _push_and_open_pr(clone, variant)
+                pending.append((variant, number))
+            for variant, number in pending[-len(batch):]:
+                rows.append(_record_pr_result(evidence_dir, variant, number))
+                _close_pr(clone, number, variant.branch)
 
     regressions = [r for r in rows if r["kind"] == "regression"]
     noops = [r for r in rows if r["kind"] == "noop"]
