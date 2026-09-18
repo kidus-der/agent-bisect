@@ -218,7 +218,35 @@ def to_result_json(
     }
 
 
+_prepared_worktrees: set[Path] = set()
+
+
+def _prepare_worktree(worktree: Path) -> None:
+    """Vendor tau2 and sync dependencies, once per worktree.
+
+    A worktree shares no gitignored file with the repo it was checked out
+    of (`vendor/tau2-bench`, `.venv`), so each one needs its own -- exactly
+    what the GitHub Action's own "Vendor tau2-bench" / "Install
+    dependencies" steps do, run here for `scripts/gates/p7.py`'s local
+    worktrees the Action itself never touches.
+    """
+    if worktree in _prepared_worktrees:
+        return
+    setup = subprocess.run(
+        ["bash", "scripts/setup_tau2.sh"], cwd=worktree, capture_output=True, text=True, check=False
+    )
+    if setup.returncode != 0:
+        raise GateError(f"scripts/setup_tau2.sh failed in {worktree}: {setup.stderr[-4000:]}")
+    sync = subprocess.run(
+        ["uv", "sync", "--frozen"], cwd=worktree, capture_output=True, text=True, check=False
+    )
+    if sync.returncode != 0:
+        raise GateError(f"uv sync --frozen failed in {worktree}: {sync.stderr[-4000:]}")
+    _prepared_worktrees.add(worktree)
+
+
 def run_demo_runner(worktree: Path, *, out: Path, seed: int, runs: int) -> dict[str, Any]:
+    _prepare_worktree(worktree)
     out.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         ["uv", "run", "python", "-m", "demo.runner", "--seed", str(seed), "--runs", str(runs),
@@ -233,6 +261,7 @@ def run_demo_runner(worktree: Path, *, out: Path, seed: int, runs: int) -> dict[
 def run_blame_cli(
     worktree: Path, *, failures_path: Path, head_store: Path, base_store: Path, out: Path, seed: int
 ) -> list[dict[str, Any]]:
+    _prepare_worktree(worktree)
     out.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
         ["uv", "run", "python", "-m", "demo.blame_cli",
