@@ -160,9 +160,25 @@ def decisive_step_summary(
         return None
     step, sharing = Counter(blamed).most_common(1)[0]
     lines = changed_files.get("demo/agent_policy.yaml", []) or ["(no textual diff available)"]
+    # Every failure that shares the decisive step ran the same confirmation
+    # (same intervention, same N) against its own recording, so their
+    # StepEffects are independent draws of the same quantity -- the first
+    # one is as representative as any, and picking it (rather than
+    # averaging) keeps the reported CI a real, reported interval instead of
+    # a derived one nothing computed.
+    effect = next(
+        (s["effect"] for s in blame_summaries if s.get("blamed_step") == step and s.get("effect")),
+        None,
+    )
+    effect = effect or {"effect": 0.0, "ci_low": 0.0, "ci_high": 0.0, "n": 0}
+    identity = next(
+        (s["step"] for s in blame_summaries if s.get("blamed_step") == step and s.get("step")),
+        None,
+    ) or {"actor": "agent", "tool_name": None}
     return DecisiveStepSummary(
-        step=step, actor="agent-or-tool", tool_name=None, effect=0.0, ci_low=0.0, ci_high=0.0,
-        n=0, changed_lines=tuple(lines), caused_by="demo/agent_policy.yaml (this PR)",
+        step=step, actor=identity["actor"], tool_name=identity["tool_name"],
+        effect=effect["effect"], ci_low=effect["ci_low"], ci_high=effect["ci_high"], n=effect["n"],
+        changed_lines=tuple(lines), caused_by="demo/agent_policy.yaml (this PR)",
         sharing_failures=sharing, total_new_failures=total_new_failures,
     )
 

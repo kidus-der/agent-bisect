@@ -24,6 +24,7 @@ from pathlib import Path
 from agent_bisect.adapters.tau2 import recording_session
 from agent_bisect.adapters.tau2_env import ensure_tau2_data_dir
 from agent_bisect.attribution.blame_store import save_blame
+from agent_bisect.attribution.search import BlameResult
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import TapeReader, TapeWriter
 
@@ -32,6 +33,34 @@ from demo.blame import NewFailure, blame_new_failure
 from demo.harness import UNUSED_API_BASE, UNUSED_API_KEY, ledger_for, no_limiter
 
 DEFAULT_SEED = 20260917
+
+
+def _effect_of(result: BlameResult) -> dict | None:
+    """The blamed step's own `StepEffect`, as a plain dict for the PR comment.
+
+    `None` when nothing was blamed -- `gate.action.decisive_step_summary`
+    then falls back to reporting the step with no effect numbers rather
+    than inventing one.
+    """
+    if result.blamed_step is None or result.estimate is None:
+        return None
+    for step_effect in result.estimate.step_effects:
+        if step_effect.step == result.blamed_step:
+            return {
+                "effect": step_effect.effect,
+                "ci_low": step_effect.ci_low,
+                "ci_high": step_effect.ci_high,
+                "n": step_effect.treated.n,
+            }
+    return None
+
+
+def _step_identity(reader: TapeReader, run_id: str, blamed_step: int | None) -> dict | None:
+    """`{actor, tool_name}` for the blamed step, for the PR comment's label."""
+    if blamed_step is None:
+        return None
+    step = reader.get_step(run_id, blamed_step)
+    return {"actor": step.actor, "tool_name": step.tool_name}
 
 
 def _load_failures(path: Path) -> list[NewFailure]:
@@ -79,6 +108,8 @@ def run_blame_cli(
                     "head_run_id": failure.head_run_id,
                     "blamed_step": result.blamed_step,
                     "total_calls": result.total_calls,
+                    "effect": _effect_of(result),
+                    "step": _step_identity(head_reader, failure.head_run_id, result.blamed_step),
                 }
             )
     return summaries
