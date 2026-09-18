@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Bisect">
+  <title>Bisect</title>
+  <defs>
+    <linearGradient id="dblame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F5A524"/>
+      <stop offset="1" stop-color="#F7625B"/>
+    </linearGradient>
+  </defs>
+  <g fill="#4CC9F0">
+    <rect x="2" y="16" width="6" height="16" rx="3"/>
+    <rect x="10" y="16" width="6" height="16" rx="3"/>
+    <rect x="18" y="16" width="6" height="16" rx="3"/>
+  </g>
+  <rect x="27.5" y="2" width="2.5" height="44" rx="1.25" fill="#F5A524" opacity="0.7"/>
+  <rect x="33" y="10" width="13" height="28" rx="4" fill="url(#dblame)"/>
+</svg>
