@@ -134,3 +134,38 @@ def test_the_frozen_manifest_carries_the_funnel(collected):
     assert manifest["counts"]["candidate_kept"] == 6
     assert manifest["counts"]["candidate_not_flipped"] == 1
     assert manifest["counts"]["base_runs"] == 1
+
+
+def test_the_runner_is_given_the_router_not_the_seam(monkeypatch, collected):
+    """A fork must never read `llm_utils.completion` to find its live
+    completion: once any fork is in flight that seam holds the replay
+    dispatcher, which routes back to the calling fork's own completion —
+    unbounded recursion. The router is captured explicitly instead."""
+    import agent_bisect.cli_inject as module
+
+    seen: dict[str, object] = {}
+
+    class Router:
+        def completion(self, **kwargs):
+            raise AssertionError("not called in this test")
+
+    class Session:
+        def __enter__(self):
+            return Router()
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_runner(**kwargs):
+        seen.update(kwargs)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(module, "recording_session", lambda **_kw: Session())
+    monkeypatch.setattr(module, "canonical_rewards", lambda: Session())
+    monkeypatch.setattr(module, "judge_routed", lambda: Session())
+    monkeypatch.setattr(module, "Tau2InjectRunner", fake_runner)
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvapi-test")
+
+    runner.invoke(app, ["collect", "--tasks", "0", "--json"])
+
+    assert isinstance(getattr(seen.get("live_completion"), "__self__", None), Router)

@@ -148,7 +148,7 @@ def collect(
     )
     with (
         own_stdout() as stdout,
-        recording_session(ledger=ledger, phase=phase),
+        recording_session(ledger=ledger, phase=phase) as router,
         canonical_rewards(),
         judge_routed() as judge,
     ):
@@ -163,6 +163,13 @@ def collect(
             seed=seed,
             temperature=chosen.agent_temperature,
             flaky=world,
+            # The router, captured explicitly, never read off tau2's seam
+            # at fork time. Once any fork is in flight the seam holds the
+            # replay dispatcher, so a fork that read it there would call
+            # the dispatcher, which routes back to that same fork's own
+            # completion, which calls the dispatcher: unbounded recursion,
+            # and 45 candidates died of it before this line existed.
+            live_completion=router.completion,
         )
         result = run_collection(
             runner,

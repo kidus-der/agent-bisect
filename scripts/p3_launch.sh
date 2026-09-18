@@ -5,15 +5,20 @@
 # first, 10 hours of wall-clock, stop at 120 kept items but never below 60,
 # one shared ledger with a hard cap.
 #
-# Concurrency is threads inside a few processes. It used to have to be
-# processes: `adapters/tau2_replay._completion_patched` rebound a module-level
-# symbol, so two forks in two threads served each other's tapes. That was fixed
-# (a ContextVar dispatcher, fee9740), so one process now runs many tasks at
-# once for the cost of one interpreter. A handful of processes rather than one
-# is for crash isolation, and because the shards share the tape (SQLite WAL),
-# the blob store (atomic writes), the journal (one small file per key) and the
-# ledger (a single guarded INSERT) — all built for concurrent writers — the
-# stop rule sees the whole dataset, not one worker's share.
+# Concurrency is threads inside ONE process, and the count of processes is not
+# a free parameter: the rate limiter is a process-wide token bucket, so N
+# processes permit N times the measured per-model ceiling. Three of them at
+# 108 rpm asked for 324 rpm against a 120 rpm limit and earned 325 HTTP 429s
+# in three hours. One process makes the limiter mean what `config/limits.toml`
+# says it means.
+#
+# Threads are safe here because the replay seam dispatches per thread through
+# a ContextVar (fee9740); before that fix it rebound a module-level symbol and
+# two forks served each other's tapes. Sharding across processes remains
+# possible — the tape (SQLite WAL), the blob store (atomic writes), the
+# journal (one file per key) and the ledger (a guarded INSERT) are all built
+# for concurrent writers — but only if the per-process limiter is divided by
+# the shard count first.
 #
 # Resumable: re-running this script skips everything that already has a
 # checkpoint. Safe to run again after a crash, a reboot, or a relaunch at a
@@ -23,9 +28,9 @@
 
 set -euo pipefail
 
-SHARDS="${1:-3}"
+SHARDS="${1:-1}"
 MAX_HOURS="${2:-10}"
-CONCURRENCY="${3:-9}"
+CONCURRENCY="${3:-24}"
 TARGET="${TARGET:-120}"
 FLOOR="${FLOOR:-60}"
 MAX_CALLS="${MAX_CALLS:-70000}"
