@@ -53,7 +53,9 @@ from agent_bisect.bench.manifest import (
 from agent_bisect.cli_io import own_stdout, say
 from agent_bisect.core.budget import DEFAULT_LEDGER_PATH, BudgetLedger
 from agent_bisect.core.config import get_settings
+from agent_bisect.core.limits import DEFAULT_LIMITS_PATH, get_limiter_settings, limiter_rpm_for
 from agent_bisect.core.models import load_chosen_models
+from agent_bisect.core.rate_edge import RateEdge, write_back_edges
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import TapeReader, TapeWriter
 
@@ -113,6 +115,13 @@ def collect(
         False, "--flaky", help="Collect in the flaky world (decisions 0011, 0017 section 4)."
     ),
     flaky_error_rate: float = typer.Option(0.05, help="Injected tool-error probability."),
+    adaptive_rate: bool = typer.Option(
+        True,
+        help="Walk each model's rate up while the provider is quiet (decision 0017 section 8).",
+    ),
+    ceiling_factor: float = typer.Option(
+        1.5, help="Hard ceiling as a multiple of the configured rate."
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Record, check, fault and re-run, resuming from whatever is on disk."""
@@ -146,9 +155,14 @@ def collect(
     world = (
         FlakyConfig(seed=collection_seed, p_error=flaky_error_rate) if flaky else None
     )
+    edge = _rate_edge(ledger, chosen, ceiling_factor) if adaptive_rate else None
     with (
         own_stdout() as stdout,
-        recording_session(ledger=ledger, phase=phase) as router,
+        recording_session(
+            ledger=ledger,
+            phase=phase,
+            limiter_for=None if edge is None else edge.limiter_for,
+        ) as router,
         canonical_rewards(),
         judge_routed() as judge,
     ):
@@ -180,9 +194,20 @@ def collect(
             runs_dir=runs_dir,
             calls_spent=ledger.total_calls,
             concurrency=concurrency,
+            threads_hint=None if edge is None else edge.recommended_threads,
+            extras=None if edge is None else (lambda: {
+                "rate_edge_rpm": edge.edges(),
+                "binding_model": edge.binding_model(),
+                "threads": edge.recommended_threads(),
+            }),
         )
 
+    if edge is not None:
+        edge.stop()
+        write_back_edges(DEFAULT_LIMITS_PATH, edge.edges())
+
     summary = {
+        "rate_edge_rpm": None if edge is None else edge.edges(),
         "items": len(result.items),
         "stopped_reason": result.stopped_reason,
         "calls": ledger.total_calls(),
@@ -248,6 +273,27 @@ def freeze(
 
     _report({"manifest": str(path), "items": len(items),
              "sha256": path.with_suffix(".sha256").read_text().strip()}, json_output)
+
+
+def _rate_edge(ledger: BudgetLedger, chosen: Any, ceiling_factor: float) -> RateEdge:
+    """A rate controller over the models this collection actually uses.
+
+    The floor is what `config/limits.toml` already says — P0 measured that
+    as clean, so nothing ever goes under it — and the ceiling is a
+    multiple of it, because P0 bracketed each model rather than locating
+    it (`docs/decisions/0004-p0-probe-protocol.md` §5).
+    """
+    settings = get_limiter_settings()
+    models = {chosen.agent, chosen.user_sim, chosen.judge}
+    floors = {model: limiter_rpm_for(model, settings) for model in models}
+    edge = RateEdge(
+        ledger=ledger,
+        floors=floors,
+        ceilings={model: rate * ceiling_factor for model, rate in floors.items()},
+        log_dir=DEFAULT_RUNS_DIR / "limits",
+    )
+    edge.start()
+    return edge
 
 
 def _kept_items(journal: Journal) -> list[dict[str, Any]]:

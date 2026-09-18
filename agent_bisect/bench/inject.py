@@ -35,6 +35,7 @@ without a model.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -264,6 +265,8 @@ def collect(
     runs_dir: Path | None = None,
     calls_spent: Callable[[], int] | None = None,
     concurrency: int = 1,
+    threads_hint: Callable[[], int] | None = None,
+    extras: Callable[[], dict[str, Any]] | None = None,
 ) -> CollectionResult:
     """Run the funnel over `tasks`, resuming from whatever is on disk.
 
@@ -278,7 +281,8 @@ def collect(
     process-wide.
     """
     collector = _Collector(
-        runner, journal, config or InjectConfig(), on_progress, runs_dir, calls_spent
+        runner, journal, config or InjectConfig(), on_progress, runs_dir, calls_spent,
+        threads_hint, extras,
     )
     return collector.run(tasks, concurrency=concurrency)
 
@@ -294,6 +298,8 @@ class _Collector:
         on_progress: Callable[[str], None] | None,
         runs_dir: Path | None = None,
         calls_spent: Callable[[], int] | None = None,
+        threads_hint: Callable[[], int] | None = None,
+        extras: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._runner = runner
         self._journal = journal
@@ -301,6 +307,8 @@ class _Collector:
         self._say = on_progress or (lambda _message: None)
         self._runs_dir = runs_dir
         self._calls_spent = calls_spent
+        self._threads_hint = threads_hint
+        self._extras = extras
         self._started_at: str | None = None
         self._began = time.monotonic()
         #: Everything below is touched by several task threads at once.
@@ -387,6 +395,10 @@ class _Collector:
             "items_total": self._config.target_items,
             "calls_spent": self._calls_spent() if self._calls_spent else None,
         }
+        if self._extras is not None:
+            # Reporting must never kill a collection.
+            with contextlib.suppress(Exception):
+                shared.update(self._extras())
         if final is None:
             status = running(**shared, started_at=self._started_at)
             self._started_at = status["started_at"]
@@ -468,9 +480,23 @@ class _Collector:
     def _finish_task(self, domain: str, task_id: str) -> None:
         self._one_task(domain, task_id)
         self._gate.on_success()
+        self._retune()
         with self._lock:
             self._kept_total = _kept_count(self._journal)
         self._publish()
+
+    def _retune(self) -> None:
+        """Follow the rate controller's view of how much should be in flight.
+
+        Too few and latency decides the rate, which is the state P0 and P1
+        ran in; too many and the provider starts refusing. The controller
+        measures both, so the gate follows it rather than a constant.
+        """
+        if self._threads_hint is None:
+            return
+        # Pacing must never kill a collection.
+        with contextlib.suppress(Exception):
+            self._gate.resize(self._threads_hint())
 
     def _one_task(self, domain: str, task_id: str) -> None:
         """One task through the funnel. Infra failures cost the task, not the run."""
