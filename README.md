@@ -44,7 +44,6 @@ It puts the step back on the table and tests it.
 ### how it works
 
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"background":"transparent","primaryColor":"#12151C","primaryTextColor":"#E8EBF2","primaryBorderColor":"#242A37","lineColor":"#5B6478","fontFamily":"ui-monospace, SFMono-Regular, monospace","fontSize":"13px"}}}%%
 flowchart LR
   R["<b>record</b><br/>tape + world snapshots"] --> J["<b>judge</b><br/>shortlist m suspects"]
   J --> W["<b>rewind to k</b><br/>restore state_before"]
@@ -54,9 +53,9 @@ flowchart LR
   C --> E
   E --> B["<b>blame</b><br/>earliest step above δ"]
 
-  classDef m stroke:#4CC9F0,stroke-width:1.5px
-  classDef j stroke:#A78BFA,stroke-width:1.5px
-  classDef b stroke:#F5A524,stroke-width:1.5px
+  classDef m stroke:#1FA2C8,stroke-width:2px
+  classDef j stroke:#8B6EE8,stroke-width:2px
+  classDef b stroke:#D08A12,stroke-width:2px
   class R,W,T,C,E m
   class J j
   class B b
@@ -73,7 +72,9 @@ already lost. Without the control arm you would blame a step for luck.
 ### the dashboard
 
 `bisect serve` opens a local dashboard at `127.0.0.1:8484` — the tape, the rewind, the forest
-plot, the benchmark, and a live view of a run in progress.
+plot, the benchmark, and a live view of a run in progress. Every number below comes from the
+simulated fixture dataset, which the dashboard labels as simulated — these show the interface,
+not a result.
 
 <table>
 <tr>
@@ -85,9 +86,6 @@ plot, the benchmark, and a live view of a run in progress.
 <td><a href="docs/screenshots/final/pr-check-detail-dark-1440.png"><img src="docs/screenshots/final/pr-check-detail-dark-1440.png" alt="PR check detail: base versus head scenario table with a delta column and the rendered PR comment"></a><br><sub><b>PR check</b> — base against head, delta in the middle</sub></td>
 </tr>
 </table>
-
-<sub>Captures are real screens running on the simulated fixture dataset, which the dashboard
-labels as simulated — they are here to show the interface, not to report a result.</sub>
 
 ### quickstart
 
