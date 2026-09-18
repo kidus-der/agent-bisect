@@ -216,3 +216,44 @@ reproducible from the fork point.
 The 10-hour budget counts **productive collection time from the relaunch**. The
 first two hours produced one item because of the `Resample` bug and the dropped
 tasks, not because of the protocol, and are reported separately as such.
+
+## 8. Amendment, 2026-09-17 21:00 — pacing, not protocol
+
+Owner instruction: use more of the allotted NVIDIA capacity, without ever
+exceeding it and without stalling. Nothing below changes a threshold, N, the
+keep rule, the strata or the caps; it changes only how fast work is offered
+and how failures are survived.
+
+1. **The rate ceiling is discovered, not assumed.** P0 *bracketed* each model
+   rather than locating it — the agent was clean at 120 rpm and 429'd at 160,
+   the user simulator 429'd below 120 — and the limiter took the conservative
+   end of each bracket. `core.rate_edge` now walks each model's rate up by
+   +4 rpm after three consecutive clean windows and multiplies it by 0.8 on
+   any window carrying two or more 429s, with the configured value as a hard
+   floor and 1.5× it as a hard ceiling. It observes the **ledger**, which
+   already records every call's model, outcome and latency, so it needs no
+   hook in the request path and cannot itself fail a call. Every window is
+   appended to `runs/limits/<model>.jsonl` and the settled rate is written
+   back to `config/limits.toml` as `[limiter.measured_rpm_edge]`, so P5
+   inherits it. **A 429 remains a signal, never a failure**: the retry policy
+   is untouched.
+2. **The limiter stays the binding constraint.** Threads in flight follow
+   Little's law over the busiest model — rate × median latency ÷ 60, plus a
+   quarter — capped at 48. Below that, latency decides the rate, which is the
+   state P0 and P1 ran in. When one model's ceiling is what holds the whole
+   collection back (the agent makes about three calls per user-simulator
+   call, so the user simulator binds below a third of the agent's rate), the
+   status file names it rather than leaving it to be inferred.
+3. **It does not stall.** `scripts/supervise_p3.sh` relaunches the collection
+   whenever it exits without having reached the stop rule, or whenever its
+   own checkpoint clock stops moving for 20 minutes — a wedged connection
+   looks alive, which is the failure a process check misses. Restarts are
+   free because every finished unit is checkpointed. It stops for three
+   reasons and says which: the stop rule fired, a human wrote `runs/p3/STOP`,
+   or three crashes inside ten minutes, which is a bug rather than weather
+   and is recorded as `state: failed` with the traceback's location.
+
+One caution worth recording: a discovered ceiling is only valid for the
+conditions it was discovered under. It is written back as
+`measured_rpm_edge`, kept separate from P0's `per_model` measurement, so the
+two never get confused.
