@@ -753,12 +753,7 @@ class _Collector:
         passes = sum(1 for rerun in reruns if rerun.passed)
         rate = passes / len(reruns)
         failed = next((rerun for rerun in reruns if not rerun.passed), None)
-        if rate > self._config.keep_at_or_below or failed is None:
-            return self._rejected(
-                key, "not_flipped", f"faulted pass rate {rate} above "
-                f"{self._config.keep_at_or_below}", base, step, bucket, fault_type, rate,
-            )
-        item = {
+        item = None if failed is None else {
             "item_id": f"{base.domain}-{base.task_id}-k{step.step_idx}-{fault_type}",
             "domain": base.domain,
             "task_id": base.task_id,
@@ -778,6 +773,19 @@ class _Collector:
             "seeds": list(seeds),
             "n_reruns": len(reruns),
         }
+        if rate > self._config.keep_at_or_below or item is None:
+            # The item is kept on the record even when the candidate is
+            # not: the recording exists either way, and a fault that
+            # flipped the run twice in four is evidence of a weaker
+            # causal effect rather than of nothing
+            # (`docs/decisions/0021-p3-outcome.md`). What it is NOT is
+            # eligible for the pre-registered set, which is why the
+            # status stays `rejected`.
+            return self._rejected(
+                key, "not_flipped", f"faulted pass rate {rate} above "
+                f"{self._config.keep_at_or_below}", base, step, bucket, fault_type, rate,
+                item=item, rerun_run_ids=[rerun.run_id for rerun in reruns],
+            )
         record = {"status": "kept", "reason_code": "kept", "item": item,
                   "rerun_run_ids": [rerun.run_id for rerun in reruns]}
         self._journal.write("candidate", key, record)
@@ -797,11 +805,19 @@ class _Collector:
         bucket: PositionBucket,
         fault_type: str | None = None,
         rate: float | None = None,
+        item: dict[str, Any] | None = None,
+        rerun_run_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        record = {"status": "rejected", "reason_code": reason_code, "reason": reason,
-                  "base_run_id": base.run_id, "planted_step": step.step_idx,
-                  "position_bucket": bucket, "fault_type": fault_type,
-                  "faulted_pass_rate": rate}
+        record: dict[str, Any] = {
+            "status": "rejected", "reason_code": reason_code, "reason": reason,
+            "base_run_id": base.run_id, "planted_step": step.step_idx,
+            "position_bucket": bucket, "fault_type": fault_type,
+            "faulted_pass_rate": rate,
+        }
+        if item is not None:
+            record["item"] = item
+        if rerun_run_ids:
+            record["rerun_run_ids"] = rerun_run_ids
         self._journal.write("candidate", key, record)
         self._journal.log({"kind": "candidate", "key": key, "status": "rejected",
                            "reason": reason, "reason_code": reason_code,
