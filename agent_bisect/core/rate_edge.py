@@ -74,6 +74,12 @@ class EdgePolicy:
     thread_headroom: float = 1.25
     max_threads: int = 48
     min_threads: int = 4
+    #: A window completing less than this share of what it sent is
+    #: congested, whatever the status codes say.
+    healthy_completion: float = 0.5
+    #: How far p50 latency may drift above the best seen before the
+    #: concurrency is treated as the cause.
+    latency_inflation: float = 2.0
 
 
 @dataclass(frozen=True)
@@ -159,6 +165,10 @@ class RateEdge:
         self._clean: dict[str, int] = dict.fromkeys(floors, 0)
         self._limiters: dict[str, AdaptiveLimiter] = {}
         self._latency: dict[str, float] = {}
+        #: The quickest this model has been seen to answer. Congestion is
+        #: measured against it, because the inflated figure is the symptom.
+        self._best_latency: dict[str, float] = {}
+        self._congested = False
         self._last_step = time.time()
         self._lock = threading.Lock()
         self._stopping = threading.Event()
@@ -181,15 +191,27 @@ class RateEdge:
     def recommended_threads(self) -> int:
         """How many calls must be in flight for the limiter to be what binds.
 
-        Little's law over the model doing most of the work, with headroom:
-        fewer than this and latency decides the rate, which is the state
-        P0 and P1 ran in.
+        Little's law over the busiest model, with headroom — but computed
+        from the **best** latency that model has shown, never the current
+        one. Using the current figure is a positive feedback loop and it
+        cost this collection most of its budget: offering more work
+        inflates latency, inflated latency asks for more threads, and the
+        provider answers slower still. Measured, the p50 went from 9.5 s
+        to 36 s while the controller kept raising the thread count, and
+        retries outnumbered successes 43,378 to 25,377.
+
+        A window that completes less than half of what it sent is
+        congested whatever its status codes say, and halves the answer.
         """
-        model = max(self._latency, key=lambda name: self._latency.get(name, 0.0), default=None)
+        model = max(
+            self._best_latency, key=lambda name: self._best_latency.get(name, 0.0), default=None
+        )
         if model is None:
             return self._policy.min_threads
-        seconds = self._latency[model] / 1000.0
+        seconds = self._best_latency[model] / 1000.0
         wanted = self._rate_of(model) * seconds / 60.0 * self._policy.thread_headroom
+        if self._congested:
+            wanted /= 2
         return int(min(self._policy.max_threads, max(self._policy.min_threads, round(wanted))))
 
     def binding_model(self) -> str | None:
@@ -219,6 +241,16 @@ class RateEdge:
         reports = [
             self._window_for(model, moment, window) for model in sorted(self._floors)
         ]
+        live = [report for report in reports if report.sent > 0]
+        self._congested = bool(live) and any(
+            report.ok / report.sent < self._policy.healthy_completion
+            or (
+                self._best_latency.get(report.model)
+                and report.p50_latency_ms
+                > self._best_latency[report.model] * self._policy.latency_inflation
+            )
+            for report in live
+        )
         for report in reports:
             self._react(report)
             self._log(report)
@@ -253,7 +285,10 @@ class RateEdge:
             latency for status, latency in rows if status == COMPLETED and latency
         )
         if latencies:
-            self._latency[model] = latencies[len(latencies) // 2]
+            p50 = latencies[len(latencies) // 2]
+            self._latency[model] = p50
+            best = self._best_latency.get(model)
+            self._best_latency[model] = p50 if best is None else min(best, p50)
         return WindowReport(
             ts=moment,
             model=model,

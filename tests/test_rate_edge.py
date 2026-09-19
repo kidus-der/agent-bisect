@@ -235,3 +235,51 @@ def test_no_model_binds_when_the_ratio_is_comfortable(tmp_path):
     ledger = ledger_with(tmp_path, [(AGENT, "ok")] * 20)
 
     assert edge_for(tmp_path, ledger).binding_model() is None
+
+
+def test_thread_count_does_not_chase_its_own_congestion(tmp_path):
+    """The loop that cost the collection most of its budget: offering more
+    work inflates latency, and a controller reading the inflated figure
+    asks for more threads still. It reads the best latency seen, not the
+    current one."""
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    edge = edge_for(tmp_path, ledger)
+
+    def window(latency_ms, ok, sent):
+        now = time.time()
+        for index in range(sent):
+            ledger.record(CallRecord(
+                ts=now, phase="P3", model=AGENT, purpose="agent",
+                status="ok" if index < ok else "retrying",
+                tokens_in=0, tokens_out=0, latency_ms=latency_ms,
+            ))
+        edge.step()
+
+    window(9_000.0, 20, 20)
+    quick = edge.recommended_threads()
+    window(36_000.0, 4, 20)
+    congested = edge.recommended_threads()
+
+    assert congested <= quick
+
+
+def test_a_window_that_completes_little_of_what_it_sent_is_congested(tmp_path):
+    ledger = BudgetLedger(tmp_path / "ledger.sqlite")
+    edge = edge_for(tmp_path, ledger)
+    # Back-dated, so the second window does not also count the first.
+    old = time.time() - 300
+    for index in range(20):
+        ledger.record(CallRecord(ts=old, phase="P3", model=AGENT, purpose="agent",
+                                 status="ok" if index < 16 else "retrying",
+                                 tokens_in=0, tokens_out=0, latency_ms=9000.0))
+    edge.step(now=old + 30)
+    healthy = edge.recommended_threads()
+
+    now = time.time()
+    for index in range(20):
+        ledger.record(CallRecord(ts=now, phase="P3", model=AGENT, purpose="agent",
+                                 status="ok" if index < 4 else "retrying",
+                                 tokens_in=0, tokens_out=0, latency_ms=9000.0))
+    edge.step(now=now + 30)
+
+    assert edge.recommended_threads() < healthy
