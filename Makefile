@@ -1,4 +1,4 @@
-.PHONY: setup test lint typecheck cov web serve
+.PHONY: setup test lint typecheck cov web serve reproduce-p5
 
 # Everything a fresh clone needs. The hooks path matters most: .githooks/
 # is not active until git is told about it, so a new clone has NO secret
@@ -32,3 +32,16 @@ web:
 # Python package once, ahead of time.
 serve:
 	uv run bisect serve --fixture
+
+# Rebuild every P5 number from stored results, offline. No judge, no fork,
+# no network: `bisect eval --report-only` replays the tidy per-(item,
+# method) table that the live run wrote and re-derives the report from it.
+# The `git diff --exit-code` is the actual check -- if a committed number
+# moved, the target fails rather than quietly rewriting it.
+#
+# P8's own `reproduce` should call this rather than inline it.
+reproduce-p5:
+	uv run bisect eval --split test --report-only
+	uv run python scripts/gates/p5.py || true
+	git diff --exit-code -- data/results/p5_summary.json data/results/p5_items.json
+	@echo "P5 reproduced byte-identically"
