@@ -70,6 +70,14 @@ def serialized_truth(truth: TruthFor) -> TruthFor:
     Serialising costs nothing worth having: truth resolution is one DB
     restore and one tool execution against a local environment, next to a
     fork whose live suffix is tens of seconds of model latency.
+
+    Honest scope: with today's callers the race is **latent, not active**.
+    `estimate_run` takes one step at a time and every draw within a batch
+    targets that same step, so concurrent resolutions restore identical
+    state and agree; separate items get separate resolvers. The wrapper is
+    here so the property holds *structurally* rather than by coincidence
+    of the caller — the next person to overlap two steps should not have
+    to rediscover this.
     """
     lock = threading.Lock()
 
