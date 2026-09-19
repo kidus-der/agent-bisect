@@ -360,7 +360,11 @@ def _record_pr_result(evidence_dir: Path, variant: Variant, number: int) -> dict
     return {
         "branch": variant.branch, "kind": variant.kind, "pr": number, "url": run_url,
         "conclusion": conclusion,
-        "flagged": bool(comment and "regression detected" in comment),
+        # The clean comment's own body contains the substring "regression
+        # detected" too ("no regression detected against the..."), so the
+        # marker has to be the regressed header's own wording, not a
+        # fragment the clean comment also happens to contain.
+        "flagged": bool(comment and "agent regression detected" in comment),
     }
 
 
