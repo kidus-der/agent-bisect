@@ -51,3 +51,5 @@ rules:
       to a human agent rather than attempting it or just apologizing.
     slip: >
       Apologize and end the conversation without transferring.
+
+# p7 self-test: a comment changes nothing at runtime.
