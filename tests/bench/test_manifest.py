@@ -223,3 +223,31 @@ def test_a_set_nothing_is_tuned_on_freezes_without_a_split(tmp_path):
     assert {entry.split for entry in loaded.items} == {None}
     assert loaded.counts["dev"] == 0
     assert loaded.counts["test"] == 0
+
+
+def test_an_extended_manifest_keeps_the_strict_split(tmp_path):
+    """A task on one side of a frozen manifest cannot move in another, or
+    the two disagree about what "test" means and any comparison between
+    them leaks (`docs/decisions/0021-p3-outcome.md`)."""
+    strict_path = tmp_path / "manifest.json"
+    strict_items = many(30, tasks=10)
+    freeze(strict_items, path=strict_path, models=MODELS, tau2_commit="abc",
+           config=CONFIG, counts={}, created_at=FROZEN_AT)
+    inherited = load_frozen(strict_path).splits_by_group()
+
+    extended_path = tmp_path / "manifest_extended.json"
+    freeze(strict_items + many(20, tasks=4), path=extended_path, models=MODELS,
+           tau2_commit="abc", config=CONFIG, counts={}, created_at=FROZEN_AT,
+           inherit_splits=inherited)
+
+    extended = load_frozen(extended_path).splits_by_group()
+    assert all(extended[group] == side for group, side in inherited.items())
+
+
+def test_inheriting_nothing_is_an_ordinary_split(tmp_path):
+    path = tmp_path / "manifest.json"
+
+    freeze(many(30), path=path, models=MODELS, tau2_commit="abc", config=CONFIG,
+           counts={}, created_at=FROZEN_AT, inherit_splits={})
+
+    assert {entry.split for entry in load_frozen(path).items} == {"dev", "test"}

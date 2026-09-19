@@ -120,6 +120,10 @@ class FrozenManifest(BaseModel):
     def split(self, name: Split) -> list[DatasetItem]:
         return [item for item in self.items if item.split == name]
 
+    def splits_by_group(self) -> dict[str, Split]:
+        """Which side each task landed on, for a manifest that must agree."""
+        return {item.group: item.split for item in self.items if item.split is not None}
+
 
 def manifest_digest(manifest: Mapping[str, Any]) -> str:
     """sha256 over the manifest's canonical JSON — order and spacing free."""
@@ -129,7 +133,10 @@ def manifest_digest(manifest: Mapping[str, Any]) -> str:
 # ---- the split --------------------------------------------------------------
 
 
-def assign_splits(items: Sequence[Mapping[str, Any] | DatasetItem]) -> dict[str, Split]:
+def assign_splits(
+    items: Sequence[Mapping[str, Any] | DatasetItem],
+    inherit: Mapping[str, Split] | None = None,
+) -> dict[str, Split]:
     """Which side each *task* goes to: stratified, grouped, deterministic.
 
     Greedy over groups ordered by size (largest first, ties by name):
@@ -143,9 +150,19 @@ def assign_splits(items: Sequence[Mapping[str, Any] | DatasetItem]) -> dict[str,
     groups = _grouped(parsed)
     placed: dict[Split, dict[str, int]] = {"dev": {}, "test": {}}
     assignment: dict[str, Split] = {}
-    for group in sorted(groups, key=lambda name: (-len(groups[name]), name)):
+    known = dict(inherit or {})
+    # Inherited groups are placed first and unconditionally: a task that
+    # is already on one side of a frozen manifest cannot move, or the two
+    # manifests would disagree about what "test" means and any comparison
+    # between them would leak.
+    ordered = sorted(groups, key=lambda name: (name not in known, -len(groups[name]), name))
+    for group in ordered:
         strata = _counted(item.stratum for item in groups[group])
-        side = _better_side(strata, totals, placed, len(parsed))
+        inherited = known.get(group)
+        side: Split = (
+            inherited if inherited in ("dev", "test")
+            else _better_side(strata, totals, placed, len(parsed))
+        )
         assignment[group] = side
         for stratum, count in strata.items():
             placed[side][stratum] = placed[side].get(stratum, 0) + count
@@ -243,6 +260,7 @@ def build_manifest(
     counts: Mapping[str, Any],
     created_at: datetime,
     assign_split: bool = True,
+    inherit_splits: Mapping[str, Split] | None = None,
 ) -> dict[str, Any]:
     """The manifest dict, split assigned and items in a stable order.
 
@@ -254,7 +272,7 @@ def build_manifest(
     parsed = [_as_item(entry) for entry in items]
     if not parsed:
         raise ValueError("no items to freeze: an empty dataset is not a dataset")
-    assignment = assign_splits(parsed) if assign_split else {}
+    assignment = assign_splits(parsed, inherit_splits) if assign_split else {}
     placed = sorted(
         (
             item.model_copy(update={"split": assignment.get(item.group)})
@@ -293,6 +311,7 @@ def freeze(
     counts: Mapping[str, Any],
     created_at: datetime,
     assign_split: bool = True,
+    inherit_splits: Mapping[str, Split] | None = None,
 ) -> Path:
     """Write the frozen manifest and its hash. Never overwrites one."""
     if path.exists():
@@ -303,6 +322,7 @@ def freeze(
     manifest = build_manifest(
         items, models=models, tau2_commit=tau2_commit, config=config,
         counts=counts, created_at=created_at, assign_split=assign_split,
+        inherit_splits=inherit_splits,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json_bytes(manifest))

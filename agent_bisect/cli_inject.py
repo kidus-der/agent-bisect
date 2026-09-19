@@ -46,6 +46,7 @@ from agent_bisect.bench.journal import Journal
 from agent_bisect.bench.manifest import (
     DEFAULT_MANIFEST_PATH,
     ManifestExistsError,
+    load_frozen,
 )
 from agent_bisect.bench.manifest import (
     freeze as freeze_manifest,
@@ -241,6 +242,12 @@ def freeze(
     = DEFAULT_WORK_DIR,
     out: Annotated[Path, typer.Option(help="Manifest path.")] = DEFAULT_MANIFEST_PATH,
     judge_model: str = typer.Option("", help="Judge model id. Default: the P0 choice."),
+    extended_at: float = typer.Option(
+        0.0,
+        "--extended-at",
+        help="Also include candidates whose faulted pass rate was at or below this "
+             "(decision 0021: a labelled secondary set, never the primary).",
+    ),
     unsplit: bool = typer.Option(
         False, "--unsplit",
         help="Freeze without a dev:test split, for a set nothing is tuned on (the flaky world).",
@@ -249,12 +256,15 @@ def freeze(
 ) -> None:
     """Freeze the 1:2 dev:test split. Refuses to overwrite a frozen manifest."""
     journal = Journal(work_dir)
-    items = _kept_items(journal)
+    items = (
+        _kept_items(journal) if extended_at <= 0 else _extended_items(journal, extended_at)
+    )
     if not items:
         typer.echo(f"no kept items under {work_dir}; nothing to freeze.", err=True)
         raise typer.Exit(code=NOTHING_TO_FREEZE_EXIT_CODE)
 
     chosen = load_chosen_models()
+    inherit = _splits_of(DEFAULT_MANIFEST_PATH) if extended_at > 0 else None
     try:
         path = freeze_manifest(
             items,
@@ -266,12 +276,14 @@ def freeze(
             counts=_funnel(journal),
             created_at=datetime.now(UTC),
             assign_split=not unsplit,
+            inherit_splits=inherit,
         )
     except ManifestExistsError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=FROZEN_EXIT_CODE) from exc
 
     _report({"manifest": str(path), "items": len(items),
+             "extended_at": extended_at or None,
              "sha256": path.with_suffix(".sha256").read_text().strip()}, json_output)
 
 
@@ -302,6 +314,32 @@ def _kept_items(journal: Journal) -> list[dict[str, Any]]:
         record["item"]
         for record in journal.all("candidate")
         if record.get("status") == "kept" and record.get("item")
+    ]
+    return sorted(items, key=lambda item: item["item_id"])
+
+
+def _splits_of(path: Path) -> dict[str, Any] | None:
+    """The strict manifest's task sides, so the extended one agrees with it."""
+    try:
+        return load_frozen(path).splits_by_group()
+    except Exception:  # noqa: BLE001 - no strict manifest yet is not an error
+        return None
+
+
+def _extended_items(journal: Journal, threshold: float) -> list[dict[str, Any]]:
+    """The strict items plus the weaker-effect ones, for the secondary set.
+
+    A candidate whose fault flipped the run two times in four is evidence
+    of a real but weaker causal effect, and its recordings are already on
+    the tape. It is not eligible for the pre-registered set — the
+    threshold was chosen after seeing the data — so this is only ever
+    built under an explicit `--extended-at`, written to its own manifest,
+    and labelled (`docs/decisions/0021-p3-outcome.md`).
+    """
+    items = [
+        record["item"]
+        for record in journal.all("candidate")
+        if record.get("item") and float(record["item"].get("faulted_pass_rate", 1.0)) <= threshold
     ]
     return sorted(items, key=lambda item: item["item_id"])
 
