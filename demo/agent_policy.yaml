@@ -30,7 +30,7 @@ rules:
     slip_probability: 0.10
     statement: >
       When updating a task's status, update the task the conversation is
-      actually about, not a guess.
+      actually about -- never a guess.
     slip: >
       Update task_1 regardless of which task id the conversation named.
 
