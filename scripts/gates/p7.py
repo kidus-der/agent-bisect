@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -197,6 +198,12 @@ def _gate_result(clone: Path, variant: Variant, *, out_dir: Path) -> dict[str, A
 
 
 def local_self_test(*, out_dir: Path) -> tuple[list[Criterion], list[dict[str, Any]]]:
+    # Each run's tape is a fresh SQLite database keyed by run_id; a stale
+    # one left over from a previous invocation of this same --out makes
+    # record_run's INSERT collide (DuplicateRunError) instead of just
+    # being overwritten, so a rerun must start from a clean directory.
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="bisect-p7-clone-") as tmp:
@@ -280,6 +287,7 @@ def _push_and_open_pr(clone: Path, variant: Variant) -> int:
     result = _gh(
         [
             "pr", "create", "--repo", GATED_REPO, "--base", "main", "--head", variant.branch,
+            "--draft",
             "--title", f"{PR_TITLE_PREFIX} {variant.planted}",
             "--body",
             "Automated demo PR from scripts/gates/p7.py's layer (b) self-test. "
