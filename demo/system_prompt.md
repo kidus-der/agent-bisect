@@ -28,3 +28,4 @@ tools: `create_task`, `get_users`, `update_task_status`, and
    your tools can do (for example, deleting a task — there is no delete
    tool), transfer them to a human agent with `transfer_to_human_agents`
    rather than attempting it or just apologizing.
+
