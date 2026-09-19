@@ -39,6 +39,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 from agent_bisect.core.budget import BudgetLedger
@@ -46,6 +47,10 @@ from agent_bisect.core.llm import TokenBucketLimiter
 
 #: Ledger statuses that mean the provider refused for rate.
 RATE_LIMITED = "rate_limited"
+
+
+def _median(values: list[float]) -> float:
+    return float(median(values)) if values else 0.0
 #: Ledger statuses that mean a call completed.
 COMPLETED = "ok"
 
@@ -73,9 +78,18 @@ class EdgePolicy:
     #: Headroom over Little's law, so the bucket stays the binding thing.
     thread_headroom: float = 1.25
     max_threads: int = 48
-    min_threads: int = 4
-    #: A window completing less than this share of what it sent is
-    #: congested, whatever the status codes say.
+    #: Never fewer than this in flight. The controller is an optimiser,
+    #: not a gatekeeper: a sizing rule that can drive the job to a crawl
+    #: is worse than one that is merely imprecise, and both directions of
+    #: that mistake have now been made.
+    min_threads: int = 12
+    #: How many recent windows the typical latency is taken over.
+    latency_window: int = 10
+    #: Terminal outcomes needed before a window's health means anything.
+    min_health_sample: int = 5
+    #: A window whose terminal outcomes are worse than this is congested.
+    #: Measured over outcomes only — a call still in flight is not a
+    #: failure, and counting it as one is what drove the job to a crawl.
     healthy_completion: float = 0.5
     #: How far p50 latency may drift above the best seen before the
     #: concurrency is treated as the cause.
@@ -165,9 +179,11 @@ class RateEdge:
         self._clean: dict[str, int] = dict.fromkeys(floors, 0)
         self._limiters: dict[str, AdaptiveLimiter] = {}
         self._latency: dict[str, float] = {}
-        #: The quickest this model has been seen to answer. Congestion is
-        #: measured against it, because the inflated figure is the symptom.
-        self._best_latency: dict[str, float] = {}
+        #: The last few windows' p50 per model. The *typical* figure is
+        #: what sizes the thread pool: the current one chases congestion
+        #: upward, and the best one — 726 ms on a model that normally
+        #: takes ten seconds — starves the pool to its floor.
+        self._latencies: dict[str, list[float]] = {}
         self._congested = False
         self._last_step = time.time()
         self._lock = threading.Lock()
@@ -203,12 +219,13 @@ class RateEdge:
         A window that completes less than half of what it sent is
         congested whatever its status codes say, and halves the answer.
         """
-        model = max(
-            self._best_latency, key=lambda name: self._best_latency.get(name, 0.0), default=None
-        )
+        typical = {
+            model: _median(values) for model, values in self._latencies.items() if values
+        }
+        model = max(typical, key=lambda name: typical[name], default=None)
         if model is None:
             return self._policy.min_threads
-        seconds = self._best_latency[model] / 1000.0
+        seconds = typical[model] / 1000.0
         wanted = self._rate_of(model) * seconds / 60.0 * self._policy.thread_headroom
         if self._congested:
             wanted /= 2
@@ -241,16 +258,7 @@ class RateEdge:
         reports = [
             self._window_for(model, moment, window) for model in sorted(self._floors)
         ]
-        live = [report for report in reports if report.sent > 0]
-        self._congested = bool(live) and any(
-            report.ok / report.sent < self._policy.healthy_completion
-            or (
-                self._best_latency.get(report.model)
-                and report.p50_latency_ms
-                > self._best_latency[report.model] * self._policy.latency_inflation
-            )
-            for report in live
-        )
+        self._congested = any(self._unhealthy(report) for report in reports)
         for report in reports:
             self._react(report)
             self._log(report)
@@ -287,8 +295,9 @@ class RateEdge:
         if latencies:
             p50 = latencies[len(latencies) // 2]
             self._latency[model] = p50
-            best = self._best_latency.get(model)
-            self._best_latency[model] = p50 if best is None else min(best, p50)
+            seen = self._latencies.setdefault(model, [])
+            seen.append(p50)
+            del seen[: -self._policy.latency_window]
         return WindowReport(
             ts=moment,
             model=model,
@@ -301,6 +310,20 @@ class RateEdge:
             ),
             p50_latency_ms=self._latency.get(model, 0.0),
         )
+
+    def _unhealthy(self, report: WindowReport) -> bool:
+        """Is this window's trouble real, or just work still in flight?
+
+        Only *terminal* outcomes count. A `reserve`d or retrying row is a
+        call that has not finished, and treating those as failures made
+        almost every window look congested: the pool halved every minute
+        until it sat at its floor, which is how 70 minutes produced 570
+        calls.
+        """
+        settled = report.ok + report.other_errors + report.http_429
+        if settled < self._policy.min_health_sample:
+            return False
+        return report.ok / settled < self._policy.healthy_completion
 
     def _rows(self, model: str, since: float) -> list[tuple[str, float]]:
         try:
