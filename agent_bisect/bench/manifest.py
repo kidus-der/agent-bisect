@@ -91,6 +91,11 @@ class DatasetItem(BaseModel):
     intervention_ref: str | None = None
     seeds: list[int]
     n_reruns: int = Field(ge=1)
+    #: True when the item was rebuilt from the tape rather than written
+    #: when the candidate was judged (`docs/decisions/0021-p3-outcome.md`).
+    #: Its label and oracle are read from the tape like any other's; its
+    #: mutation is summarised from the recorded fault.
+    reconstructed: bool = False
 
     @property
     def group(self) -> str:

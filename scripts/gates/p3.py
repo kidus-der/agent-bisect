@@ -221,9 +221,17 @@ def _replay_faulted(run_id: str, store: BlobStore, reader: TapeReader) -> None:
     restored from the recorded snapshot and its hash checked, the whole
     tape must be consumed, and the reward must come out the same.
     """
+    from agent_bisect.adapters.tau2_judge import judge_routed
     from agent_bisect.adapters.tau2_replay import replay_run
 
-    replay_run(run_id, store=store, reader=reader, tool_mode="snapshot")
+    # The judge is part of the world the run was recorded in, exactly as
+    # the standing fault is. tau2's NL-assertion judge is a module
+    # constant, and these recordings were made with it repointed at the
+    # model P0 chose (`docs/decisions/0018-retail-nl-judge.md`); replaying
+    # without that restored makes every retail evaluator step diverge on
+    # the model name alone.
+    with judge_routed():
+        replay_run(run_id, store=store, reader=reader, tool_mode="snapshot")
 
 
 def _sample(items: Sequence[DatasetItem], size: int) -> list[DatasetItem]:
