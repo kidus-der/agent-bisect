@@ -37,7 +37,7 @@ def gate(
         typer.echo(f"unsupported suite {suite!r}: only 'demo' exists so far.", err=True)
         raise typer.Exit(code=ERROR_EXIT)
 
-    out_dir = out or (DEFAULT_RUNS_DIR / "gate" / uuid.uuid4().hex[:12])
+    out_dir = (out or (DEFAULT_RUNS_DIR / "gate" / uuid.uuid4().hex[:12])).resolve()
     config = GateConfig(
         repo=repo.resolve(), base=base, head=head, out=out_dir, runs=runs, seed=seed, suite=suite
     )

@@ -27,7 +27,7 @@ import json
 import re
 import subprocess
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -292,6 +292,14 @@ def run_blame_cli(
 
 def run_gate(config: GateConfig) -> tuple[int, dict[str, Any]]:
     """The whole pipeline. Returns `(exit_code, result.json's document)`."""
+    # `config.out` is handed to demo.runner/demo.blame_cli as a subprocess
+    # argument with `cwd=<worktree>`; a relative path would then resolve
+    # against the *worktree's* cwd, not this process's, and everything
+    # written there would be invisible to the `out / "summary.json"` read
+    # right after -- resolve once, here, so every path built from it below
+    # is absolute regardless of what the caller passed.
+    if not config.out.is_absolute():
+        config = replace(config, out=config.out.resolve())
     config.out.mkdir(parents=True, exist_ok=True)
     with worktree_at(config.repo, config.base, label="base") as base_path:
         base_document = run_demo_runner(
