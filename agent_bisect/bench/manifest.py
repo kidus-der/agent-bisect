@@ -42,6 +42,11 @@ MANIFEST_VERSION = 1
 DEV_SHARE = 1 / 3
 #: Floating-point slack when asking "would dev still be at or under 1/3?".
 _SHARE_EPSILON = 1e-9
+#: How far the dev share may drift from 1:2 before the ratio overrules the
+#: strata. The ratio is pre-registered (`0001`); stratum balance is a
+#: property we want, not one we promised, so when they disagree the ratio
+#: wins and the strata are balanced inside it.
+SPLIT_TOLERANCE = 0.10
 
 Split = Literal["dev", "test"]
 
@@ -153,6 +158,16 @@ def _better_side(
     placed: Mapping[Split, Mapping[str, int]],
     total_items: int,
 ) -> Split:
+    # The ratio is a constraint, not a preference. With few task-groups the
+    # stratum term can outvote it — four groups of two once split 4:4 —
+    # and 1:2 is the thing that was pre-registered.
+    group_size = sum(strata.values())
+    placed_dev = _size(placed["dev"])
+    placed_test = _size(placed["test"])
+    projected = (placed_dev + group_size) / (placed_dev + placed_test + group_size)
+    if placed_dev and projected > DEV_SHARE + SPLIT_TOLERANCE:
+        return "test"
+
     needs = {
         side: _need(strata, totals, placed[side], side, total_items)
         for side in ("dev", "test")
@@ -166,9 +181,6 @@ def _better_side(
     # holds when the strata cannot express it. The test is on the share
     # dev WOULD have after taking this group, not the one it has -- a
     # group is indivisible, so the question is whether it still fits.
-    group_size = sum(strata.values())
-    placed_dev = _size(placed["dev"])
-    projected = (placed_dev + group_size) / (placed_dev + _size(placed["test"]) + group_size)
     return "dev" if projected <= DEV_SHARE + _SHARE_EPSILON else "test"
 
 

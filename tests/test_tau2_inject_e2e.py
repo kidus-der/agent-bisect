@@ -223,11 +223,11 @@ def test_the_p3_gate_passes_on_the_dry_run(dry_run):
     """The gate's own end-to-end test: every criterion, including the
     replay of the faulted recordings, against data this pipeline made.
 
-    Two criteria cannot hold on a toy and are asserted to fail, which is
-    the gate doing its job: the count is relaxed to the dry run's own
-    size (the real bar is 120), and `strata` fails because the scripted
-    agent ignores the tool in its late bucket by construction, so no late
-    fault ever flips a run.
+    One criterion cannot hold on a toy and is asserted to fail, which is
+    the gate doing its job: `strata` fails because the scripted agent
+    ignores the tool in its late bucket by construction, so no late fault
+    ever flips a run. The count is relaxed to the dry run's own size (the
+    real bar is 120).
     """
     from scripts.gates.p3 import run_gate
 

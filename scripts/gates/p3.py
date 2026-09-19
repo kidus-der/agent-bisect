@@ -57,6 +57,7 @@ from agent_bisect.bench.faults import FAULT_TYPES  # noqa: E402
 from agent_bisect.bench.manifest import (  # noqa: E402
     DEFAULT_MANIFEST_PATH,
     DEV_SHARE,
+    SPLIT_TOLERANCE,
     DatasetItem,
     load_frozen,
 )
@@ -71,8 +72,6 @@ STABLE_AT_OR_ABOVE = 0.75
 KEEP_AT_OR_BELOW = 0.25
 MIN_RERUNS = 4
 REPLAY_SAMPLE = 10
-#: The split is groups of whole tasks, so it cannot land on 1:2 exactly.
-SPLIT_TOLERANCE = 0.10
 
 
 class NetworkBlockedError(RuntimeError):
