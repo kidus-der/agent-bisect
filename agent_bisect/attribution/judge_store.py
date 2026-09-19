@@ -43,7 +43,13 @@ JUDGE_PURPOSE = "judge"
 REPAIR_PURPOSE = "repair"
 
 DEFAULT_PHASE = "P5"
-DEFAULT_MAX_TOKENS = 1_200
+#: The P0-chosen judge is a reasoning model: it spends its output budget
+#: thinking before it answers. Measured on the first live P5 call, it
+#: produced 5,448 characters of reasoning and was cut off mid-word before
+#: reaching the JSON -- twice, so the repair retry failed the same way and
+#: the item scored as a parse failure having never been asked a question
+#: it could answer. The cap has to cover the thinking AND the answer.
+DEFAULT_MAX_TOKENS = 8_000
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS judge_calls (

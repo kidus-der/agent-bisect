@@ -59,8 +59,9 @@ class StepVerdict:
     reason: str
 
 
-def _find_object(text: str) -> str:
-    """The first balanced `{...}` run in `text`, ignoring braces in strings."""
+def _find_objects(text: str) -> list[str]:
+    """Every balanced top-level `{...}` run in `text`, ignoring braces in strings."""
+    found: list[str] = []
     depth = 0
     start = -1
     in_string = False
@@ -83,20 +84,35 @@ def _find_object(text: str) -> str:
         elif char == "}":
             depth -= 1
             if depth == 0 and start >= 0:
-                return text[start : index + 1]
-    raise JudgeParseError("no JSON object in the judge's answer")
+                found.append(text[start : index + 1])
+                start = -1
+    return found
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
-    """The judge's JSON object, whatever it wrapped it in."""
-    candidate = _find_object(text)
-    try:
-        parsed = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise JudgeParseError(f"the judge's JSON object did not parse: {exc}") from None
-    if not isinstance(parsed, dict):
-        raise JudgeParseError("no JSON object in the judge's answer (got a non-object)")
-    return parsed
+    """The judge's JSON object, whatever it wrapped it in.
+
+    The **last** parseable object wins, not the first. The P0-chosen judge
+    is a reasoning model: it narrates first -- often quoting the very
+    schema it was asked for, braces and all -- and answers at the end.
+    Taking the first object would hand back a fragment of its thinking.
+    Earlier objects are still tried, so a model that answers up front and
+    then keeps talking into a truncation is read correctly too.
+    """
+    candidates = _find_objects(text)
+    if not candidates:
+        raise JudgeParseError("no JSON object in the judge's answer")
+    problem: str | None = None
+    for candidate in reversed(candidates):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            problem = str(exc)
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        problem = "got a non-object"
+    raise JudgeParseError(f"the judge's JSON object did not parse: {problem}")
 
 
 def _require(payload: dict[str, Any], key: str) -> Any:
