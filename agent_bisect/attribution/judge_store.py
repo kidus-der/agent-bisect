@@ -65,10 +65,21 @@ CREATE TABLE IF NOT EXISTS judge_calls (
 """
 
 
-def call_key(*, model: str, system: str, user: str) -> str:
-    """Stable identity of one judge question: the model and the whole prompt."""
+def call_key(*, model: str, system: str, user: str, max_tokens: int) -> str:
+    """Stable identity of one judge question.
+
+    Covers everything that determines the answer, `max_tokens` included.
+    That is not hypothetical: the first live P5 run capped a reasoning
+    judge below the length of its own thinking, and the truncated reply
+    was then served back from the cache to a later run with a larger
+    budget -- the resume mechanism faithfully answering a question that
+    was no longer the one being asked. A key that omits a parameter the
+    answer depends on is a key that hides a bug.
+    """
     return sha256_hex(
-        canonical_json_bytes({"model": model, "system": system, "user": user})
+        canonical_json_bytes(
+            {"model": model, "system": system, "user": user, "max_tokens": max_tokens}
+        )
     )
 
 
@@ -169,7 +180,9 @@ class LedgeredJudgeBackend:
         """The judge's raw answer, from the record if it is already there."""
         if not system.strip() or not user.strip():
             raise ValueError("a judge prompt must not be empty")
-        key = call_key(model=self.model, system=system, user=user)
+        key = call_key(
+            model=self.model, system=system, user=user, max_tokens=self._max_tokens
+        )
         cached = self.store.lookup(key)
         if cached is not None:
             return JudgeCall(content=cached, paid=False)
