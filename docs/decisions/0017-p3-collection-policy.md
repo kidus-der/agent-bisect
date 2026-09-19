@@ -257,3 +257,48 @@ One caution worth recording: a discovered ceiling is only valid for the
 conditions it was discovered under. It is written back as
 `measured_rpm_edge`, kept separate from P0's `per_model` measurement, so the
 two never get confused.
+
+## 9. Amendment, 2026-09-18 20:40 — after the budget ran out at 18 items
+
+Written before the relaunch, from the run's own record. The collection
+reached **18 kept items from 164 candidate verdicts (11%)** and then spent the
+rest of a 70,000-call budget going nowhere. Four causes, none of them the ones
+first suspected, and none of them a threshold:
+
+1. **The budget was the stop, and the supervisor did not know it.** Every
+   relaunch hit the ledger cap and exited cleanly in ~180 s; the supervisor
+   treated that as a fault and relaunched, for hours. A spent budget and a
+   rejected key are now **terminal** states: the supervisor writes
+   `state: failed` and stops, and an exit with parked work waits ten minutes
+   for one un-park pass, three times at most.
+2. **The 1.5× ceiling did not cause storms.** Measured over 542 live windows,
+   the agent model reached the 162 rpm ceiling with **zero windows carrying
+   two or more 429s**; 429s were 161 of 70,000 calls (0.2%), 504s and timeouts
+   48 between them. The ceiling and the decrease factor are therefore left
+   alone — the hypothesis that they caused this is not supported by the data.
+3. **The thread controller was chasing its own congestion.** It sized threads
+   from the *current* p50 latency, so offering more work inflated latency,
+   inflated latency asked for more threads, and the provider answered slower
+   still: p50 went 9.5 s → 36 s while `retrying` outnumbered `ok` **43,378 to
+   25,377**. Nearly two thirds of the budget went to retries. Threads are now
+   sized from the *best* latency a model has shown, and a window completing
+   under half of what it sent halves the answer.
+4. **Re-queued tasks exhausted their run-id space.** Stability re-run ids were
+   derived from the task, so each infrastructure pass re-derived the same ones
+   and `free_run_id` gave up after twenty — `20 attempts already on the tape`,
+   **34,108 times**, killing every affected task permanently. Stability re-runs
+   are keyed in the journal by their base run, so their own ids need only be
+   unique: they now carry a random suffix.
+
+**Yield changes, within the existing caps.** Up to six candidate attempts per
+stable base run (unchanged), plus a **second base-run trial** for a task whose
+first recording failed or proved unstable — a task is the unit the split is
+grouped by, so a second trajectory is a second chance at the *task*, not a
+second sample of the same run. Late-position candidates are now tried before
+early ones among the flowing candidates: 11 of the first 18 kept items were
+early and **1** was late, and a stratum only reached when the budget holds out
+is a stratum reported thin.
+
+Nothing here touches N, the keep rule, the stability bar, the strata, the
+per-run caps or the split. The threat to validity recorded in §7.4 still
+stands and is not lessened by any of it.
