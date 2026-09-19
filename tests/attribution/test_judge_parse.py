@@ -213,3 +213,41 @@ def test_rejects_a_step_confidence_outside_zero_to_one():
     # Arrange / Act / Assert
     with pytest.raises(JudgeParseError, match="confidence"):
         parse_step_by_step('{"error_here": true, "confidence": -1, "reason": "x"}')
+
+
+# ---- reasoning models: the answer is at the END, after the thinking ----
+
+
+def test_takes_the_last_object_when_the_thinking_contains_braces():
+    # Arrange: a reasoning model narrates, brace-laden, then answers
+    text = (
+        'We need a JSON object like {"decisive_step": N}. Let me think.\n'
+        'Step 3 looks wrong, or maybe {"step": 4}.\n'
+        'Final answer:\n{"decisive_step": 4, "ranking": []}'
+    )
+
+    # Act
+    result = extract_json_object(text)
+
+    # Assert
+    assert result == {"decisive_step": 4, "ranking": []}
+
+
+def test_falls_back_to_an_earlier_object_when_the_last_one_is_truncated():
+    # Arrange: the answer came first and the model kept talking into a cut-off
+    text = '{"decisive_step": 2, "ranking": []}\nAlso consider {"step": 3'
+
+    # Act
+    result = extract_json_object(text)
+
+    # Assert
+    assert result == {"decisive_step": 2, "ranking": []}
+
+
+def test_thinking_with_no_answer_at_all_is_still_rejected():
+    # Arrange: what a truncated reasoning model actually produced
+    text = "We have a conversation where the user wants... the decisive error step is step 4"
+
+    # Act / Assert
+    with pytest.raises(JudgeParseError, match="no JSON object"):
+        extract_json_object(text)
