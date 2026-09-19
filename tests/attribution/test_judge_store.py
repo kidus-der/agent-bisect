@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from agent_bisect.attribution.judge_store import (
+    DEFAULT_MAX_TOKENS,
     JudgeCallStore,
     LedgeredJudgeBackend,
     call_key,
@@ -47,29 +48,34 @@ def _backend(tmp_path, replies: list[str]) -> tuple[LedgeredJudgeBackend, FakeTr
 # ---- call_key ----
 
 
-def test_the_same_prompt_and_model_give_the_same_key():
-    # Arrange / Act
-    first = call_key(model=MODEL, system="s", user="u")
-    second = call_key(model=MODEL, system="s", user="u")
+def _key(**overrides) -> str:
+    fields = {"model": MODEL, "system": "s", "user": "u", "max_tokens": 1200}
+    fields.update(overrides)
+    return call_key(**fields)
 
-    # Assert
-    assert first == second
+
+def test_the_same_question_gives_the_same_key():
+    # Arrange / Act / Assert
+    assert _key() == _key()
 
 
 def test_a_different_prompt_gives_a_different_key():
-    # Arrange / Act
-    first = call_key(model=MODEL, system="s", user="u")
-    second = call_key(model=MODEL, system="s", user="u2")
-
-    # Assert
-    assert first != second
+    # Arrange / Act / Assert
+    assert _key() != _key(user="u2")
 
 
 def test_a_different_model_gives_a_different_key():
     # Arrange / Act / Assert
-    assert call_key(model=MODEL, system="s", user="u") != call_key(
-        model="other", system="s", user="u"
-    )
+    assert _key() != _key(model="other")
+
+
+def test_a_different_output_budget_gives_a_different_key():
+    """A truncated answer must not be served to a run that raised the cap.
+
+    This is not hypothetical: it happened on the first live P5 run.
+    """
+    # Arrange / Act / Assert
+    assert _key() != _key(max_tokens=8000)
 
 
 # ---- store ----
@@ -184,7 +190,9 @@ def test_the_answer_is_recorded_before_the_caller_can_act_on_it(tmp_path):
     backend.ask(system="s", user="u", item_id="i", protocol="all_at_once")
 
     # Assert: the store already held it by the time `ask` returned
-    key = call_key(model=MODEL, system="s", user="u")
+    key = call_key(
+        model=MODEL, system="s", user="u", max_tokens=DEFAULT_MAX_TOKENS
+    )
     assert backend.store.lookup(key) == "answer"
 
 
