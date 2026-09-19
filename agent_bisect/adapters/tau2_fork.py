@@ -38,22 +38,46 @@ Three things this layer adds on top of the driver:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
 from agent_bisect.adapters.tau2_fault_injector import injector_spec_from
 from agent_bisect.adapters.tau2_judge import judge_routed
 from agent_bisect.adapters.tau2_replay import InfraAbortError
-from agent_bisect.attribution.search import RerunOutcome, RerunRequest
+from agent_bisect.attribution.search import RerunOutcome, RerunRequest, TruthFor
 from agent_bisect.core.runner import ForkSpec, run_fork
 from agent_bisect.core.store import BlobStore
-from agent_bisect.core.tape import TapeReader, TapeWriter, UnknownRunError
+from agent_bisect.core.tape import Step, TapeReader, TapeWriter, UnknownRunError
 
 #: One retry, with a different seed, before an infra abort is raised.
 INFRA_RETRIES = 1
 #: Offset folded into the seed of a retry so it is not the same draw again.
 _RETRY_SEED_OFFSET = 1_000_003
+
+
+def serialized_truth(truth: TruthFor) -> TruthFor:
+    """`truth` behind a lock, because the forks of one item run concurrently.
+
+    `Tau2TruthResolver` caches one throwaway environment and restores the
+    step's recorded entry state into it per call. Two treated forks
+    resolving truth at the same time would restore over each other and
+    could each read the other's world — a silently wrong value in the
+    **treated** arm, which is the arm the whole effect estimate rests on,
+    and one that would look like a plausible result rather than a bug.
+
+    Serialising costs nothing worth having: truth resolution is one DB
+    restore and one tool execution against a local environment, next to a
+    fork whose live suffix is tens of seconds of model latency.
+    """
+    lock = threading.Lock()
+
+    def resolve(step: Step) -> Mapping[str, Any]:
+        with lock:
+            return truth(step)
+
+    return resolve
 
 
 class Tau2ForkExecutor:

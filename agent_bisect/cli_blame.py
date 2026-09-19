@@ -198,7 +198,7 @@ def blame(
 ) -> None:
     """Attribute a recorded failure to its earliest causal step."""
     from agent_bisect.adapters.tau2 import recording_session
-    from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
+    from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor, serialized_truth
     from agent_bisect.adapters.tau2_task import task_text
     from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
     from agent_bisect.core.budget import BudgetLedger
@@ -239,7 +239,9 @@ def blame(
             seed=seed,
             runs_dir=runs_dir,
             concurrency=concurrency,
-            truth_for=Tau2TruthResolver(manifest.domain, manifest.task_id, store),
+            truth_for=serialized_truth(
+                Tau2TruthResolver(manifest.domain, manifest.task_id, store)
+            ),
         )
 
     payload = payload_of(run, runs_dir)

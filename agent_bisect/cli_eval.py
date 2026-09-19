@@ -231,7 +231,7 @@ def eval_(
         )
 
     from agent_bisect.adapters.tau2 import recording_session
-    from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
+    from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor, serialized_truth
     from agent_bisect.adapters.tau2_task import task_text
     from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
     from agent_bisect.cli_blame import _backend
@@ -259,7 +259,9 @@ def eval_(
         executor=Tau2ForkExecutor(store=store, reader=reader, tape=TapeWriter(runs_dir)),
         task_text=task_text,
         runs_dir=runs_dir,
-        truth_for_item=lambda item: Tau2TruthResolver(item.domain, item.task_id, store),
+        truth_for_item=lambda item: serialized_truth(
+            Tau2TruthResolver(item.domain, item.task_id, store)
+        ),
     )
 
     with own_stdout(), recording_session(ledger=ledger, phase=DEFAULT_PHASE):
