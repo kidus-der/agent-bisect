@@ -23,6 +23,18 @@ This module does not know what a tau2 run is. It reaches the world through
 `ForkExecutor`, which takes a `RerunRequest` and gives back a pass/fail —
 the tau2 implementation lives in `adapters/`, the offline tests script it.
 
+Draws within a batch run concurrently
+-------------------------------------
+The `n` draws of one batch are independent by construction, so they are
+taken in a thread pool rather than one after another. That is a pure
+throughput change: the estimator still sees one batch at a time, the
+records still come back in draw order, and the statistics are untouched.
+It matters because a fork's cost is dominated by latency, not by rate —
+tau2's user simulator is a reasoning model whose turns take tens of
+seconds — so a sequential evaluation would be latency-bound at a fraction
+of the measured rate limit. `concurrency=1` restores the serial order
+exactly, which is what the offline tests use.
+
 Re-run identity is deterministic
 --------------------------------
 A fork's `run_id` is derived from the parent run, the arm, the fork step
@@ -36,6 +48,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -59,6 +72,9 @@ Method = Literal["bisect", "rerun_live", "no_control"]
 
 DEFAULT_TOP_M = 3
 
+#: Draws taken at once within one batch. 1 is strictly sequential.
+DEFAULT_CONCURRENCY = 1
+
 _ID_BYTES = 6
 
 
@@ -72,10 +88,15 @@ class BlameConfig:
     prefix_tools: PrefixMode = "snapshot"
     unsafe_positional: bool = False
     method: Method = "bisect"
+    #: How many draws of one batch are in flight at once. Throughput only:
+    #: the draws are independent, so this cannot change a result.
+    concurrency: int = DEFAULT_CONCURRENCY
 
     def __post_init__(self) -> None:
         if self.top_m <= 0:
             raise ValueError(f"top_m must be positive, got {self.top_m}")
+        if self.concurrency <= 0:
+            raise ValueError(f"concurrency must be positive, got {self.concurrency}")
         if self.unsafe_positional and self.prefix_tools == "snapshot":
             raise ValueError(
                 "unsafe_positional is the re-run-live baseline's weakness; it has no "
@@ -214,38 +235,56 @@ class ForkRerunSampler:
                 "be asked for a step outside the shortlist"
             ) from None
 
+    def _request(self, step: int, arm: Arm, seed: int, draw: int) -> RerunRequest:
+        return RerunRequest(
+            parent_run_id=self._parent_run_id,
+            run_id=rerun_id(
+                self._parent_run_id, arm=arm, step=step, seed=seed, draw=draw
+            ),
+            fork_step=step,
+            arm=arm,
+            intervention=self._intervention_for(step, arm),
+            seed=_draw_seed(seed, draw),
+            prefix_tools=self._config.prefix_tools,
+            unsafe_positional=self._config.unsafe_positional,
+        )
+
+    def _record_of(self, request: RerunRequest, outcome: RerunOutcome) -> RerunRecord:
+        return RerunRecord(
+            rerun_id=request.run_id,
+            arm=request.arm,
+            step=request.fork_step,
+            seed=request.seed,
+            passed=outcome.passed,
+            n_steps=outcome.n_steps,
+            calls=outcome.calls,
+            unguarded_calls=outcome.unguarded_calls,
+        )
+
     def sample(self, step: int, arm: Arm, n: int, seed: int) -> Sequence[bool]:
-        """`n` forks at `step` on `arm`, one pass/fail each."""
-        outcomes: list[bool] = []
-        for draw in range(n):
-            draw_seed = _draw_seed(seed, draw)
-            request = RerunRequest(
-                parent_run_id=self._parent_run_id,
-                run_id=rerun_id(
-                    self._parent_run_id, arm=arm, step=step, seed=seed, draw=draw
-                ),
-                fork_step=step,
-                arm=arm,
-                intervention=self._intervention_for(step, arm),
-                seed=draw_seed,
-                prefix_tools=self._config.prefix_tools,
-                unsafe_positional=self._config.unsafe_positional,
-            )
-            outcome = self._executor.run(request)
-            self._records.append(
-                RerunRecord(
-                    rerun_id=request.run_id,
-                    arm=arm,
-                    step=step,
-                    seed=draw_seed,
-                    passed=outcome.passed,
-                    n_steps=outcome.n_steps,
-                    calls=outcome.calls,
-                    unguarded_calls=outcome.unguarded_calls,
-                )
-            )
-            outcomes.append(outcome.passed)
-        return tuple(outcomes)
+        """`n` forks at `step` on `arm`, one pass/fail each.
+
+        Taken concurrently when `config.concurrency > 1`. Records are
+        appended in draw order whatever order they finished in, so the
+        stored result does not depend on the scheduler.
+        """
+        requests = [self._request(step, arm, seed, draw) for draw in range(n)]
+        if self._config.concurrency == 1 or n == 1:
+            outcomes = [self._executor.run(request) for request in requests]
+        else:
+            with ThreadPoolExecutor(
+                max_workers=min(self._config.concurrency, n),
+                thread_name_prefix=f"fork-{arm[0]}{step}",
+            ) as pool:
+                # `map` re-raises the first exception in submission order
+                # once the pool has drained, so an infra abort still
+                # surfaces and no fork is left running behind it.
+                outcomes = list(pool.map(self._executor.run, requests))
+        self._records.extend(
+            self._record_of(request, outcome)
+            for request, outcome in zip(requests, outcomes, strict=True)
+        )
+        return tuple(outcome.passed for outcome in outcomes)
 
 
 @dataclass(frozen=True, slots=True)
