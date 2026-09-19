@@ -112,6 +112,7 @@ def _per_step_sensitivity(
     config = BaselineConfig(
         top_m=primary.top_m,
         sequential=primary.sequential,
+        concurrency=primary.concurrency,
         control_mode="per_step",
         methods=methods,  # type: ignore[arg-type]
     )
@@ -179,6 +180,7 @@ def eval_(
     seed: Annotated[int, typer.Option(help="Seed for draws and the bootstrap.")] = (
         DEFAULT_SEED
     ),
+    concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 8,
     resume: bool = typer.Option(False, help="Continue an interrupted test-split run."),
     per_step_sensitivity: bool = typer.Option(
         False,
@@ -263,7 +265,9 @@ def eval_(
     with own_stdout(), recording_session(ledger=ledger, phase=DEFAULT_PHASE):
         run = evaluate_dataset(
             items,
-            config=BaselineConfig(top_m=top, sequential=sequential),
+            config=BaselineConfig(
+                top_m=top, sequential=sequential, concurrency=concurrency
+            ),
             seed=seed,
             **base_kwargs,
         )
@@ -272,7 +276,7 @@ def eval_(
     if per_step_sensitivity:
         sensitivity = _per_step_sensitivity(
             items,
-            BaselineConfig(top_m=top, sequential=sequential),
+            BaselineConfig(top_m=top, sequential=sequential, concurrency=concurrency),
             base_kwargs,
             seed=seed,
         )

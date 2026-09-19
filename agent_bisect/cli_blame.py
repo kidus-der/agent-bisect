@@ -77,6 +77,7 @@ def blame_run(
     max_n: int,
     seed: int,
     runs_dir: Path,
+    concurrency: int = 1,
     control_mode: str = "shared",
     truth_for: TruthFor | None = None,
     step_by_step: bool = False,
@@ -110,6 +111,7 @@ def blame_run(
                 efficacy_boundary="obf" if max_n == DEFAULT_MAX_N else "none",
             ),
             control_mode=control_mode,  # type: ignore[arg-type]
+            concurrency=concurrency,
         ),
         seed=seed,
         truth_for=truth_for,
@@ -191,6 +193,7 @@ def blame(
         DEFAULT_RUNS_DIR
     ),
     seed: Annotated[int, typer.Option(help="Seed for the re-run draws.")] = 0,
+    concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 8,
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Attribute a recorded failure to its earliest causal step."""
@@ -235,6 +238,7 @@ def blame(
             max_n=n,
             seed=seed,
             runs_dir=runs_dir,
+            concurrency=concurrency,
             truth_for=Tau2TruthResolver(manifest.domain, manifest.task_id, store),
         )
 

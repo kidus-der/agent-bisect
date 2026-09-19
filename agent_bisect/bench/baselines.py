@@ -84,6 +84,9 @@ class BaselineConfig:
     #: not merely cheaper-or-dearer but a different quantity -- see
     #: `docs/findings/p5-control-fork.md`.
     control_mode: ControlMode = "shared"
+    #: Draws in flight within one batch. Throughput only; see
+    #: `attribution.search.ForkRerunSampler.sample`.
+    concurrency: int = 1
 
     def blame_config(self, method: EvalMethod) -> BlameConfig:
         """The one config difference that defines each replay method."""
@@ -91,17 +94,20 @@ class BaselineConfig:
             return BlameConfig(
                 top_m=self.top_m, sequential=self.sequential,
                 control_mode=self.control_mode, prefix_tools="snapshot", method="bisect",
+                concurrency=self.concurrency,
             )
         if method == "rerun_live":
             return BlameConfig(
                 top_m=self.top_m, sequential=self.sequential,
                 control_mode=self.control_mode,
                 prefix_tools="rerun_live", unsafe_positional=True, method="rerun_live",
+                concurrency=self.concurrency,
             )
         if method == "no_control":
             return BlameConfig(
                 top_m=self.top_m, sequential=self.sequential,
                 control_mode="none", prefix_tools="snapshot", method="no_control",
+                concurrency=self.concurrency,
             )
         raise ValueError(f"{method!r} buys no re-runs; it has no blame config")
 
