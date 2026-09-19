@@ -336,3 +336,57 @@ def test_an_empty_shortlist_from_a_judge_that_answered_is_still_no_reruns():
     # Assert
     assert result.blamed_step is None
     assert executor.requests == []
+
+
+# ---- concurrency is throughput only ----
+
+
+def test_concurrent_draws_give_the_same_result_as_serial_ones():
+    # Arrange
+    serial = ScriptedExecutor(treated={5: 0.95, 1: 0.05, 3: 0.05})
+    parallel = ScriptedExecutor(treated={5: 0.95, 1: 0.05, 3: 0.05})
+
+    # Act
+    left = _blame(_verdict([5, 1, 3]), serial, concurrency=1)
+    right = _blame(_verdict([5, 1, 3]), parallel, concurrency=8)
+
+    # Assert
+    assert left.blamed_step == right.blamed_step
+    assert [r.rerun_id for r in left.reruns] == [r.rerun_id for r in right.reruns]
+    assert [r.passed for r in left.reruns] == [r.passed for r in right.reruns]
+
+
+def test_records_come_back_in_draw_order_whatever_order_they_finished():
+    # Arrange: an executor that finishes later draws first
+    import time
+
+    class Jittered(ScriptedExecutor):
+        def run(self, request: RerunRequest) -> RerunOutcome:
+            time.sleep(0.01 if request.seed % 2 else 0.0)
+            return super().run(request)
+
+    # Act
+    result = _blame(_verdict([1]), Jittered(treated={1: 0.95}), concurrency=4)
+
+    # Assert
+    seeds = [r.seed for r in result.reruns if r.arm == "treated"]
+    assert seeds == sorted(seeds, key=lambda s: [r.seed for r in result.reruns].index(s))
+
+
+def test_a_failing_draw_still_surfaces_when_draws_run_concurrently():
+    # Arrange
+    class Exploding(ScriptedExecutor):
+        def run(self, request: RerunRequest) -> RerunOutcome:
+            if request.seed % 3 == 0:
+                raise RuntimeError("fork died on infrastructure")
+            return super().run(request)
+
+    # Act / Assert
+    with pytest.raises(RuntimeError, match="infrastructure"):
+        _blame(_verdict([1]), Exploding(treated={1: 0.95}), concurrency=4)
+
+
+def test_a_non_positive_concurrency_is_refused():
+    # Arrange / Act / Assert
+    with pytest.raises(ValueError, match="concurrency"):
+        BlameConfig(concurrency=0)
