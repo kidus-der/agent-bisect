@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
 from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
@@ -45,6 +45,14 @@ DEMO_TOP_M = 3
 FIRST_DIVERGENCE_PROTOCOL = "all_at_once"
 
 
+class JsonBlobs(Protocol):
+    """What the divergence heuristic needs from a blob store: reading one
+    blob back by its ref. `core.store.BlobStore` satisfies this; a fake in
+    a test needs nothing more."""
+
+    def get_json(self, digest: str) -> Any: ...
+
+
 @dataclass(frozen=True, slots=True)
 class NewFailure:
     """One `(scenario, run_index)` pair that regressed: head failed, base did not."""
@@ -55,7 +63,7 @@ class NewFailure:
     base_run_id: str
 
 
-def _decoded_content(store: BlobStore, ref: str | None) -> str:
+def _decoded_content(store: JsonBlobs, ref: str | None) -> str:
     if ref is None:
         return ""
     payload = store.get_json(ref)
@@ -68,15 +76,15 @@ def _decoded_content(store: BlobStore, ref: str | None) -> str:
     return json.dumps(payload, sort_keys=True)
 
 
-def _fingerprint(store: BlobStore, step: Step) -> tuple[Any, ...]:
+def _fingerprint(store: JsonBlobs, step: Step) -> tuple[Any, ...]:
     content_ref = step.tool_result_ref if step.actor == "tool" else step.response_ref
     return (step.actor, step.tool_name, step.tool_args, _decoded_content(store, content_ref))
 
 
 def first_divergence_steps(
     *,
-    head_store: BlobStore,
-    base_store: BlobStore,
+    head_store: JsonBlobs,
+    base_store: JsonBlobs,
     base_steps: Sequence[Step],
     head_steps: Sequence[Step],
     top_m: int = DEMO_TOP_M,
@@ -114,8 +122,8 @@ def first_divergence_steps(
 def first_divergence_verdict(
     *,
     item_id: str,
-    head_store: BlobStore,
-    base_store: BlobStore,
+    head_store: JsonBlobs,
+    base_store: JsonBlobs,
     base_steps: Sequence[Step],
     head_steps: Sequence[Step],
     top_m: int = DEMO_TOP_M,

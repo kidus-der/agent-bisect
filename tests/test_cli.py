@@ -72,17 +72,61 @@ def test_doctor_json_output_is_valid_json(monkeypatch):
     ]
 
 
-@pytest.mark.parametrize(
-    ("command", "phase"),
-    [
-        ("gate", "P7"),
-    ],
-)
-def test_stub_commands_exit_2_with_message(command, phase):
-    result = runner.invoke(cli.app, [command])
+def test_gate_prints_the_comment_and_exits_with_the_gate_code(monkeypatch, tmp_path):
+    """`bisect gate` is thin: it builds a `GateConfig`, calls `run_gate`, and
+    surfaces whatever exit code and comment that returns -- exercised here
+    against a fake `run_gate` so the CLI layer needs no worktree or subprocess
+    (`tests/test_gate_action.py` covers `run_gate` itself)."""
+    from agent_bisect import cli_gate
+
+    document = {"comment_markdown": "Bisect - agent suite unchanged", "is_regression": False}
+    monkeypatch.setattr(cli_gate, "run_gate", lambda config: (0, document))
+
+    result = runner.invoke(
+        cli.app, ["gate", "--base", "main", "--head", "feature", "--out", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    assert "agent suite unchanged" in result.stdout
+
+
+def test_gate_exits_1_on_a_regression(monkeypatch, tmp_path):
+    from agent_bisect import cli_gate
+
+    document = {"comment_markdown": "Bisect - agent regression detected", "is_regression": True}
+    monkeypatch.setattr(cli_gate, "run_gate", lambda config: (1, document))
+
+    result = runner.invoke(
+        cli.app, ["gate", "--base", "main", "--head", "feature", "--out", str(tmp_path)]
+    )
+
+    assert result.exit_code == 1
+
+
+def test_gate_exits_2_on_a_gate_error(monkeypatch, tmp_path):
+    from agent_bisect import cli_gate
+    from agent_bisect.gate.action import GateError
+
+    def raises(config):
+        raise GateError("base ref does not resolve")
+
+    monkeypatch.setattr(cli_gate, "run_gate", raises)
+
+    result = runner.invoke(
+        cli.app, ["gate", "--base", "nope", "--head", "feature", "--out", str(tmp_path)]
+    )
 
     assert result.exit_code == 2
-    assert f"not implemented yet (phase {phase})" in result.stdout
+    assert "base ref does not resolve" in result.stderr
+
+
+def test_gate_rejects_an_unsupported_suite(tmp_path):
+    result = runner.invoke(
+        cli.app,
+        ["gate", "--base", "main", "--head", "feature", "--suite", "live", "--out", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
 
 
 def test_doctor_passes_the_live_flag_through_to_run_doctor(monkeypatch):
