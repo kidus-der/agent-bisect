@@ -315,15 +315,24 @@ def _wait_for_check(pr_number: int) -> str:
 
 
 def _sticky_comment(pr_number: int) -> str | None:
+    """The sticky comment's full (possibly multi-line) body, or `None`.
+
+    Fetched as JSON, not `--jq ".[].body"` split on newlines: the comment
+    body itself contains newlines, so splitting the jq output the same way
+    truncated every multi-line comment down to whichever single line
+    happened to contain the marker or the "Bisect -" header.
+    """
     result = _gh(
-        ["api", f"repos/{GATED_REPO}/issues/{pr_number}/comments", "--jq", ".[].body"], check=False
+        ["api", f"repos/{GATED_REPO}/issues/{pr_number}/comments"], check=False
     )
-    if result.returncode != 0:
+    if result.returncode != 0 or not result.stdout.strip():
         return None
-    for body in result.stdout.splitlines():
+    comments = json.loads(result.stdout)
+    for entry in comments:
+        body = str(entry.get("body", ""))
         if "bisect-gate-comment" in body or "Bisect -" in body:
             return body
-    return result.stdout or None
+    return None
 
 
 def _close_pr(clone: Path, pr_number: int, branch: str) -> None:
