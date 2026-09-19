@@ -114,6 +114,11 @@ class InjectConfig:
     #: Keep going past the wall-clock budget until at least this many are
     #: kept (`docs/decisions/0012-p3-floor.md`, `0017`).
     floor_items: int = 60
+    #: How many base recordings of a task to try before giving up on it.
+    #: A task is the split unit, so a second trajectory of the same task
+    #: is a legitimate second chance rather than a second sample of the
+    #: same thing (`docs/decisions/0017-p3-collection-policy.md` §9).
+    base_trials: int = 2
     #: Wall-clock budget for the whole collection. `None` means no limit.
     max_seconds: float | None = None
     #: Seconds to wait before re-queueing tasks that died on infrastructure.
@@ -127,6 +132,7 @@ class InjectConfig:
             "stable_at_or_above": self.stable_at_or_above,
             "keep_at_or_below": self.keep_at_or_below,
             "attempts_per_bucket": self.attempts_per_bucket,
+            "base_trials": self.base_trials,
             "max_kept_per_run": self.max_kept_per_run,
             "seed": self.seed,
             "target_items": self.target_items,
@@ -501,10 +507,12 @@ class _Collector:
     def _one_task(self, domain: str, task_id: str) -> None:
         """One task through the funnel. Infra failures cost the task, not the run."""
         try:
-            base = self._base_run(domain, task_id)
-            if base is None or not self._is_stable(base):
+            for trial in range(self._config.base_trials):
+                base = self._base_run(domain, task_id, trial)
+                if base is None or not self._is_stable(base):
+                    continue
+                self._candidates_for(base)
                 return
-            self._candidates_for(base)
         except _Infra as failure:
             self._bump("rejected_infra")
             with self._lock:
@@ -515,11 +523,11 @@ class _Collector:
 
     # -- stage 1: the base recording ---------------------------------------
 
-    def _base_run(self, domain: str, task_id: str) -> BaseRun | None:
-        key = f"{domain}-{task_id}-t{self._config.trial}"
+    def _base_run(self, domain: str, task_id: str, trial: int = 0) -> BaseRun | None:
+        key = f"{domain}-{task_id}-t{self._config.trial + trial}"
         record = self._journal.read("base", key)
         if record is None:
-            record = self._record_base(domain, task_id, key)
+            record = self._record_base(domain, task_id, key, trial)
         self._bump("base_recorded")
         if not record.get("passed"):
             self._bump("rejected_base_failed")
@@ -531,9 +539,12 @@ class _Collector:
             passed=True, steps=int(record.get("steps", 0)),
         )
 
-    def _record_base(self, domain: str, task_id: str, key: str) -> dict[str, Any]:
-        base = self._guarded(lambda: self._runner.record_base(domain, task_id,
-                                                              self._config.trial))
+    def _record_base(
+        self, domain: str, task_id: str, key: str, trial: int = 0
+    ) -> dict[str, Any]:
+        base = self._guarded(
+            lambda: self._runner.record_base(domain, task_id, self._config.trial + trial)
+        )
         record = {"run_id": base.run_id, "domain": domain, "task_id": task_id,
                   "passed": base.passed, "steps": base.steps}
         self._journal.write("base", key, record)
@@ -906,7 +917,14 @@ def _flowing_first(
     the ORDER attempts are spent in, never which ones exist
     (`docs/decisions/0017-p3-collection-policy.md` §7).
     """
-    return sorted(order, key=lambda entry: not steps[entry[1]].flows_into_a_write)
+    # Late candidates first among the flowing ones: 11 of the first 18
+    # kept items were early and 1 was late, and a stratum that is only
+    # reached when the budget holds out is a stratum reported thin.
+    rank = {"late": 0, "middle": 1, "early": 2}
+    return sorted(
+        order,
+        key=lambda entry: (not steps[entry[1]].flows_into_a_write, rank.get(entry[0], 3)),
+    )
 
 
 def _transport_kind(exc: Exception) -> str:

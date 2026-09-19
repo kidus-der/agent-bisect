@@ -143,7 +143,9 @@ def test_an_unstable_base_run_is_never_faulted(tmp_path):
 
     assert result.items == []
     assert runner.forks == []
-    assert result.counts["rejected_unstable"] == len(AIRLINE)
+    # Two base trials per task: a task is the split unit, so a second
+    # trajectory is a second chance at the task, not a second sample.
+    assert result.counts["rejected_unstable"] == len(AIRLINE) * InjectConfig().base_trials
 
 
 def test_a_base_run_that_failed_is_never_faulted(tmp_path):
@@ -153,13 +155,41 @@ def test_a_base_run_that_failed_is_never_faulted(tmp_path):
 
     assert result.items == []
     assert runner.resamples == []
-    assert result.counts["rejected_base_failed"] == len(AIRLINE)
+    assert result.counts["rejected_base_failed"] == len(AIRLINE) * InjectConfig().base_trials
 
 
 def test_stability_is_the_pre_registered_three_of_four(tmp_path):
     stable = run(tmp_path, FakeRunner(stability_passes=3))
 
     assert stable.items
+
+
+def test_a_task_whose_first_base_run_fails_gets_a_second_trajectory(tmp_path):
+    """A task is the unit the split is grouped by, so recording it again
+    is a second chance at the task rather than a second sample of the
+    same run (`0017` section 9)."""
+
+    class FailsOnce(FakeRunner):
+        def record_base(self, domain, task_id, trial):
+            base = super().record_base(domain, task_id, trial)
+            return base if trial > 0 else replace(base, passed=False)
+
+    runner = FailsOnce()
+    result = run(tmp_path, runner)
+
+    assert result.items
+    assert result.counts["rejected_base_failed"] == len(AIRLINE)
+    assert any(run_id.endswith("t1") for run_id in runner.recorded)
+
+
+def test_one_base_trial_means_one_chance(tmp_path):
+    class AlwaysFails(FakeRunner):
+        def record_base(self, domain, task_id, trial):
+            return replace(super().record_base(domain, task_id, trial), passed=False)
+
+    result = run(tmp_path, AlwaysFails(), base_trials=1)
+
+    assert result.counts["rejected_base_failed"] == len(AIRLINE)
 
 
 # ---- the caps ----
