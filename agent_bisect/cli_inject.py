@@ -240,6 +240,9 @@ def status(
 def freeze(
     work_dir: Annotated[Path, typer.Option(help="Checkpoints and the decision log.")]
     = DEFAULT_WORK_DIR,
+    runs_dir: Annotated[
+        Path, typer.Option(help="Tape and blob store root.")
+    ] = DEFAULT_RUNS_DIR,
     out: Annotated[Path, typer.Option(help="Manifest path.")] = DEFAULT_MANIFEST_PATH,
     judge_model: str = typer.Option("", help="Judge model id. Default: the P0 choice."),
     extended_at: float = typer.Option(
@@ -257,7 +260,9 @@ def freeze(
     """Freeze the 1:2 dev:test split. Refuses to overwrite a frozen manifest."""
     journal = Journal(work_dir)
     items = (
-        _kept_items(journal) if extended_at <= 0 else _extended_items(journal, extended_at)
+        _kept_items(journal)
+        if extended_at <= 0
+        else _extended_items(journal, extended_at, runs_dir)
     )
     if not items:
         typer.echo(f"no kept items under {work_dir}; nothing to freeze.", err=True)
@@ -326,7 +331,9 @@ def _splits_of(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def _extended_items(journal: Journal, threshold: float) -> list[dict[str, Any]]:
+def _extended_items(
+    journal: Journal, threshold: float, runs_dir: Path
+) -> list[dict[str, Any]]:
     """The strict items plus the weaker-effect ones, for the secondary set.
 
     A candidate whose fault flipped the run two times in four is evidence
@@ -336,12 +343,22 @@ def _extended_items(journal: Journal, threshold: float) -> list[dict[str, Any]]:
     built under an explicit `--extended-at`, written to its own manifest,
     and labelled (`docs/decisions/0021-p3-outcome.md`).
     """
-    items = [
-        record["item"]
-        for record in journal.all("candidate")
-        if record.get("item") and float(record["item"].get("faulted_pass_rate", 1.0)) <= threshold
+    from agent_bisect.adapters.tau2_extended import extended_items as rebuilt
+
+    kept = _kept_items(journal)
+    seen = {item["item_id"] for item in kept}
+    weaker = [
+        item
+        for item in rebuilt(
+            journal,
+            reader=TapeReader(runs_dir),
+            store=BlobStore(runs_dir),
+            runs_dir=runs_dir,
+            threshold=threshold,
+        )
+        if item["item_id"] not in seen
     ]
-    return sorted(items, key=lambda item: item["item_id"])
+    return sorted(kept + weaker, key=lambda item: item["item_id"])
 
 
 def _funnel(journal: Journal) -> dict[str, int]:
