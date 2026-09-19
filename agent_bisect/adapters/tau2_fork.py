@@ -20,7 +20,14 @@ Three things this layer adds on top of the driver:
    infrastructure has no outcome, and scoring it as a failed run would put
    an infra error into the treated arm. It is retried once with a fresh
    seed and then raised, for the caller to record as an unevaluated item.
-4. **The item's standing fault is re-installed on every fork.** A planted
+4. **tau2's NL-assertion judge is repointed on every fork.** Retail tasks
+   whose `reward_basis` includes `NL_ASSERTION` make an evaluator LLM call
+   on the reward path, and it was recorded under the P0-chosen judge
+   (`docs/decisions/0018-p5-budget.md`). Replaying without repointing it
+   diverges on the model name alone, so `judge_routed()` wraps every fork.
+   Airline has no such task and is unaffected, which is exactly why this
+   is easy to miss.
+5. **The item's standing fault is re-installed on every fork.** A planted
    fault is a faulty *tool*, not an edited recording
    (`docs/decisions/0016-persistent-planted-fault.md`), and it rides in the
    parent run's `RunManifest.params`. `FaultedForkDriver` puts it back
@@ -36,6 +43,7 @@ from typing import Any
 
 from agent_bisect.adapters.tau2_fault_fork import FaultedForkDriver
 from agent_bisect.adapters.tau2_fault_injector import injector_spec_from
+from agent_bisect.adapters.tau2_judge import judge_routed
 from agent_bisect.adapters.tau2_replay import InfraAbortError
 from agent_bisect.attribution.search import RerunOutcome, RerunRequest
 from agent_bisect.core.runner import ForkSpec, run_fork
@@ -131,7 +139,8 @@ class Tau2ForkExecutor:
             fault=self._fault_of(request.parent_run_id),
             unsafe_positional=request.unsafe_positional,
         )
-        outcome = run_fork(driver, spec, request.intervention)
+        with judge_routed():
+            outcome = run_fork(driver, spec, request.intervention)
         result = driver.result
         return RerunOutcome(
             passed=outcome.passed,
