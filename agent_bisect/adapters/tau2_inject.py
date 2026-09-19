@@ -29,6 +29,7 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from agent_bisect.adapters.tau2 import (
     INFRA_TERMINATIONS,
@@ -261,9 +262,14 @@ class Tau2InjectRunner:
         after an infrastructure failure does not collide with the ids its
         previous attempt already put on the tape.
         """
-        item = BatchItem(domain=domain, task_id=task_id, trial=STABILITY_TRIAL + attempt)
-        with self._id_lock:
-            run_id = free_run_id(self.reader, item)
+        # A short random suffix rather than a derived id. A task that is
+        # re-queued through several infrastructure passes re-derives the
+        # same ids, and `free_run_id` gives up after twenty of them: that
+        # raised `20 attempts already on the tape` 34,108 times and killed
+        # every affected task permanently. Stability re-runs are keyed in
+        # the journal by their BASE run, so their own ids need only be
+        # unique, not predictable.
+        run_id = f"{domain}-{task_id}-t{STABILITY_TRIAL + attempt}-{uuid4().hex[:6]}"
         recorded = (
             self._record_flaky(domain, task_id, run_id)
             if self.flaky is not None
