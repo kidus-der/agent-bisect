@@ -18,6 +18,10 @@ from agent_bisect.core.tape import Outcome, RunManifest, Step, TapeWriter
 from agent_bisect.server.real_repository import RealRepository
 from agent_bisect.server.repository import DataNotAvailable
 
+#: Belt-and-suspenders alongside this module's explicit `data_dir=` on
+#: every construction below -- see conftest.py's `isolated_repo_cwd`.
+pytestmark = pytest.mark.usefixtures("isolated_repo_cwd")
+
 
 def _scored(
     item_id: str,

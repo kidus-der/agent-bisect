@@ -18,10 +18,16 @@ from agent_bisect.core.tape import Outcome, RunManifest, Step, TapeWriter
 from agent_bisect.server.real_repository import RealRepository
 from agent_bisect.server.repository import DataNotAvailable, RunFilter
 
+#: Every `RealRepository(...)` built below passes `runs_dir` explicitly
+#: but many omit `data_dir` -- this chdirs the whole module into an
+#: isolated tmp dir so that relative default can never resolve against
+#: this project's own, real `data/manifest.json` (conftest.py).
+pytestmark = pytest.mark.usefixtures("isolated_repo_cwd")
+
 
 @pytest.fixture
 def empty_repo(tmp_path) -> RealRepository:
-    return RealRepository(runs_dir=tmp_path / "runs")
+    return RealRepository(runs_dir=tmp_path / "runs", data_dir=tmp_path / "data")
 
 
 def test_empty_real_repo_never_creates_files(empty_repo, tmp_path):

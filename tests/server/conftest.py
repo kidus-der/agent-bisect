@@ -29,3 +29,19 @@ def fixture_app():
 @pytest.fixture(scope="session")
 def client(fixture_app) -> TestClient:
     return TestClient(fixture_app)
+
+
+@pytest.fixture
+def isolated_repo_cwd(monkeypatch, tmp_path):
+    """Chdir into an empty tmp dir for the duration of one test.
+
+    `RealRepository`'s `runs_dir`/`data_dir` default to the relative
+    `Path("runs")`/`Path("data")`, resolved against the process's cwd
+    (pytest runs from the repo root). A fixture that isolates `runs_dir`
+    with an absolute `tmp_path` but forgets `data_dir` -- or vice versa --
+    would otherwise silently read this project's own, real `runs/` or
+    `data/manifest.json` instead of nothing. Opt a test module in with
+    `pytestmark = pytest.mark.usefixtures("isolated_repo_cwd")` rather than
+    threading it through every fixture and call site by hand.
+    """
+    monkeypatch.chdir(tmp_path)
