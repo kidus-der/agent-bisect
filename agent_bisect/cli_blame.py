@@ -232,14 +232,15 @@ def blame(
     # live re-run of every fork is limited, ledgered and recorded.
     with own_stdout(), recording_session(
         ledger=ledger, phase=DEFAULT_PHASE, config=RetryConfig(max_elapsed_s=RETRY_BUDGET_S)
-    ):
+    ) as router:
         run = blame_run(
             run_id,
             reader=reader,
             store=store,
             judge_backend=_backend(runs_dir, settings, ledger),
             executor=Tau2ForkExecutor(
-                store=store, reader=reader, tape=TapeWriter(runs_dir)
+                store=store, reader=reader, tape=TapeWriter(runs_dir),
+                live_completion=router.completion,
             ),
             task_text=task_text,
             top_m=top,

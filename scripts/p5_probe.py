@@ -20,6 +20,7 @@ import argparse
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 from agent_bisect.adapters.tau2 import recording_session
 from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
@@ -39,7 +40,7 @@ PROBE_CALL_CAP = 200
 RUNS_DIR = Path("runs")
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, router: Any = None) -> int:
     parser = argparse.ArgumentParser(description="Measure one live fork.")
     parser.add_argument("--item", type=int, default=0, help="Index into the dev split.")
     parser.add_argument("--arm", choices=("control", "treated"), default="control")
@@ -67,7 +68,8 @@ def main(argv: list[str] | None = None) -> int:
                           cap_scope="phase")
     before = ledger.totals_per_phase().get(PHASE, 0)
     executor = Tau2ForkExecutor(
-        store=store, reader=reader, tape=TapeWriter(RUNS_DIR)
+        store=store, reader=reader, tape=TapeWriter(RUNS_DIR),
+        live_completion=None if router is None else router.completion,
     )
     request = RerunRequest(
         parent_run_id=item.run_id,
@@ -109,5 +111,5 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     with recording_session(
         ledger=BudgetLedger(RUNS_DIR / "ledger.sqlite"), phase=PHASE
-    ):
-        raise SystemExit(main())
+    ) as live_router:
+        raise SystemExit(main(router=live_router))

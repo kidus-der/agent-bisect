@@ -268,7 +268,6 @@ def eval_(
         reader=reader,
         store=store,
         judge_backend=_backend(runs_dir, settings, ledger),
-        executor=Tau2ForkExecutor(store=store, reader=reader, tape=TapeWriter(runs_dir)),
         task_text=task_text,
         runs_dir=runs_dir,
         truth_for_item=lambda item: serialized_truth(
@@ -278,7 +277,11 @@ def eval_(
 
     with own_stdout(), recording_session(
         ledger=ledger, phase=DEFAULT_PHASE, config=RetryConfig(max_elapsed_s=RETRY_BUDGET_S)
-    ):
+    ) as router:
+        base_kwargs["executor"] = Tau2ForkExecutor(
+            store=store, reader=reader, tape=TapeWriter(runs_dir),
+            live_completion=router.completion,
+        )
         run = evaluate_dataset(
             items,
             config=BaselineConfig(

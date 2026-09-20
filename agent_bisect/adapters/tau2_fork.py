@@ -114,21 +114,31 @@ class Tau2ForkExecutor:
         self.reused = 0
 
     def _live(self) -> Callable[..., Any]:
-        """Whatever tau2 currently calls for a completion — the router.
+        """The router's completion — the live source for a fork's suffix.
 
-        A fork's live suffix must go through `route_tau2_llm`'s router, not
-        past it: the router is what tags the purpose, charges the ledger,
-        applies the limiter *and* hands the call to the active recorder. A
-        raw completion function would be served, but the step would never
-        be recorded, so the replayer's idea of where it is would stop
-        advancing and the next tape step would be mistaken for the fork
-        step. Resolved per call, before the replayer nests its own patch.
+        It must be the **router**, and it must be handed in. Two ways to
+        get this wrong, both of which we have now made:
+
+        - a raw completion function is served but never reaches the
+          recorder, so the replayer's position stops advancing and the
+          next tape step is mistaken for the fork step;
+        - `llm_utils.completion` is read off the seam. That used to BE the
+          router, but it is now `_CompletionDispatcher`, which looks up
+          the active per-thread completion — the replayer's own — and
+          calls it. The fork then recurses until `RecursionError`, which
+          surfaces as an item that "timed out".
+
+        So there is no safe default: the caller binds the router from
+        `recording_session` and passes it in.
         """
-        if self._live_completion is not None:
-            return self._live_completion
-        import tau2.utils.llm_utils as llm_utils
-
-        return llm_utils.completion
+        if self._live_completion is None:
+            raise RuntimeError(
+                "Tau2ForkExecutor needs the router's completion. Bind it from "
+                "`recording_session(...) as router` and pass "
+                "`live_completion=router.completion`; reading it off "
+                "`llm_utils.completion` picks up the replay dispatcher and recurses."
+            )
+        return self._live_completion
 
     def _free_run_id(self, run_id: str) -> str:
         """`run_id`, or the first `-r<n>` variant the tape has no manifest for.
