@@ -193,7 +193,7 @@ def blame(
         DEFAULT_RUNS_DIR
     ),
     seed: Annotated[int, typer.Option(help="Seed for the re-run draws.")] = 0,
-    concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 8,
+    concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 4,
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Attribute a recorded failure to its earliest causal step."""

@@ -49,10 +49,18 @@ from agent_bisect.adapters.tau2_replay import InfraAbortError
 from agent_bisect.attribution.search import RerunOutcome, RerunRequest, TruthFor
 from agent_bisect.core.runner import ForkSpec, run_fork
 from agent_bisect.core.store import BlobStore
-from agent_bisect.core.tape import Step, TapeReader, TapeWriter, UnknownRunError
+from agent_bisect.core.tape import (
+    DuplicateRunError,
+    Step,
+    TapeReader,
+    TapeWriter,
+    UnknownRunError,
+)
 
 #: One retry, with a different seed, before an infra abort is raised.
 INFRA_RETRIES = 1
+#: How many `-r<n>` suffixes to try before giving up on a free run id.
+MAX_ID_ATTEMPTS = 50
 #: Offset folded into the seed of a retry so it is not the same draw again.
 _RETRY_SEED_OFFSET = 1_000_003
 
@@ -122,6 +130,26 @@ class Tau2ForkExecutor:
 
         return llm_utils.completion
 
+    def _free_run_id(self, run_id: str) -> str:
+        """`run_id`, or the first `-r<n>` variant the tape has no manifest for.
+
+        A fork that died mid-run leaves its manifest behind with no
+        outcome, and the tape is append-only, so a retry cannot reuse the
+        id: `start_run` raises `DuplicateRunError` and the whole item is
+        lost. It takes a fresh id instead and the dead attempt stays on
+        the tape as evidence. Same approach as `tau2_batch.free_run_id`.
+        """
+        candidate = run_id
+        for attempt in range(1, MAX_ID_ATTEMPTS + 1):
+            try:
+                self._reader.get_manifest(candidate)
+            except UnknownRunError:
+                return candidate
+            candidate = f"{run_id}-r{attempt}"
+        raise RuntimeError(
+            f"no free run id for {run_id!r} after {MAX_ID_ATTEMPTS} attempts"
+        )
+
     def _recorded(self, run_id: str) -> RerunOutcome | None:
         """The outcome of a fork that has already been run, if there is one."""
         try:
@@ -157,7 +185,7 @@ class Tau2ForkExecutor:
         # interval. P3's stability check (re-run 4x) is what measures it.
         spec = ForkSpec(
             parent_run_id=request.parent_run_id,
-            run_id=request.run_id,
+            run_id=self._free_run_id(request.run_id),
             fork_step=request.fork_step,
             prefix_tools=request.prefix_tools,
             seed=None,
@@ -192,7 +220,7 @@ class Tau2ForkExecutor:
             return recorded
         try:
             return self._run_once(request, request.seed)
-        except InfraAbortError:
+        except (InfraAbortError, DuplicateRunError):
             if INFRA_RETRIES <= 0:
                 raise
         # Outside the except block so the retry's own failure is not

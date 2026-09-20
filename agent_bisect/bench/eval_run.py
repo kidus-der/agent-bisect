@@ -22,13 +22,20 @@ whose controls happened to behave. This check is what
 fault before any live spend, and `docs/decisions/0016-persistent-planted-fault.md`
 is what makes it pass.
 
-**An item that cannot be evaluated is recorded, not skipped.** If the tape
-is unreadable, the judge raises, or every fork of it dies on
-infrastructure, the item still produces one `MethodOutcome` per method with
-`predicted_step=None` and the reason in `note` — a wrong answer with an
-explanation. Dropping it would quietly evaluate the subset that happened to
-work, which is the failure mode `docs/decisions/0001-preregistration.md`
-forbids ("data is never dropped").
+**An infrastructure failure is not a verdict.** An item whose forks time
+out, or whose judge call 504s, has not answered wrongly — it has not been
+asked. It is **re-queued** and retried, up to `max_passes` passes with
+backoff, and every fork already on the tape is reused so a retry is cheap.
+Only when the passes are exhausted does the item stay unevaluated, and
+then the whole run is **incomplete**: `EvaluationRun.complete` is false,
+the caller publishes nothing, and it says so. Writing an infra timeout
+into the results as "blamed nothing" would report a network outage as a
+property of the method, which is exactly what happened on the first live
+dev run — six items timed out and the summary read 0.0 accuracy for every
+method as if that were a finding.
+
+A *judge* that answers unparseably, or a search that clears no step, is a
+different thing: those are real answers and they score as wrong.
 
 tau2 is reached only through injected callables (`task_text`,
 `truth_for_item`), so `bench/` keeps knowing nothing about any domain and
@@ -37,6 +44,7 @@ the offline tests can drive the whole thing on scripted models.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -67,6 +75,12 @@ CONTROL_PASS_LIMIT = 0.5
 #: The `kind` P5's progress is written under, for the dashboard's Live page.
 STATUS_KIND = "eval"
 STATUS_PHASE = "P5"
+
+#: Passes over the item list. A transient 504 on pass 1 gets two more
+#: chances, and everything already bought is reused from the tape.
+DEFAULT_MAX_PASSES = 3
+#: Seconds before re-queueing the items that failed on infrastructure.
+RETRY_BACKOFF_S = 60.0
 
 #: `(domain, task_id) -> (task description, domain policy)`.
 TaskTextFor = Callable[[str, str], tuple[str, str]]
@@ -118,6 +132,11 @@ class EvaluationRun:
         return len(self.control_flags)
 
     @property
+    def complete(self) -> bool:
+        """Whether every item got a real verdict. Nothing is published unless."""
+        return not self.failures
+
+    @property
     def bisect_unguarded_calls(self) -> int:
         """Responses the bisect arms served past the request-hash guard.
 
@@ -150,29 +169,6 @@ class EvaluationRun:
             {"item_id": f.item_id, "run_id": f.run_id, "reason": f.reason}
             for f in self.failures
         ]
-
-
-def _unevaluated(
-    item: DatasetItem, methods: Sequence[EvalMethod], reason: str
-) -> list[MethodOutcome]:
-    """One wrong answer per method, carrying the reason it could not be tried."""
-    return [
-        MethodOutcome(
-            item_id=item.item_id,
-            run_id=item.run_id,
-            method=method,
-            predicted_step=None,
-            ranking=(),
-            shortlist=(),
-            judge_calls=0,
-            replay_calls=0,
-            reruns=0,
-            control_reruns=0,
-            parse_failed=False,
-            note=f"not evaluated: {reason}",
-        )
-        for method in methods
-    ]
 
 
 def control_pass_rate(outcome: MethodOutcome) -> float | None:
@@ -228,14 +224,65 @@ def evaluate_dataset(
     step_by_step: bool = True,
     truth_for_item: TruthForItem | None = None,
     progress: Callable[[DatasetItem, int, int], None] | None = None,
+    max_passes: int = DEFAULT_MAX_PASSES,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> EvaluationRun:
-    """Judge and evaluate every item of `items`, persisting as it goes."""
+    """Judge and evaluate every item, retrying the ones infrastructure lost."""
     run = EvaluationRun()
-    total = len(items)
+    outstanding = list(items)
+    for attempt in range(1, max_passes + 1):
+        run.failures.clear()
+        _evaluate_pass(
+            outstanding, run, reader=reader, store=store,
+            judge_backend=judge_backend, executor=executor, task_text=task_text,
+            config=config, seed=seed, runs_dir=runs_dir, judge_config=judge_config,
+            step_by_step=step_by_step, truth_for_item=truth_for_item,
+            progress=progress, total=len(items), done=len(items) - len(outstanding),
+        )
+        if run.complete or attempt == max_passes:
+            return run
+        outstanding = [
+            item for item in items
+            if item.item_id in {failure.item_id for failure in run.failures}
+        ]
+        # Everything that succeeded stays; only the lost items come back,
+        # and their finished forks are reused from the tape.
+        run.outcomes = [
+            outcome for outcome in run.outcomes
+            if outcome.item_id not in {item.item_id for item in outstanding}
+        ]
+        run.control_flags = [
+            flag for flag in run.control_flags
+            if flag.item_id not in {item.item_id for item in outstanding}
+        ]
+        sleep(RETRY_BACKOFF_S)
+    return run
+
+
+def _evaluate_pass(
+    items: Sequence[DatasetItem],
+    run: EvaluationRun,
+    *,
+    reader: TapeReader,
+    store: BlobStore,
+    judge_backend: JudgeBackend,
+    executor: ForkExecutor,
+    task_text: TaskTextFor,
+    config: BaselineConfig,
+    seed: int,
+    runs_dir: Path,
+    judge_config: JudgeConfig,
+    step_by_step: bool,
+    truth_for_item: TruthForItem | None,
+    progress: Callable[[DatasetItem, int, int], None] | None,
+    total: int,
+    done: int,
+) -> None:
+    """One pass over `items`, appending to `run`."""
     for index, item in enumerate(items, start=1):
         if progress is not None:
-            progress(item, index, total)
-        _report_progress(runs_dir, index - 1, total, run)
+            progress(item, done + index, total)
+        _report_progress(runs_dir, done + index - 1, total, run)
         try:
             description, policy = task_text(item.domain, item.task_id)
             judge_input = build_judge_input(
@@ -271,9 +318,6 @@ def evaluate_dataset(
                     reason=f"{type(exc).__name__}: {exc}",
                 )
             )
-            run.outcomes.extend(
-                _unevaluated(item, config.methods, f"{type(exc).__name__}: {exc}")
-            )
             continue
 
         for outcome in outcomes:
@@ -281,7 +325,7 @@ def evaluate_dataset(
                 save_blame(runs_dir, outcome.blame, judgement.step_by_step)
         run.control_flags.extend(check_controls(item, outcomes))
         run.outcomes.extend(outcomes)
-    return run
+    _report_progress(runs_dir, done + len(items), total, run)
 
 
 def outcome_rows(outcomes: Sequence[MethodOutcome]) -> list[dict[str, Any]]:

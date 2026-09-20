@@ -33,7 +33,12 @@ import typer
 
 from agent_bisect.attribution.estimate import DEFAULT_MAX_N, SequentialConfig
 from agent_bisect.bench.baselines import BaselineConfig
-from agent_bisect.bench.eval_run import evaluate_dataset, outcome_rows, outcomes_from_rows
+from agent_bisect.bench.eval_run import (
+    DEFAULT_MAX_PASSES,
+    evaluate_dataset,
+    outcome_rows,
+    outcomes_from_rows,
+)
 from agent_bisect.bench.evaluate import DEFAULT_TOP_M, build_report, score_outcomes
 from agent_bisect.bench.manifest import (
     DEFAULT_MANIFEST_PATH,
@@ -56,6 +61,7 @@ MISSING_KEY_EXIT_CODE = 1
 MANIFEST_EXIT_CODE = 6
 SPLIT_LOCKED_EXIT_CODE = 7
 SENSITIVITY_SPLIT_EXIT_CODE = 8
+INCOMPLETE_EXIT_CODE = 9
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
 DEFAULT_PHASE = "P5"
@@ -180,7 +186,7 @@ def eval_(
     seed: Annotated[int, typer.Option(help="Seed for draws and the bootstrap.")] = (
         DEFAULT_SEED
     ),
-    concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 8,
+    concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 4,
     resume: bool = typer.Option(False, help="Continue an interrupted test-split run."),
     per_step_sensitivity: bool = typer.Option(
         False,
@@ -282,6 +288,20 @@ def eval_(
             base_kwargs,
             seed=seed,
         )
+
+    if not run.complete:
+        # Nothing is published from an incomplete pass. An item that timed
+        # out has not answered wrongly, it has not been asked, and writing
+        # it into the results as "blamed nothing" would report an outage as
+        # a property of the method.
+        for failure in run.failures:
+            typer.echo(f"  unevaluated {failure.item_id}: {failure.reason}", err=True)
+        typer.echo(
+            f"INCOMPLETE: {run.n_failed_items} of {len(items)} item(s) have no verdict "
+            f"after {DEFAULT_MAX_PASSES} passes. No results written.",
+            err=True,
+        )
+        raise typer.Exit(code=INCOMPLETE_EXIT_CODE)
 
     scores = score_outcomes(items, run.outcomes)
     report = build_report(

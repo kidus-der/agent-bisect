@@ -45,6 +45,10 @@ DEFAULT_MAX_CRASHES = 3
 #: Seconds between attempts, so a provider wobble is not hammered.
 BACKOFF_S = 30.0
 
+#: `bisect eval` exit code for "some item has no verdict". Restartable:
+#: everything bought is on the tape, so another attempt resumes cheaply.
+INCOMPLETE_EXIT_CODE = 9
+
 #: Substrings that mean "do not restart this".
 AUTH_MARKERS = ("AuthenticationError", "credentials rejected", "NVIDIA_API_KEY")
 BUDGET_MARKERS = ("BudgetExceededError", "budget exceeded")
@@ -130,6 +134,25 @@ def supervise(args: argparse.Namespace) -> Outcome:
         sys.stdout.write(tail[-4000:])
         sys.stdout.flush()
 
+        if result.returncode == INCOMPLETE_EXIT_CODE:
+            # Not success and not a crash: items are still outstanding and
+            # a further pass resumes from the tape. Counted as a crash so
+            # it cannot loop for ever.
+            crashes += 1
+            print(
+                f"[supervisor] attempt {attempt} INCOMPLETE after "
+                f"{elapsed / 60:.1f} min ({crashes}/{args.max_crashes})",
+                flush=True,
+            )
+            if crashes >= args.max_crashes:
+                return Outcome(
+                    "incomplete",
+                    f"items still unevaluated after {crashes} attempts",
+                    ok=False,
+                )
+            time.sleep(BACKOFF_S)
+            continue
+
         if result.returncode == 0:
             total = calls_spent(args.ledger)
             write_status(
@@ -170,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", type=Path, default=Path("runs/p5"))
     parser.add_argument("--results-dir", type=Path, default=Path("data/results"))
     parser.add_argument("--ledger", type=Path, default=Path("runs/ledger.sqlite"))
-    parser.add_argument("--concurrency", type=int, default=8)
+    parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--top", type=int, default=3)
     parser.add_argument("--n", type=int, default=16)
     parser.add_argument("--seed", type=int, default=20260917)
