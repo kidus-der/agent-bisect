@@ -92,3 +92,87 @@ def test_the_wrapper_passes_the_answer_through_unchanged():
 
     # Assert
     assert truth(_step(4)) == {"content": "step-4"}
+
+
+# ---- a fork survives a flaky endpoint; a divergence does not ----
+
+
+class _Recorder:
+    """Enough of a tape for Tau2ForkExecutor's resume check."""
+
+    def get_outcome(self, run_id):
+        from agent_bisect.core.tape import UnknownRunError
+
+        raise UnknownRunError(run_id)
+
+    def get_manifest(self, run_id):
+        from agent_bisect.core.tape import UnknownRunError
+
+        raise UnknownRunError(run_id)
+
+
+def _request():
+    from agent_bisect.attribution.search import RerunRequest
+    from agent_bisect.core.replay import NoOpIntervention
+
+    return RerunRequest(
+        parent_run_id="p", run_id="p-c4-abc", fork_step=4, arm="control",
+        intervention=NoOpIntervention(), seed=1, prefix_tools="snapshot",
+        unsafe_positional=False,
+    )
+
+
+def _executor(monkeypatch, failures, error):
+    from agent_bisect.adapters import tau2_fork
+    from agent_bisect.attribution.search import RerunOutcome
+
+    monkeypatch.setattr(tau2_fork, "RETRY_BACKOFF_S", 0.0)
+    executor = tau2_fork.Tau2ForkExecutor(
+        store=None, reader=_Recorder(), tape=None, live_completion=lambda **k: None
+    )
+    calls = {"n": 0}
+
+    def run_once(request, seed):
+        calls["n"] += 1
+        if calls["n"] <= failures:
+            raise error
+        return RerunOutcome(passed=True, n_steps=3, calls=7)
+
+    monkeypatch.setattr(executor, "_run_once", run_once)
+    return executor, calls
+
+
+def test_a_fork_survives_a_transient_transport_failure(monkeypatch):
+    from agent_bisect.core.llm import TransportError
+
+    executor, calls = _executor(monkeypatch, 2, TransportError("504"))
+
+    outcome = executor.run(_request())
+
+    assert outcome.passed is True
+    assert calls["n"] == 3
+    assert executor.infra_retries == 2
+
+
+def test_a_fork_gives_up_after_the_attempt_limit(monkeypatch):
+    import pytest as _pytest
+    from agent_bisect.adapters import tau2_fork
+    from agent_bisect.core.llm import TransportError
+
+    executor, calls = _executor(monkeypatch, 99, TransportError("504"))
+
+    with _pytest.raises(TransportError):
+        executor.run(_request())
+    assert calls["n"] == tau2_fork.INFRA_RETRIES
+
+
+def test_a_divergence_is_never_retried(monkeypatch):
+    import pytest as _pytest
+    from agent_bisect.core.replay import DivergenceError
+
+    error = DivergenceError(step_idx=1, actor="agent", expected="a", got="b", diff="d")
+    executor, calls = _executor(monkeypatch, 99, error)
+
+    with _pytest.raises(DivergenceError):
+        executor.run(_request())
+    assert calls["n"] == 1, "a divergence is a finding, not a wobble"
