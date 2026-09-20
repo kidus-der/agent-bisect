@@ -71,3 +71,31 @@ It also sharpens the threat to validity in `0017` §7.4: the kept items are the
 faults that *did* flip a run, so they over-represent the consequential end of
 an already-consequential selection. Accuracy measured on them is accuracy on
 faults that matter, and the report says so.
+
+## Outcome of the flaky-world attempt (added 2026-09-19, after it ran)
+
+The bounded two-hour collection produced **3 kept items from 32 candidates**
+and stopped with 37 tasks parked after three re-queue passes. The infrastructure
+mix was **69 timeouts and 49 gateway 504s against a single 429** — it was
+stopped by a provider that would not answer, not by the protocol and not by the
+flaky world itself. 43 base runs, 7 stability checks, all 7 stable.
+
+Frozen anyway as `data/manifest_flaky.json`, unsplit, sha256
+`d951d8f2b1a11fbe792b73324eeac12a220afedec73158a31ad05ff34c8b3302`, and
+labelled as a bounded, infrastructure-limited attempt. The three items are
+spread one per position bucket (`tool_error` 2, `stale_record` 1).
+
+**Three items cannot support the P5 flaky-world criterion.** That criterion —
+"the no-snapshot baseline is measurably worse, with the CI of the difference
+above 0" — needs an interval on a difference, and at n = 3 there is none worth
+reporting. The honest statement is that **the ablation was not collected**, not
+that it was collected and came out small. P5 should say so rather than compute
+a number from three points.
+
+What remains true, and is evidenced separately and offline, is the *mechanism*
+the ablation was meant to demonstrate: in the flaky world a snapshot restore
+reproduces the recorded database hash at **100%** of tool steps while
+re-executing the same calls later reproduces **0%** (`tests/test_tau2_flaky.py`,
+measured over 10 recorded runs and 30 tool steps). That is a property of the
+engine, shown deterministically without a provider; it is not a substitute for
+the live ablation, and the report distinguishes the two.
