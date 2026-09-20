@@ -32,7 +32,7 @@ from typing import Annotated, Any
 import typer
 
 from agent_bisect.attribution.estimate import DEFAULT_MAX_N, SequentialConfig
-from agent_bisect.bench.baselines import BaselineConfig
+from agent_bisect.bench.baselines import EVAL_METHODS, BaselineConfig, EvalMethod
 from agent_bisect.bench.eval_run import (
     DEFAULT_ITEM_CONCURRENCY,
     DEFAULT_MAX_PASSES,
@@ -147,6 +147,30 @@ def _per_step_sensitivity(
     }
 
 
+#: What is bought live by default. `no_control` is absent on purpose: it
+#: is `effect := treated pass rate` over the very draws Bisect already
+#: bought, so `docs/decisions/0018-p5-budget.md` §2 derives it instead of
+#: paying for a second identical treated arm. Running it live was costing
+#: a third of every evaluation for nothing.
+LIVE_METHODS: tuple[EvalMethod, ...] = (
+    "bisect",
+    "judge_all_at_once",
+    "judge_step_by_step",
+    "rerun_live",
+)
+
+
+def _methods(raw: str) -> tuple[EvalMethod, ...]:
+    """Parse `--methods`, refusing anything that is not a known method."""
+    chosen = tuple(name.strip() for name in raw.split(",") if name.strip())
+    unknown = [name for name in chosen if name not in EVAL_METHODS]
+    if unknown:
+        raise typer.BadParameter(
+            f"unknown method(s) {unknown}; known: {list(EVAL_METHODS)}"
+        )
+    return chosen  # type: ignore[return-value]
+
+
 def _summarise(report: dict[str, Any], failures: int) -> str:
     lines = [f"split {report['config']['split']} · {report['config']['n_items']} items"]
     for row in report["methods"]:
@@ -196,6 +220,9 @@ def eval_(
     item_concurrency: Annotated[
         int, typer.Option(help="Items evaluated at once.")
     ] = DEFAULT_ITEM_CONCURRENCY,
+    methods: Annotated[
+        str, typer.Option(help="Comma-separated methods to run live.")
+    ] = ",".join(LIVE_METHODS),
     resume: bool = typer.Option(False, help="Continue an interrupted test-split run."),
     per_step_sensitivity: bool = typer.Option(
         False,
@@ -289,7 +316,8 @@ def eval_(
         run = evaluate_dataset(
             items,
             config=BaselineConfig(
-                top_m=top, sequential=sequential, concurrency=concurrency
+                top_m=top, sequential=sequential, concurrency=concurrency,
+                methods=_methods(methods),
             ),
             seed=seed,
             item_concurrency=item_concurrency,
