@@ -92,6 +92,16 @@ class BlameConfig:
     #: the draws are independent, so this cannot change a result.
     concurrency: int = DEFAULT_CONCURRENCY
 
+    @property
+    def fork_variant(self) -> str:
+        """What makes this config's forks different runs from another's.
+
+        The prefix mode is the whole difference between Bisect and the
+        re-run-live baseline, so it has to be part of a fork's identity or
+        the two share ids on the tape.
+        """
+        return f"{self.prefix_tools}{'-unsafe' if self.unsafe_positional else ''}"
+
     def __post_init__(self) -> None:
         if self.top_m <= 0:
             raise ValueError(f"top_m must be positive, got {self.top_m}")
@@ -180,10 +190,27 @@ def choose_intervention(step: Step, truth_for: TruthFor | None = None) -> Interv
     )
 
 
-def rerun_id(parent_run_id: str, *, arm: Arm, step: int, seed: int, draw: int) -> str:
-    """A stable id for one fork, so a resumed evaluation asks for the same one."""
+def rerun_id(
+    parent_run_id: str,
+    *,
+    arm: Arm,
+    step: int,
+    seed: int,
+    draw: int,
+    variant: str = "",
+) -> str:
+    """A stable id for one fork, so a resumed evaluation asks for the same one.
+
+    `variant` must distinguish forks that differ in anything the id does
+    not otherwise name — in practice the prefix mode. Without it Bisect's
+    snapshot forks and the re-run-live baseline's forks share ids, the
+    baseline "resumes" Bisect's results, and the ablation silently reports
+    the two mechanisms as identical. They are supposed to differ; that is
+    the entire point of the flaky-world criterion.
+    """
     digest = hashlib.blake2b(
-        f"{parent_run_id}:{arm}:{step}:{seed}:{draw}".encode(), digest_size=_ID_BYTES
+        f"{parent_run_id}:{variant}:{arm}:{step}:{seed}:{draw}".encode(),
+        digest_size=_ID_BYTES,
     ).hexdigest()
     return f"{parent_run_id}-{arm[0]}{step}-{digest}"
 
@@ -239,7 +266,8 @@ class ForkRerunSampler:
         return RerunRequest(
             parent_run_id=self._parent_run_id,
             run_id=rerun_id(
-                self._parent_run_id, arm=arm, step=step, seed=seed, draw=draw
+                self._parent_run_id, arm=arm, step=step, seed=seed, draw=draw,
+                variant=self._config.fork_variant,
             ),
             fork_step=step,
             arm=arm,
