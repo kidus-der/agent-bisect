@@ -39,6 +39,7 @@ Three things this layer adds on top of the driver:
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -47,6 +48,7 @@ from agent_bisect.adapters.tau2_fault_injector import injector_spec_from
 from agent_bisect.adapters.tau2_judge import judge_routed
 from agent_bisect.adapters.tau2_replay import InfraAbortError
 from agent_bisect.attribution.search import RerunOutcome, RerunRequest, TruthFor
+from agent_bisect.core.llm import TransportError
 from agent_bisect.core.runner import ForkSpec, run_fork
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import (
@@ -57,8 +59,15 @@ from agent_bisect.core.tape import (
     UnknownRunError,
 )
 
-#: One retry, with a different seed, before an infra abort is raised.
-INFRA_RETRIES = 1
+#: Attempts per fork before giving up on it. A fork is ~12 LLM calls and
+#: the provider has run at a 25% retry rate for hours; with one attempt a
+#: single 504 anywhere in those 12 calls loses the fork, the fork loses
+#: the item, and the item loses every other fork it had already bought.
+#: Retrying the fork itself is what keeps an item's progress additive.
+INFRA_RETRIES = 3
+#: Seconds between a fork's attempts, so a degraded endpoint is not
+#: hammered by the retry that is meant to survive it.
+RETRY_BACKOFF_S = 20.0
 #: How many `-r<n>` suffixes to try before giving up on a free run id.
 MAX_ID_ATTEMPTS = 50
 #: Offset folded into the seed of a retry so it is not the same draw again.
@@ -112,6 +121,7 @@ class Tau2ForkExecutor:
         self._tape = tape
         self._live_completion = live_completion
         self.reused = 0
+        self.infra_retries = 0
 
     def _live(self) -> Callable[..., Any]:
         """The router's completion — the live source for a fork's suffix.
@@ -224,25 +234,43 @@ class Tau2ForkExecutor:
         return injector_spec_from(self._reader.get_manifest(parent_run_id).params)
 
     def run(self, request: RerunRequest) -> RerunOutcome:
-        """One fork: reused if the tape has it, otherwise run for real."""
+        """One fork: reused if the tape has it, otherwise run for real.
+
+        Retried in place on infrastructure. A `DivergenceError` is never
+        retried -- it means the recording and the replay disagree, which
+        is a finding, not a wobble.
+        """
         recorded = self._recorded(request.run_id)
         if recorded is not None:
             return recorded
-        try:
-            return self._run_once(request, request.seed)
-        except (InfraAbortError, DuplicateRunError):
-            if INFRA_RETRIES <= 0:
-                raise
-        # Outside the except block so the retry's own failure is not
-        # chained onto the first one, which says nothing extra.
-        retry = RerunRequest(
-            parent_run_id=request.parent_run_id,
-            run_id=f"{request.run_id}-retry",
-            fork_step=request.fork_step,
-            arm=request.arm,
-            intervention=request.intervention,
-            seed=request.seed + _RETRY_SEED_OFFSET,
-            prefix_tools=request.prefix_tools,
-            unsafe_positional=request.unsafe_positional,
-        )
-        return self._run_once(retry, retry.seed)
+
+        attempt = 0
+        while True:
+            seed = request.seed + attempt * _RETRY_SEED_OFFSET
+            run_id = request.run_id if attempt == 0 else f"{request.run_id}-a{attempt}"
+            candidate = RerunRequest(
+                parent_run_id=request.parent_run_id,
+                run_id=run_id,
+                fork_step=request.fork_step,
+                arm=request.arm,
+                intervention=request.intervention,
+                seed=seed,
+                prefix_tools=request.prefix_tools,
+                unsafe_positional=request.unsafe_positional,
+            )
+            try:
+                return self._run_once(candidate, seed)
+            except (InfraAbortError, DuplicateRunError, TransportError) as exc:
+                attempt += 1
+                self.infra_retries += 1
+                if attempt >= INFRA_RETRIES:
+                    raise
+                failure = f"{type(exc).__name__}: {exc}"
+            # Outside the except block so the next attempt's own failure is
+            # not chained onto this one, which says nothing extra.
+            print(
+                f"    fork {request.run_id[-18:]} attempt {attempt}/{INFRA_RETRIES} "
+                f"after {failure[:90]}",
+                flush=True,
+            )
+            time.sleep(RETRY_BACKOFF_S)
