@@ -34,6 +34,7 @@ import typer
 from agent_bisect.attribution.estimate import DEFAULT_MAX_N, SequentialConfig
 from agent_bisect.bench.baselines import BaselineConfig
 from agent_bisect.bench.eval_run import (
+    DEFAULT_ITEM_CONCURRENCY,
     DEFAULT_MAX_PASSES,
     evaluate_dataset,
     outcome_rows,
@@ -192,6 +193,9 @@ def eval_(
         DEFAULT_SEED
     ),
     concurrency: Annotated[int, typer.Option(help="Forks in flight within a batch.")] = 4,
+    item_concurrency: Annotated[
+        int, typer.Option(help="Items evaluated at once.")
+    ] = DEFAULT_ITEM_CONCURRENCY,
     resume: bool = typer.Option(False, help="Continue an interrupted test-split run."),
     per_step_sensitivity: bool = typer.Option(
         False,
@@ -288,6 +292,7 @@ def eval_(
                 top_m=top, sequential=sequential, concurrency=concurrency
             ),
             seed=seed,
+            item_concurrency=item_concurrency,
             **base_kwargs,
         )
 

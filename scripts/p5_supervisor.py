@@ -92,6 +92,7 @@ def _command(args: argparse.Namespace) -> list[str]:
         "--out-dir", str(args.out_dir),
         "--results-dir", str(args.results_dir),
         "--concurrency", str(args.concurrency),
+        "--item-concurrency", str(args.item_concurrency),
         "--top", str(args.top),
         "--n", str(args.n),
         "--seed", str(args.seed),
@@ -194,6 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--results-dir", type=Path, default=Path("data/results"))
     parser.add_argument("--ledger", type=Path, default=Path("runs/ledger.sqlite"))
     parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--item-concurrency", type=int, default=6)
     parser.add_argument("--top", type=int, default=3)
     parser.add_argument("--n", type=int, default=16)
     parser.add_argument("--seed", type=int, default=20260917)

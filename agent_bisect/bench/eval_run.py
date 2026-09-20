@@ -44,8 +44,10 @@ the offline tests can drive the whole thing on scripted models.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -75,6 +77,15 @@ CONTROL_PASS_LIMIT = 0.5
 #: The `kind` P5's progress is written under, for the dashboard's Live page.
 STATUS_KIND = "eval"
 STATUS_PHASE = "P5"
+
+#: Items evaluated at once. The binding constraint is latency, not rate:
+#: a user-simulator turn measures ~76 s, and a batch pool can never hold
+#: more than `batch` (4) draws, so per-item concurrency alone leaves the
+#: run at a few requests per minute against a ~68-90 rpm allowance.
+#: Overlapping items is what actually fills the pipe. Every per-item
+#: object (recorder, truth resolver, replay dispatcher) is already
+#: per-thread or per-item; only the shared `EvaluationRun` needs a lock.
+DEFAULT_ITEM_CONCURRENCY = 4
 
 #: Passes over the item list. A transient 504 on pass 1 gets two more
 #: chances, and everything already bought is reused from the tape.
@@ -225,6 +236,7 @@ def evaluate_dataset(
     truth_for_item: TruthForItem | None = None,
     progress: Callable[[DatasetItem, int, int], None] | None = None,
     max_passes: int = DEFAULT_MAX_PASSES,
+    item_concurrency: int = DEFAULT_ITEM_CONCURRENCY,
     sleep: Callable[[float], None] = time.sleep,
 ) -> EvaluationRun:
     """Judge and evaluate every item, retrying the ones infrastructure lost."""
@@ -238,6 +250,7 @@ def evaluate_dataset(
             config=config, seed=seed, runs_dir=runs_dir, judge_config=judge_config,
             step_by_step=step_by_step, truth_for_item=truth_for_item,
             progress=progress, total=len(items), done=len(items) - len(outstanding),
+            item_concurrency=item_concurrency,
         )
         if run.complete or attempt == max_passes:
             return run
@@ -277,12 +290,13 @@ def _evaluate_pass(
     progress: Callable[[DatasetItem, int, int], None] | None,
     total: int,
     done: int,
+    item_concurrency: int = 1,
 ) -> None:
-    """One pass over `items`, appending to `run`."""
-    for index, item in enumerate(items, start=1):
-        if progress is not None:
-            progress(item, done + index, total)
-        _report_progress(runs_dir, done + index - 1, total, run)
+    """One pass over `items`, appending to `run`. Items may overlap."""
+    guard = threading.Lock()
+    finished = [0]
+
+    def evaluate_one(item: DatasetItem) -> None:
         try:
             description, policy = task_text(item.domain, item.task_id)
             judge_input = build_judge_input(
@@ -306,26 +320,40 @@ def _evaluate_pass(
                 seed=seed,
                 truth_for=None if truth_for_item is None else truth_for_item(item),
             )
-        except Exception as exc:  # noqa: BLE001 - recorded as a wrong answer below
+        except Exception as exc:  # noqa: BLE001 - re-queued, not scored
             # Deliberately broad: whatever stopped this item -- an
             # unreadable tape, a judge that raised, a fork that died on
-            # infrastructure -- the item is still part of the split and
-            # must be scored, with the reason attached.
-            run.failures.append(
-                ItemFailure(
-                    item_id=item.item_id,
-                    run_id=item.run_id,
-                    reason=f"{type(exc).__name__}: {exc}",
+            # infrastructure -- it has not answered, so it is recorded as
+            # a failure and retried on the next pass rather than scored.
+            reason = f"{type(exc).__name__}: {exc}"
+            with guard:
+                run.failures.append(
+                    ItemFailure(item_id=item.item_id, run_id=item.run_id, reason=reason)
                 )
-            )
-            continue
+            # Printed as it happens: the reasons used to surface only after
+            # every pass had run, which made a stalled run unreadable.
+            print(f"  unevaluated {item.item_id}: {reason}", flush=True)
+            return
 
         for outcome in outcomes:
             if outcome.blame is not None:
                 save_blame(runs_dir, outcome.blame, judgement.step_by_step)
-        run.control_flags.extend(check_controls(item, outcomes))
-        run.outcomes.extend(outcomes)
-    _report_progress(runs_dir, done + len(items), total, run)
+        with guard:
+            run.control_flags.extend(check_controls(item, outcomes))
+            run.outcomes.extend(outcomes)
+            finished[0] += 1
+            _report_progress(runs_dir, done + finished[0], total, run)
+        if progress is not None:
+            progress(item, done + finished[0], total)
+
+    if item_concurrency <= 1 or len(items) <= 1:
+        for item in items:
+            evaluate_one(item)
+        return
+    with ThreadPoolExecutor(
+        max_workers=min(item_concurrency, len(items)), thread_name_prefix="p5-item"
+    ) as pool:
+        list(pool.map(evaluate_one, items))
 
 
 def outcome_rows(outcomes: Sequence[MethodOutcome]) -> list[dict[str, Any]]:
