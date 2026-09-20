@@ -37,12 +37,13 @@ def test_figures_are_byte_identical_across_two_builds(tmp_path: Path) -> None:
         assert first.read_bytes() == second.read_bytes(), f"{name} figure is not deterministic"
 
 
-def test_report_md_markers_reference_only_known_fragments() -> None:
-    """Every `table:NAME` marker in docs/report.md has a producer in render.py."""
-    text = render.REPORT_MD.read_text(encoding="utf-8")
+def test_markdown_files_reference_only_known_fragments() -> None:
+    """Every `table:NAME` marker in a spliced file has a producer in render.py."""
     import re
 
-    referenced = set(re.findall(r"table:([a-z0-9_]+)", text))
     fragments = render.build_table_fragments()
-    missing = referenced - set(fragments)
-    assert not missing, f"docs/report.md references undefined table fragments: {missing}"
+    for path in render.SPLICE_TARGETS:
+        text = path.read_text(encoding="utf-8")
+        referenced = set(re.findall(r"table:([a-z0-9_]+)", text))
+        missing = referenced - set(fragments)
+        assert not missing, f"{path} references undefined table fragments: {missing}"

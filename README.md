@@ -95,7 +95,59 @@ See [`.github/actions/bisect-gate`](.github/actions/bisect-gate) and the [workfl
 
 ### results
 
-Results are being collected. The pre-registered hypotheses, δ, and the stopping rules were committed before any of the data existed ([`docs/decisions/0001-preregistration.md`](docs/decisions/0001-preregistration.md)), gate outcomes are recorded as they land in [`docs/gates/`](docs/gates/) — pass *and* fail — and the write-up will land in `docs/report.md`. There are no numbers here yet on purpose.
+**Test split pending** — P5's test split (12 items) is running as this is
+written; the full write-up, with every table and figure regenerated from
+committed data by `make reproduce`, is [`docs/report.md`](docs/report.md).
+The pre-registered hypotheses, δ, and the stopping rules were committed
+before any of the data existed
+([`docs/decisions/0001-preregistration.md`](docs/decisions/0001-preregistration.md)),
+and gate outcomes are recorded as they land in
+[`docs/gates/`](docs/gates/) — pass *and* fail.
+
+Shown here: the **dev split** — diagnostic only, never a gate, reported
+because hiding the split you tuned on is how a benchmark stops being one.
+Bisect was exact on every item the judge's top-3 shortlist actually
+contained and blamed nothing on the rest, so its accuracy is exactly judge
+recall@3 (0.50) × conditional accuracy given a hit (1.00).
+
+<!-- BEGIN table:accuracy_dev -->
+| Method | n | Accuracy | 95% Wilson CI | Mean calls | Mean re-runs |
+|---|---|---|---|---|---|
+| Bisect | 6 | 0.500 | [0.188, 0.812] | 430.8 | 59.3 |
+| Judge, all-at-once | 6 | 0.333 | [0.097, 0.700] | 1.2 | 0.0 |
+| Judge, step-by-step | 6 | 0.167 | [0.030, 0.564] | 15.8 | 0.0 |
+<!-- END table:accuracy_dev -->
+
+<img src="docs/report/figures/recall_curve_dev.svg" alt="recall@m per method on the dev split, solid where measured (re-run confirmed), dashed where it is the judge's ranking only" width="70%">
+
+The planted-fault dataset itself came in at 18 items against a 120-item
+target (60-item fallback floor) — 292 real, consequential mutations of a
+real tool result produced 18 that flipped a run 3-or-4 times in 4. That 6.2%
+keep rate is itself a finding: this agent usually recovers from a single
+planted perception fault. Full funnel, strata and the reasoning behind
+every deviation from the pre-registration:
+[`docs/report.md`](docs/report.md#dataset-card).
+
+### limitations
+
+- **Small *n*.** 18 planted-fault items (12 in the test split) — a power
+  calculation run before any live P5 call found 9–14% power to detect the
+  pre-registered 15-point gap at all
+  ([`docs/findings/p5-power.md`](docs/findings/p5-power.md)). A FAIL on the
+  gate is the expected outcome at this size whether or not the effect is
+  real; only a PASS, implying a large effect, is informative here.
+- **Faults are injected, not organic.** A mechanically mutated tool result
+  is not a naturally occurring agent mistake; this measures localization of
+  a planted cause, not attribution of an organic failure.
+- **The judge-recall bottleneck.** Bisect can only find a step the judge's
+  shortlist (`m = 3`) contains — on the dev split, accuracy is exactly
+  judge recall@3 × conditional accuracy given a hit. A judge that misses the
+  culprit is a ceiling replay cannot lift.
+- **Retail rewards are judged by an LLM.** τ²'s own natural-language-
+  assertion judge model 404s on this account; retail tasks are scored by
+  the same model Bisect uses as its judge, so retail rewards here are not
+  bit-comparable with a published τ²-bench number, and a sampled quantity
+  sits inside the very stability checks that decide dataset membership.
 
 ### prior art
 

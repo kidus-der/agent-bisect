@@ -8,9 +8,12 @@ Writes:
 
 - `docs/report/tables/*.md` — one file per table, plain Markdown fragments.
 - `docs/report/figures/*.svg` — deterministic (see `figures.py`).
-- `docs/report.md` — every `<!-- BEGIN table:NAME --> ... <!-- END table:NAME -->`
-  region is replaced with the matching fragment's content, so a number in
-  the prose can never drift from the table it came from.
+- `docs/report.md` and `README.md` — every
+  `<!-- BEGIN table:NAME --> ... <!-- END table:NAME -->` region in either
+  file is replaced with the matching fragment's content, so a number in the
+  prose can never drift from the table it came from. Not every fragment
+  needs to be referenced in both files; `README.md` only pulls in the dev
+  accuracy table, kept short on purpose.
 
 Two consecutive runs produce byte-identical output (checked by
 `tests/report/test_reproducible.py` and by `make reproduce`, which also runs
@@ -33,6 +36,11 @@ from scripts.report import figures, loaders, tables  # noqa: E402
 TABLES_DIR = REPO_ROOT / "docs" / "report" / "tables"
 FIGURES_DIR = REPO_ROOT / "docs" / "report" / "figures"
 REPORT_MD = REPO_ROOT / "docs" / "report.md"
+README_MD = REPO_ROOT / "README.md"
+#: Files whose `<!-- BEGIN table:NAME -->` markers get spliced. Each is
+#: checked independently, so a file that references no known fragment is
+#: simply left with none replaced -- see `splice_markdown_file`.
+SPLICE_TARGETS = (REPORT_MD, README_MD)
 
 _MARKER = re.compile(
     r"(<!-- BEGIN table:(?P<name>[a-z0-9_]+) -->\n).*?(\n<!-- END table:(?P=name) -->)",
@@ -119,36 +127,41 @@ def write_figures() -> None:
     figures.save_deterministic(figures.figure_cost(summary_dev), FIGURES_DIR / "cost_dev.svg")
 
 
-def splice_report_md(fragments: dict[str, str]) -> None:
-    """Replace every `<!-- BEGIN table:NAME -->...<!-- END table:NAME -->` region."""
-    text = REPORT_MD.read_text(encoding="utf-8")
+def splice_markdown_file(path: Path, fragments: dict[str, str]) -> int:
+    """Replace every `<!-- BEGIN table:NAME -->...<!-- END table:NAME -->` region in `path`."""
+    text = path.read_text(encoding="utf-8")
 
     def _replace(match: re.Match[str]) -> str:
         name = match.group("name")
         content = fragments.get(name)
         if content is None:
-            raise KeyError(
-                f"docs/report.md references table:{name}, which render.py does not produce"
-            )
+            raise KeyError(f"{path} references table:{name}, which render.py does not produce")
         begin, end = match.group(1), match.group(3)
         return f"{begin}{content.rstrip()}{end}"
 
     new_text, count = _MARKER.subn(_replace, text)
-    referenced = set(re.findall(r"table:([a-z0-9_]+)", text))
+    path.write_text(new_text, encoding="utf-8")
+    sys.stdout.write(f"spliced {count} table region(s) into {path}\n")
+    return count
+
+
+def _warn_about_unused_fragments(fragments: dict[str, str], texts: list[str]) -> None:
+    referenced: set[str] = set()
+    for text in texts:
+        referenced.update(re.findall(r"table:([a-z0-9_]+)", text))
     unused = set(fragments) - referenced
     if unused:
-        sys.stderr.write(
-            f"warning: unused table fragments not referenced in docs/report.md: {sorted(unused)}\n"
-        )
-    REPORT_MD.write_text(new_text, encoding="utf-8")
-    sys.stdout.write(f"spliced {count} table region(s) into {REPORT_MD}\n")
+        sys.stderr.write(f"warning: table fragments referenced nowhere: {sorted(unused)}\n")
 
 
 def main() -> int:
     fragments = build_table_fragments()
     write_table_files(fragments)
     write_figures()
-    splice_report_md(fragments)
+    texts_before = [path.read_text(encoding="utf-8") for path in SPLICE_TARGETS]
+    for path in SPLICE_TARGETS:
+        splice_markdown_file(path, fragments)
+    _warn_about_unused_fragments(fragments, texts_before)
     return 0
 
 
