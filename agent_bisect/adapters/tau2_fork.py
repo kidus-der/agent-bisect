@@ -70,6 +70,10 @@ INFRA_RETRIES = 3
 RETRY_BACKOFF_S = 20.0
 #: How many `-r<n>` suffixes to try before giving up on a free run id.
 MAX_ID_ATTEMPTS = 50
+#: How many `-r<n>` suffixes a resume looks back through when hunting for
+#: a draw's recorded outcome. Small: ids only grow suffixes when a run
+#: died mid-fork, which is rare per draw.
+_ID_RETRY_LOOKBACK = 3
 #: Offset folded into the seed of a retry so it is not the same draw again.
 _RETRY_SEED_OFFSET = 1_000_003
 
@@ -171,18 +175,37 @@ class Tau2ForkExecutor:
         )
 
     def _recorded(self, run_id: str) -> RerunOutcome | None:
-        """The outcome of a fork that has already been run, if there is one."""
-        try:
-            outcome = self._reader.get_outcome(run_id)
-        except UnknownRunError:
-            return None
-        if outcome is None:
-            return None
-        steps = self._reader.get_steps(run_id)
-        self.reused += 1
-        # `calls` is what this process spent, and it spent nothing: a
-        # resumed fork must not be charged to the run that did not buy it.
-        return RerunOutcome(passed=outcome.passed, n_steps=len(steps), calls=0)
+        """The outcome of a fork already run, under `run_id` or a retry of it.
+
+        A draw that failed and then succeeded on attempt 2 has its outcome
+        stored under `<id>-a1`, not `<id>`. Looking only at the base id
+        made every later pass re-run that draw: control arms accumulated
+        85 forks where the design needs 16, and an item's progress never
+        converged. A retry's outcome is the draw's outcome, so it counts.
+        """
+        for candidate in self._candidate_ids(run_id):
+            try:
+                outcome = self._reader.get_outcome(candidate)
+            except UnknownRunError:
+                continue
+            if outcome is None:
+                continue
+            steps = self._reader.get_steps(candidate)
+            self.reused += 1
+            # `calls` is what this process spent, and it spent nothing: a
+            # resumed fork must not be charged to the run that did not buy it.
+            return RerunOutcome(passed=outcome.passed, n_steps=len(steps), calls=0)
+        return None
+
+    def _candidate_ids(self, run_id: str) -> list[str]:
+        """`run_id` and the ids its retries would have taken, in order."""
+        ids = [run_id]
+        for attempt in range(1, INFRA_RETRIES):
+            base = f"{run_id}-a{attempt}"
+            ids.append(base)
+            ids.extend(f"{base}-r{n}" for n in range(1, _ID_RETRY_LOOKBACK + 1))
+        ids.extend(f"{run_id}-r{n}" for n in range(1, _ID_RETRY_LOOKBACK + 1))
+        return ids
 
     def _run_once(self, request: RerunRequest, seed: int) -> RerunOutcome:
         # A fork carries NO per-re-run seed, and the draw's seed reaches
