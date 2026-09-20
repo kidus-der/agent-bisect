@@ -174,10 +174,13 @@ def test_truthful_tool_result_recovers_the_planted_fault(store):
             store=store.blobs, reader=store.reader, tape=store.tape,
         )
     step = get_users_step(store.reader, faulted_id)
-    executor = Tau2ForkExecutor(store=store.blobs, reader=store.reader, tape=store.tape)
     resolver = Tau2TruthResolver(DOMAIN, spec.task_id, store.blobs)
 
-    with _session(store):
+    with _session(store) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
         treated = executor.run(
             RerunRequest(
                 parent_run_id=faulted_id, run_id=faulted_id + "-treated", fork_step=step.step_idx,
@@ -214,9 +217,11 @@ def test_the_standing_fault_survives_a_fork_taken_before_it(store):
             parent_run_id=clean_id, run_id=faulted_id,
             store=store.blobs, reader=store.reader, tape=store.tape,
         )
-    executor = Tau2ForkExecutor(store=store.blobs, reader=store.reader, tape=store.tape)
-
-    with _session(store):
+    with _session(store) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
         before = executor.run(
             RerunRequest(
                 parent_run_id=faulted_id, run_id=faulted_id + "-before", fork_step=0,

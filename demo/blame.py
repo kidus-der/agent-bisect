@@ -20,7 +20,7 @@ against a shared control forked at the earliest tested step.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -160,6 +160,7 @@ def blame_new_failure(
     head_tape: TapeWriter,
     base_store: BlobStore,
     base_reader: TapeReader,
+    live_completion: Callable[..., Any],
     seed: int,
 ) -> BlameResult:
     """Shortlist by first divergence, then confirm exactly as `run_blame` would.
@@ -168,17 +169,13 @@ def blame_new_failure(
     lives there, and so must every fork of it. `base_store`/`base_reader`
     are read only, for the divergence comparison.
 
-    Must be called inside a `recording_session(completion_fn=demo_completion,
-    ...)`. `Tau2ForkExecutor` is built with no `live_completion` of its own
-    so its live suffix goes through that session's router
-    (`adapters/tau2_llm.route_tau2_llm`), not straight to `demo_completion` --
-    a `Resample`-armed suspect whose live continuation is a bare completion
-    call is never recorded, so the replayer's own step count stalls and the
-    *next* step (routinely the tool call the resampled turn itself makes)
-    is mistaken for the fork step,
-    raising `MisappliedInterventionError`. `Tau2ForkExecutor`'s own
-    docstring names this failure mode; `TruthfulToolResult` never hits it
-    because it never returns `LIVE`.
+    `live_completion` must be the *router's* completion -- the object
+    `recording_session(...) as router` yields, called as
+    `router.completion` -- never a bare completion function and never
+    `llm_utils.completion` read off the seam. `Tau2ForkExecutor` no longer
+    accepts a default for this (its own docstring explains why: an
+    unrecorded live call stalls the replayer's step count, and reading the
+    seam picks up the replay dispatcher and recurses).
     """
     spec = scenario(failure.scenario_name)
     head_steps = head_reader.get_steps(failure.head_run_id)
@@ -187,7 +184,9 @@ def blame_new_failure(
         item_id=failure.scenario_name, head_store=head_store, base_store=base_store,
         base_steps=base_steps, head_steps=head_steps,
     )
-    executor = Tau2ForkExecutor(store=head_store, reader=head_reader, tape=head_tape)
+    executor = Tau2ForkExecutor(
+        store=head_store, reader=head_reader, tape=head_tape, live_completion=live_completion
+    )
     truth = Tau2TruthResolver(DOMAIN, spec.task_id, head_store)
     return run_blame(
         item_id=failure.scenario_name,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from agent_bisect.attribution.estimate import ArmResult, RunEstimate, StepEffect
 from agent_bisect.attribution.judge_view import JudgeVerdict
@@ -195,9 +196,11 @@ def test_run_blame_cli_writes_one_summary_row_per_failure(monkeypatch, tmp_path)
     }
     saved = []
 
+    fake_router = SimpleNamespace(completion=lambda **kw: None)
+
     @contextmanager
     def fake_session(**kwargs):
-        yield None
+        yield fake_router
 
     monkeypatch.setattr(blame_cli_module, "ensure_tau2_data_dir", lambda: None)
     monkeypatch.setattr(blame_cli_module, "recording_session", lambda **kw: fake_session())

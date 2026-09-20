@@ -92,12 +92,13 @@ def run_blame_cli(
     with recording_session(
         ledger=ledger_for(out_dir), phase="gate", completion_fn=demo_completion,
         api_key=UNUSED_API_KEY, api_base=UNUSED_API_BASE, limiter_for=no_limiter,
-    ):
+    ) as router:
         for failure in failures:
             result = blame_new_failure(
                 failure,
                 head_store=head_store, head_reader=head_reader, head_tape=head_tape,
                 base_store=base_store, base_reader=base_reader,
+                live_completion=router.completion,
                 seed=seed,
             )
             save_blame(out_dir, result)
