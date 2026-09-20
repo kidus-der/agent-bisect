@@ -1,0 +1,72 @@
+{
+  "config": {
+    "batch": 4,
+    "conf": 0.95,
+    "control_mode": "shared",
+    "delta": 0.1,
+    "max_n": 16
+  },
+  "cost": {
+    "mean_reruns_fixed": 317.68,
+    "mean_reruns_sequential": 307.36,
+    "mean_steps_tested": 18.855,
+    "rerun_saving": 0.03248552002014604
+  },
+  "coverage_fixed_n16": {
+    "covered": 3647,
+    "rate": 0.9671174754706974,
+    "tested": 3771
+  },
+  "coverage_sequential": {
+    "covered": 3720,
+    "rate": 0.9864757358790772,
+    "tested": 3771
+  },
+  "criteria": [
+    {
+      "name": "planted step found",
+      "passed": false,
+      "requirement": ">= 0.95",
+      "value": 0.895
+    },
+    {
+      "name": "coverage (fixed N=16)",
+      "passed": true,
+      "requirement": "in [0.92, 0.98]",
+      "value": 0.9671174754706974
+    }
+  ],
+  "diagnosis_report_only": {
+    "null_step_flag_rate_fixed_n16": 0.0,
+    "null_step_flag_rate_sequential": 0.0,
+    "null_steps_flagged_fixed_n16": 0,
+    "null_steps_flagged_sequential": 0,
+    "null_steps_tested": 1597,
+    "outcome_counts_fixed_n16": {
+      "earlier": 0,
+      "found": 184,
+      "later": 0,
+      "none": 16
+    },
+    "planted_step_found_fixed_n16": {
+      "count": 184,
+      "rate": 0.92
+    }
+  },
+  "gate": "P4",
+  "master_seed": 20260917,
+  "n_runs": 200,
+  "outcome_counts": {
+    "earlier": 0,
+    "found": 179,
+    "later": 0,
+    "none": 21
+  },
+  "passed": false,
+  "planted_step_found": {
+    "ci_high": 0.9302925120731899,
+    "ci_low": 0.8448196800887696,
+    "count": 179,
+    "rate": 0.895
+  }
+}

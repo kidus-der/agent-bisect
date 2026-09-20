@@ -1,0 +1,29 @@
+{
+  "source": "docs/findings/p5-power.md",
+  "reproduce": "uv run python scripts/p5_power.py",
+  "note": "Power to pass BOTH P5 gate criteria (gap >= 15 points AND its 95% paired-bootstrap CI above 0), 400 simulations, paired on shared item difficulty over the real task-cluster structure of the frozen manifests. Computed before any live P5 call (docs/decisions/0001-preregistration.md's discipline: no post-hoc rescue).",
+  "gate_points": 15.0,
+  "strict_test_items": 12,
+  "strict_test_clusters": 10,
+  "extended_test_items": 17,
+  "extended_test_clusters": 14,
+  "smallest_clearing_result": {
+    "description": "the smallest observed result that clears the CI: Bisect right on 4 of 12 items where the judge is right on none",
+    "ci_low": 0.077,
+    "ci_high": 0.636
+  },
+  "power_by_true_gap": {
+    "strict": [
+      {"true_gap_points": 15, "judge_0.10": 0.14, "judge_0.25": 0.12, "judge_0.40": 0.09},
+      {"true_gap_points": 25, "judge_0.10": 0.40, "judge_0.25": 0.37, "judge_0.40": 0.37},
+      {"true_gap_points": 40, "judge_0.10": 0.82, "judge_0.25": 0.79, "judge_0.40": 0.76},
+      {"true_gap_points": 55, "judge_0.10": 0.95, "judge_0.25": 0.95, "judge_0.40": 0.96}
+    ],
+    "extended": {
+      "note": "range across the judge_0.10/0.25/0.40 conditions",
+      "at_bar_15pts": [0.21, 0.26],
+      "at_25pts": [0.60, 0.60],
+      "at_40pts": [0.94, 0.94]
+    }
+  }
+}

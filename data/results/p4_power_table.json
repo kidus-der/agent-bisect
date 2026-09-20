@@ -1,0 +1,17 @@
+{
+  "source": "docs/gates/P4.md, docs/findings/p4.md",
+  "reproduce": "uv run python scripts/gates/p4.py --power-table",
+  "note": "Exact enumeration (no simulation, no seed) of P(Newcombe 95% lower bound > delta=0.10) at N=16 per arm, nominal 95% look, and at the O'Brien-Fleming final look (z=2.024).",
+  "delta": 0.10,
+  "n_per_arm": 16,
+  "nominal_95": {
+    "control_0.00": {"treated_0.60": 0.981, "treated_0.70": 0.998, "treated_0.80": 1.000, "treated_0.90": 1.000},
+    "control_0.10": {"treated_0.60": 0.717, "treated_0.70": 0.881, "treated_0.80": 0.968, "treated_0.90": 0.997},
+    "control_0.15": {"treated_0.60": 0.552, "treated_0.70": 0.761, "treated_0.80": 0.915, "treated_0.90": 0.988}
+  },
+  "obf_final_look_z_2.024": {
+    "control_0.00": {"treated_0.60": 0.942, "treated_0.70": 0.993, "treated_0.80": 1.000, "treated_0.90": 1.000},
+    "control_0.10": {"treated_0.60": 0.658, "treated_0.70": 0.852, "treated_0.80": 0.962, "treated_0.90": 0.997},
+    "control_0.15": {"treated_0.60": 0.497, "treated_0.70": 0.732, "treated_0.80": 0.908, "treated_0.90": 0.987}
+  }
+}
