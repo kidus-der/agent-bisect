@@ -1,0 +1,74 @@
+{
+  "by_phase": {
+    "P0": 2932,
+    "P1": 632,
+    "P3": 72294,
+    "P5": 13463,
+    "P5-smoke": 9
+  },
+  "by_phase_and_model": {
+    "P0": {
+      "deepseek-ai/deepseek-v4-flash-0731": 284,
+      "moonshotai/kimi-k2.6": 1,
+      "moonshotai/kimi-k3": 65,
+      "nvidia/nemotron-3-super-120b-a12b": 764,
+      "nvidia/nemotron-3-ultra-550b-a55b": 51,
+      "nvidia/nemotron-3.5-lightning-30b-a3b": 587,
+      "openai/gpt-oss-20b": 811,
+      "z-ai/glm-5.3-flash": 369
+    },
+    "P1": {
+      "nvidia/nemotron-3-super-120b-a12b": 515,
+      "nvidia/nemotron-3.5-lightning-30b-a3b": 117
+    },
+    "P3": {
+      "gpt-4.1-2025-04-14": 32,
+      "nvidia/nemotron-3-super-120b-a12b": 63481,
+      "nvidia/nemotron-3-ultra-550b-a55b": 163,
+      "nvidia/nemotron-3.5-lightning-30b-a3b": 8618
+    },
+    "P5": {
+      "nvidia/nemotron-3-super-120b-a12b": 9314,
+      "nvidia/nemotron-3-ultra-550b-a55b": 536,
+      "nvidia/nemotron-3.5-lightning-30b-a3b": 3613
+    },
+    "P5-smoke": {
+      "nvidia/nemotron-3-super-120b-a12b": 1,
+      "nvidia/nemotron-3-ultra-550b-a55b": 1,
+      "nvidia/nemotron-3.5-lightning-30b-a3b": 7
+    }
+  },
+  "by_phase_and_status": {
+    "P0": {
+      "error": 57,
+      "exhausted": 12,
+      "ok": 2484,
+      "rate_limited": 161,
+      "reserved": 3,
+      "retrying": 215
+    },
+    "P1": {
+      "exhausted": 3,
+      "ok": 534,
+      "retrying": 95
+    },
+    "P3": {
+      "error": 174,
+      "exhausted": 976,
+      "ok": 27438,
+      "reserved": 65,
+      "retrying": 43641
+    },
+    "P5": {
+      "error": 88,
+      "exhausted": 41,
+      "ok": 9923,
+      "reserved": 123,
+      "retrying": 3288
+    },
+    "P5-smoke": {
+      "ok": 9
+    }
+  },
+  "total_calls": 89330
+}
