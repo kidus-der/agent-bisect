@@ -176,3 +176,61 @@ def test_a_divergence_is_never_retried(monkeypatch):
     with _pytest.raises(DivergenceError):
         executor.run(_request())
     assert calls["n"] == 1, "a divergence is a finding, not a wobble"
+
+
+# ---- a resumed draw finds the outcome its retry recorded ----
+
+
+class _TapeWithOutcome:
+    """A tape holding one run's outcome, under whatever id it was written."""
+
+    def __init__(self, run_id: str) -> None:
+        self.run_id = run_id
+
+    def get_outcome(self, run_id):
+        from agent_bisect.core.tape import Outcome, UnknownRunError
+
+        if run_id != self.run_id:
+            raise UnknownRunError(run_id)
+        return Outcome(run_id=run_id, reward=1.0)
+
+    def get_steps(self, run_id):
+        return [None, None, None]
+
+    def get_manifest(self, run_id):
+        from agent_bisect.core.tape import UnknownRunError
+
+        raise UnknownRunError(run_id)
+
+
+def _executor_over(tape):
+    from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor
+
+    return Tau2ForkExecutor(
+        store=None, reader=tape, tape=None, live_completion=lambda **k: None
+    )
+
+
+def test_a_draw_recorded_under_its_own_id_is_reused():
+    executor = _executor_over(_TapeWithOutcome("p-c4-abc"))
+
+    outcome = executor.run(_request())
+
+    assert outcome.passed is True
+    assert executor.reused == 1
+
+
+def test_a_draw_recorded_under_a_retry_id_is_also_reused():
+    """Otherwise every later pass re-runs a draw that already succeeded."""
+    executor = _executor_over(_TapeWithOutcome("p-c4-abc-a1"))
+
+    outcome = executor.run(_request())
+
+    assert outcome.passed is True
+    assert executor.reused == 1
+
+
+def test_a_reused_draw_is_charged_no_calls():
+    executor = _executor_over(_TapeWithOutcome("p-c4-abc-a1"))
+
+    assert executor.run(_request()).calls == 0
