@@ -44,6 +44,21 @@ def test_unknown_run_detail_is_key_error(empty_repo):
         empty_repo.run_detail("nope")
 
 
+def test_default_data_dir_is_never_this_repo_s_own(tmp_path):
+    """A `RealRepository()` built with no `data_dir` must never resolve
+    its relative default (`Path("data")`) against this project's own,
+    now-real, frozen `data/manifest.json` -- the exact bug caught when P3
+    committed one and `test_empty_real_repo_never_creates_files` (which
+    forgot to isolate `data_dir`, same as every other fixture below) went
+    from `DataNotAvailable` to a real dataset page. This whole module runs
+    chdir'd into an isolated tmp dir (`isolated_repo_cwd`, conftest.py)
+    specifically so a fixture that forgets `data_dir=` fails safe rather
+    than silently reading real project data."""
+    repo = RealRepository(runs_dir=tmp_path / "runs")  # data_dir intentionally omitted
+    with pytest.raises(DataNotAvailable):
+        repo.dataset(1, 10)
+
+
 @pytest.fixture
 def one_run_dir(tmp_path) -> Path:
     runs_dir = tmp_path / "runs"
