@@ -118,7 +118,76 @@ def gate_result(manifest: Path, runs_dir: Path) -> list[dict[str, Any]]:
     ]
 
 
-def render(manifest_path: Path, work_dir: Path, runs_dir: Path, ledger_path: Path) -> str:
+def transport_mix(work_dir: Path) -> dict[str, int]:
+    """The infrastructure failures a collection actually hit, by kind."""
+    counts: dict[str, int] = {}
+    for event in Journal(work_dir).events():
+        if event.get("reason_code") != "infra":
+            continue
+        reason = str(event.get("reason", ""))
+        for tag in ("504", "429", "Timeout", "NotFound", "Divergence", "attempts already"):
+            if tag in reason:
+                counts[tag] = counts.get(tag, 0) + 1
+                break
+        else:
+            counts["other"] = counts.get("other", 0) + 1
+    return dict(sorted(counts.items(), key=lambda entry: -entry[1]))
+
+
+def flaky_section(manifest_path: Path, work_dir: Path) -> list[str]:
+    """The flaky-world attempt: what it produced and what stopped it."""
+    if not work_dir.exists():
+        return []
+    journal = Journal(work_dir)
+    candidates = journal.all("candidate")
+    kept = [record for record in candidates if record.get("status") == "kept"]
+    stability = journal.all("stability")
+    try:
+        frozen = load_frozen(manifest_path)
+        header = (
+            f"**{len(frozen.items)} items**, unsplit, sha256 `{frozen.digest}` "
+            f"(`{manifest_path.name}`)."
+        )
+    except Exception:  # noqa: BLE001 - no manifest is itself the outcome
+        header = "No manifest was written."
+    return [
+        "## The flaky world",
+        "",
+        "A bounded two-hour attempt under `docs/decisions/0011-flaky-world.md` and",
+        "`0017` §4, on airline only. It was **infrastructure-limited, not",
+        "protocol-limited**: the collection stopped with tasks parked after three",
+        "re-queue passes, against a provider returning gateway timeouts.",
+        "",
+        header,
+        "",
+        "```json",
+        json.dumps(
+            {
+                "base_runs": len(journal.all("base")),
+                "stability_checks": len(stability),
+                "stable": sum(1 for record in stability if record.get("stable")),
+                "candidates": len(candidates),
+                "kept": len(kept),
+                "transport_and_infra": transport_mix(work_dir),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        "```",
+        "",
+        "Three items cannot support the P5 flaky-world criterion — the pre-registered",
+        "comparison needs an interval on a difference — and the honest reading is that",
+        "**the ablation was not collected**, not that it was collected and came out",
+        "small. The mechanism it exists to demonstrate is separately evidenced offline:",
+        "snapshot restores reproduce the recorded database hash at 100% of tool steps",
+        "while re-executing the same calls later reproduces 0%",
+        "(`tests/test_tau2_flaky.py`).",
+        "",
+    ]
+
+
+def render(manifest_path: Path, work_dir: Path, runs_dir: Path, ledger_path: Path,
+           flaky_manifest: Path | None = None, flaky_work_dir: Path | None = None) -> str:
     frozen = load_frozen(manifest_path)
     counts = funnel(Journal(work_dir))
     criteria = gate_result(manifest_path, runs_dir)
@@ -197,6 +266,11 @@ def render(manifest_path: Path, work_dir: Path, runs_dir: Path, ledger_path: Pat
         json.dumps(money, indent=2, sort_keys=True),
         "```",
         "",
+        *(
+            flaky_section(flaky_manifest, flaky_work_dir)
+            if flaky_manifest and flaky_work_dir
+            else []
+        ),
         "## Re-run variation",
         "",
         "Forks carry no per-re-run seed (`docs/decisions/0017-p3-collection-policy.md` §5),",
@@ -216,13 +290,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--work-dir", type=Path, default=REPO_ROOT / "runs/p3")
     parser.add_argument("--runs-dir", type=Path, default=REPO_ROOT / "runs")
     parser.add_argument("--ledger", type=Path, default=REPO_ROOT / "runs/ledger.sqlite")
+    parser.add_argument("--flaky-work-dir", type=Path, default=REPO_ROOT / "runs/p3-flaky")
+    parser.add_argument(
+        "--flaky-manifest", type=Path, default=REPO_ROOT / "data/manifest_flaky.json"
+    )
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "docs/gates/P3.md")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    document = render(args.manifest, args.work_dir, args.runs_dir, args.ledger)
+    document = render(
+        args.manifest, args.work_dir, args.runs_dir, args.ledger,
+        args.flaky_manifest, args.flaky_work_dir,
+    )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(document)
     print(f"wrote {args.out} ({len(document.splitlines())} lines)")
