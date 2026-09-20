@@ -53,6 +53,11 @@ from agent_bisect.bench.results import (
     read_outcome_rows,
     write_results,
 )
+from agent_bisect.bench.run_lock import (
+    EvaluationLockedError,
+    check_unlocked,
+    evaluation_lock,
+)
 from agent_bisect.bench.split_lock import SplitLockedError, guard
 from agent_bisect.cli_io import own_stdout
 from agent_bisect.core.store import BlobStore
@@ -62,6 +67,7 @@ MISSING_KEY_EXIT_CODE = 1
 MANIFEST_EXIT_CODE = 6
 SPLIT_LOCKED_EXIT_CODE = 7
 SENSITIVITY_SPLIT_EXIT_CODE = 8
+LOCKED_EXIT_CODE = 10
 INCOMPLETE_EXIT_CODE = 9
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
@@ -306,7 +312,15 @@ def eval_(
         ),
     )
 
-    with own_stdout(), recording_session(
+    try:
+        check_unlocked(runs_dir)
+    except EvaluationLockedError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=LOCKED_EXIT_CODE) from None
+
+    with evaluation_lock(
+        runs_dir, label=f"eval --split {split}"
+    ), own_stdout(), recording_session(
         ledger=ledger, phase=DEFAULT_PHASE, config=RetryConfig(max_elapsed_s=RETRY_BUDGET_S)
     ) as router:
         base_kwargs["executor"] = Tau2ForkExecutor(
