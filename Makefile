@@ -1,4 +1,4 @@
-.PHONY: setup test lint typecheck cov web serve reproduce-p5
+.PHONY: setup test lint typecheck cov web serve reproduce-p5 reproduce reproduce-check
 
 # Everything a fresh clone needs. The hooks path matters most: .githooks/
 # is not active until git is told about it, so a new clone has NO secret
@@ -45,3 +45,29 @@ reproduce-p5:
 	uv run python scripts/gates/p5.py || true
 	git diff --exit-code -- data/results/p5_summary.json data/results/p5_items.json
 	@echo "P5 reproduced byte-identically"
+
+# P8's report layer, and the only half of "reproduce" a clean clone can run:
+# it reads committed JSON under data/ (manifests, p5_summary.json,
+# p5_items.json, the sidecars in data/results/) and never touches runs/ or
+# the network. Regenerates every table and figure in docs/report.md and
+# fails if the result differs from what is committed -- the actual check,
+# not a promise about it.
+#
+# `make reproduce-p5` above is a separate, machine-local step: it needs the
+# raw runs/p5/ outcome table, which is gitignored (recorded model
+# transcripts are too large to commit). Run it first if you have that
+# directory and want the whole chain checked end to end.
+reproduce:
+	uv run python scripts/report/render.py
+	git diff --exit-code -- docs/report.md docs/report/ data/results/ledger_by_phase.json data/results/p4_gate.json data/results/p4_power_table.json data/results/p5_power_table.json data/results/flaky_mechanism.json data/results/p5_summary_dev.json data/results/p5_items_dev.json
+	@echo "P8 reproduced byte-identically"
+
+# Same check, with the offline claim enforced rather than merely documented:
+# every new network socket in the `render.py` process raises
+# (scripts/report/_offline/sitecustomize.py), the same guarantee
+# pytest-socket gives the test suite. `scripts/gates/p8.py` runs the
+# equivalent check in a clean clone for the actual P8 gate; this target is
+# the fast local version against the working tree.
+reproduce-check:
+	PYTHONPATH="scripts/report/_offline:$$PYTHONPATH" $(MAKE) reproduce
+	@echo "reproduce-check: offline reproduction verified (network blocked)"
