@@ -1,0 +1,249 @@
+{
+  "by_position": [
+    {
+      "accuracy": 0.5,
+      "method": "bisect",
+      "n": 4,
+      "position": "early"
+    },
+    {
+      "accuracy": 0.25,
+      "method": "judge_all_at_once",
+      "n": 4,
+      "position": "early"
+    },
+    {
+      "accuracy": 0.25,
+      "method": "judge_step_by_step",
+      "n": 4,
+      "position": "early"
+    },
+    {
+      "accuracy": 0.5,
+      "method": "bisect",
+      "n": 2,
+      "position": "middle"
+    },
+    {
+      "accuracy": 0.5,
+      "method": "judge_all_at_once",
+      "n": 2,
+      "position": "middle"
+    },
+    {
+      "accuracy": 0.0,
+      "method": "judge_step_by_step",
+      "n": 2,
+      "position": "middle"
+    }
+  ],
+  "config": {
+    "bootstrap_resamples": 10000,
+    "estimator": {
+      "attempts_per_bucket": 2,
+      "base_trials": 2,
+      "floor_items": 60,
+      "keep_at_or_below": 0.25,
+      "max_kept_per_run": 3,
+      "max_seconds": null,
+      "n_reruns": 4,
+      "seed": 20260917,
+      "stability_reruns": 4,
+      "stable_at_or_above": 0.75,
+      "target_items": 120
+    },
+    "gate_points": 15.0,
+    "manifest_digest": "2604e2137564ca3b928da16bdcebf4477bf9f9b7c4c11cf2cb6b86577a827749",
+    "n_items": 6,
+    "seed": 20260917,
+    "split": "dev"
+  },
+  "flaky_ablation": null,
+  "gap": {
+    "ci_above_zero": false,
+    "ci_high": 0.6,
+    "ci_low": 0.0,
+    "clears_fifteen_points": true,
+    "comparator": "judge_all_at_once",
+    "points": 16.666666666666668,
+    "resamples": 10000,
+    "value": 0.16666666666666669
+  },
+  "heatmap": [
+    {
+      "accuracy": 0.0,
+      "fault_type": "stale_record",
+      "method": "bisect",
+      "n": 1
+    },
+    {
+      "accuracy": 0.0,
+      "fault_type": "stale_record",
+      "method": "judge_all_at_once",
+      "n": 1
+    },
+    {
+      "accuracy": 0.0,
+      "fault_type": "stale_record",
+      "method": "judge_step_by_step",
+      "n": 1
+    },
+    {
+      "accuracy": 0.75,
+      "fault_type": "tool_error",
+      "method": "bisect",
+      "n": 4
+    },
+    {
+      "accuracy": 0.5,
+      "fault_type": "tool_error",
+      "method": "judge_all_at_once",
+      "n": 4
+    },
+    {
+      "accuracy": 0.25,
+      "fault_type": "tool_error",
+      "method": "judge_step_by_step",
+      "n": 4
+    },
+    {
+      "accuracy": 0.0,
+      "fault_type": "wrong_value",
+      "method": "bisect",
+      "n": 1
+    },
+    {
+      "accuracy": 0.0,
+      "fault_type": "wrong_value",
+      "method": "judge_all_at_once",
+      "n": 1
+    },
+    {
+      "accuracy": 0.0,
+      "fault_type": "wrong_value",
+      "method": "judge_step_by_step",
+      "n": 1
+    }
+  ],
+  "integrity": {
+    "bisect_unguarded_calls": 0,
+    "note": "responses served past the request-hash guard by the bisect arms; must be 0, since unsafe_positional belongs to the re-run-live baseline alone"
+  },
+  "methods": [
+    {
+      "accuracy": {
+        "ci_high": 0.8123836935173494,
+        "ci_low": 0.18761630648265054,
+        "value": 0.5
+      },
+      "mean_calls": 430.8333333333333,
+      "mean_judge_calls": 1.1666666666666667,
+      "mean_replay_calls": 429.6666666666667,
+      "mean_reruns": 59.333333333333336,
+      "method": "bisect",
+      "n": 6,
+      "parse_failures": 0
+    },
+    {
+      "accuracy": {
+        "ci_high": 0.700006684861608,
+        "ci_low": 0.09677141110578047,
+        "value": 0.3333333333333333
+      },
+      "mean_calls": 1.1666666666666667,
+      "mean_judge_calls": 1.1666666666666667,
+      "mean_replay_calls": 0.0,
+      "mean_reruns": 0.0,
+      "method": "judge_all_at_once",
+      "n": 6,
+      "parse_failures": 0
+    },
+    {
+      "accuracy": {
+        "ci_high": 0.5635028221864702,
+        "ci_low": 0.030053369748306635,
+        "value": 0.16666666666666666
+      },
+      "mean_calls": 15.833333333333334,
+      "mean_judge_calls": 15.833333333333334,
+      "mean_replay_calls": 0.0,
+      "mean_reruns": 0.0,
+      "method": "judge_step_by_step",
+      "n": 6,
+      "parse_failures": 0
+    }
+  ],
+  "recall": {
+    "bisect": {
+      "1": 0.3333333333333333,
+      "10": 0.5,
+      "2": 0.5,
+      "3": 0.5,
+      "4": 0.5,
+      "5": 0.5,
+      "6": 0.5,
+      "7": 0.5,
+      "8": 0.5,
+      "9": 0.5
+    },
+    "judge_all_at_once": {
+      "1": 0.3333333333333333,
+      "10": 0.5,
+      "2": 0.5,
+      "3": 0.5,
+      "4": 0.5,
+      "5": 0.5,
+      "6": 0.5,
+      "7": 0.5,
+      "8": 0.5,
+      "9": 0.5
+    },
+    "judge_step_by_step": {
+      "1": 0.3333333333333333,
+      "10": 0.6666666666666666,
+      "2": 0.3333333333333333,
+      "3": 0.5,
+      "4": 0.5,
+      "5": 0.6666666666666666,
+      "6": 0.6666666666666666,
+      "7": 0.6666666666666666,
+      "8": 0.6666666666666666,
+      "9": 0.6666666666666666
+    }
+  },
+  "recall_provenance": {
+    "beyond_is_judge_ranking_only": true,
+    "measured_to_m": 3,
+    "note": "recall@m is MEASURED for m <= measured_to_m -- those suspects were re-run. Beyond it, recall@m is the judge's ranking alone (does its top-m contain the planted step); no re-run confirmed those, and no method was given the chance to act on them."
+  },
+  "sankey": [
+    {
+      "count": 1,
+      "fault_type": "stale_record",
+      "label": "none"
+    },
+    {
+      "count": 3,
+      "fault_type": "tool_error",
+      "label": "exact"
+    },
+    {
+      "count": 1,
+      "fault_type": "tool_error",
+      "label": "none"
+    },
+    {
+      "count": 1,
+      "fault_type": "wrong_value",
+      "label": "none"
+    }
+  ],
+  "scope": {
+    "control_flags": [],
+    "n_control_flags": 0,
+    "n_unevaluated": 0,
+    "shared_control_assumption": "the shared control assumes the recorded failure is reproducible from the fork point; planted faults satisfy this only because they are standing faulty tools (docs/decisions/0016-persistent-planted-fault.md), not edited recordings. Items whose control arm passed anyway are listed in scope.control_flags and are still included in every accuracy above.",
+    "unevaluated": []
+  },
+  "sensitivity": null
+}
