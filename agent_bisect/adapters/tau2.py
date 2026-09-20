@@ -386,6 +386,7 @@ def recording_session(
     api_key: str | None = None,
     api_base: str | None = None,
     limiter_for: Callable[[str], Any] | None = None,
+    config: Any | None = None,
 ) -> Iterator[Any]:
     """Route every tau2 LLM call through the limiter, ledger and recorder.
 
@@ -403,6 +404,7 @@ def recording_session(
         api_key=api_key,
         api_base=api_base,
         limiter_for=limiter_for,
+        config=config,
         run_id_for=current_run_id,
     ) as router:
         yield router

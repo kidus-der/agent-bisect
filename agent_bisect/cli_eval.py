@@ -65,6 +65,11 @@ INCOMPLETE_EXIT_CODE = 9
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
 DEFAULT_PHASE = "P5"
+#: Retry budget per LLM call. The default 300 s gives the user simulator
+#: about three attempts at its measured 13-86 s latency, and 20 forks of
+#: the first dev pass died on `exhausted` rather than on a real answer.
+#: A fork is expensive to lose and cheap to wait for.
+RETRY_BUDGET_S = 900.0
 DEFAULT_SEED = 20260917
 
 
@@ -238,6 +243,7 @@ def eval_(
 
     from agent_bisect.adapters.tau2 import recording_session
     from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor, serialized_truth
+    from agent_bisect.adapters.tau2_llm import RetryConfig
     from agent_bisect.adapters.tau2_task import task_text
     from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
     from agent_bisect.cli_blame import _backend
@@ -270,7 +276,9 @@ def eval_(
         ),
     )
 
-    with own_stdout(), recording_session(ledger=ledger, phase=DEFAULT_PHASE):
+    with own_stdout(), recording_session(
+        ledger=ledger, phase=DEFAULT_PHASE, config=RetryConfig(max_elapsed_s=RETRY_BUDGET_S)
+    ):
         run = evaluate_dataset(
             items,
             config=BaselineConfig(

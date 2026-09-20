@@ -55,6 +55,11 @@ MISSING_KEY_EXIT_CODE = 1
 DEFAULT_RUNS_DIR = Path("runs")
 DEFAULT_TOP_M = 3
 DEFAULT_PHASE = "P5"
+#: Retry budget per LLM call. The default 300 s gives the user simulator
+#: about three attempts at its measured 13-86 s latency, and 20 forks of
+#: the first dev pass died on `exhausted` rather than on a real answer.
+#: A fork is expensive to lose and cheap to wait for.
+RETRY_BUDGET_S = 900.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +204,7 @@ def blame(
     """Attribute a recorded failure to its earliest causal step."""
     from agent_bisect.adapters.tau2 import recording_session
     from agent_bisect.adapters.tau2_fork import Tau2ForkExecutor, serialized_truth
+    from agent_bisect.adapters.tau2_llm import RetryConfig
     from agent_bisect.adapters.tau2_task import task_text
     from agent_bisect.adapters.tau2_truth import Tau2TruthResolver
     from agent_bisect.core.budget import BudgetLedger
@@ -224,7 +230,9 @@ def blame(
     ledger = BudgetLedger(runs_dir / "ledger.sqlite")
     # The session installs the router for the whole diagnosis, so every
     # live re-run of every fork is limited, ledgered and recorded.
-    with own_stdout(), recording_session(ledger=ledger, phase=DEFAULT_PHASE):
+    with own_stdout(), recording_session(
+        ledger=ledger, phase=DEFAULT_PHASE, config=RetryConfig(max_elapsed_s=RETRY_BUDGET_S)
+    ):
         run = blame_run(
             run_id,
             reader=reader,
