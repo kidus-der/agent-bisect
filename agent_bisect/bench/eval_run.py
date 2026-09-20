@@ -295,8 +295,15 @@ def _evaluate_pass(
     """One pass over `items`, appending to `run`. Items may overlap."""
     guard = threading.Lock()
     finished = [0]
+    attempted = [0]
+
+    # Written before any item starts, so a stale file from a previous run
+    # can never be mistaken for this one's progress.
+    _report_progress(runs_dir, done, total, run, attempted=done, failed=0)
 
     def evaluate_one(item: DatasetItem) -> None:
+        with guard:
+            attempted[0] += 1
         try:
             description, policy = task_text(item.domain, item.task_id)
             judge_input = build_judge_input(
@@ -330,6 +337,10 @@ def _evaluate_pass(
                 run.failures.append(
                     ItemFailure(item_id=item.item_id, run_id=item.run_id, reason=reason)
                 )
+                _report_progress(
+                    runs_dir, done + finished[0], total, run,
+                    attempted=done + attempted[0], failed=len(run.failures),
+                )
             # Printed as it happens: the reasons used to surface only after
             # every pass had run, which made a stalled run unreadable.
             print(f"  unevaluated {item.item_id}: {reason}", flush=True)
@@ -342,7 +353,10 @@ def _evaluate_pass(
             run.control_flags.extend(check_controls(item, outcomes))
             run.outcomes.extend(outcomes)
             finished[0] += 1
-            _report_progress(runs_dir, done + finished[0], total, run)
+            _report_progress(
+                runs_dir, done + finished[0], total, run,
+                attempted=done + attempted[0], failed=len(run.failures),
+            )
         if progress is not None:
             progress(item, done + finished[0], total)
 
@@ -402,9 +416,22 @@ def outcomes_from_rows(rows: Sequence[dict[str, Any]]) -> list[MethodOutcome]:
 
 
 def _report_progress(
-    runs_dir: Path, done: int, total: int, run: EvaluationRun
+    runs_dir: Path,
+    done: int,
+    total: int,
+    run: EvaluationRun,
+    *,
+    attempted: int = 0,
+    failed: int = 0,
 ) -> None:
     """Write P5's progress where the dashboard's Live page reads it.
+
+    `items_done` counts items that **completed with a verdict**, and
+    nothing else. It used to be written at the start of each item, so a
+    run in which every item died still reported 6/6 and the status file
+    said "healthy" while nothing had been evaluated. `items_attempted` and
+    `items_failed_infra` are carried beside it so the three numbers cannot
+    agree with each other and still be wrong.
 
     Best effort: a status file that cannot be written must not stop an
     evaluation that is otherwise fine, and the run's own outputs are the
@@ -418,6 +445,8 @@ def _report_progress(
                 phase=STATUS_PHASE,
                 items_done=done,
                 items_total=total,
+                items_attempted=attempted,
+                items_failed_infra=failed,
                 calls_spent=sum(
                     outcome.total_calls for outcome in run.outcomes
                 ),
