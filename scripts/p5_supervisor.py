@@ -138,19 +138,26 @@ def supervise(args: argparse.Namespace) -> Outcome:
             _command(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, start_new_session=True,
         )
+        # Streamed line by line rather than buffered to exit: the child
+        # prints each item's failure reason as it happens, and a run that
+        # takes hours must not hide them until it is over.
+        lines: list[str] = []
         try:
-            stdout, _ = process.communicate()
+            assert process.stdout is not None
+            for line in process.stdout:
+                lines.append(line)
+                sys.stdout.write(line)
+                sys.stdout.flush()
+            process.wait()
         except BaseException:
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             process.wait(timeout=30)
             raise
         result = subprocess.CompletedProcess(
-            _command(args), process.returncode, stdout, ""
+            _command(args), process.returncode, "".join(lines), ""
         )
         elapsed = time.time() - started
         tail = (result.stdout or "") + (result.stderr or "")
-        sys.stdout.write(tail[-4000:])
-        sys.stdout.flush()
 
         if result.returncode == INCOMPLETE_EXIT_CODE:
             # Not success and not a crash: items are still outstanding and
