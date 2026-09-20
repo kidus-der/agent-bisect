@@ -304,6 +304,12 @@ def _evaluate_pass(
     def evaluate_one(item: DatasetItem) -> None:
         with guard:
             attempted[0] += 1
+            # Written when the item STARTS, so `items_attempted` reflects
+            # what is in flight rather than only what has already landed.
+            _report_progress(
+                runs_dir, done + finished[0], total, run,
+                attempted=done + attempted[0], failed=len(run.failures),
+            )
         try:
             description, policy = task_text(item.domain, item.task_id)
             judge_input = build_judge_input(
