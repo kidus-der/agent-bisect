@@ -390,3 +390,27 @@ def test_a_non_positive_concurrency_is_refused():
     # Arrange / Act / Assert
     with pytest.raises(ValueError, match="concurrency"):
         BlameConfig(concurrency=0)
+
+
+def test_snapshot_and_rerun_live_forks_never_share_an_id():
+    """Otherwise the baseline resumes Bisect's forks and the ablation is vacuous."""
+    # Arrange
+    snapshot = ScriptedExecutor(treated={5: 0.95})
+    live = ScriptedExecutor(treated={5: 0.95})
+
+    # Act
+    _blame(_verdict([5]), snapshot)
+    _blame(_verdict([5]), live, prefix_tools="rerun_live", unsafe_positional=True)
+
+    # Assert
+    assert {r.run_id for r in snapshot.requests}.isdisjoint(
+        {r.run_id for r in live.requests}
+    )
+
+
+def test_the_fork_variant_names_the_prefix_mode():
+    # Arrange / Act / Assert
+    assert BlameConfig().fork_variant == "snapshot"
+    assert BlameConfig(
+        prefix_tools="rerun_live", unsafe_positional=True
+    ).fork_variant == "rerun_live-unsafe"
