@@ -109,7 +109,7 @@ def planted(tmp_path_factory) -> dict:
     root = tmp_path_factory.mktemp("p5") / "runs"
     store = Store(root)
     agent = ReactiveAirlineAgent()
-    with _session(store, agent):
+    with _session(store, agent) as router:
         base = record_run(_spec(), run_id=BASE_RUN, store=store.blobs, tape=store.tape)
 
         planted_step = _reservation_step(store, BASE_RUN)
@@ -117,6 +117,7 @@ def planted(tmp_path_factory) -> dict:
             store=store.blobs,
             reader=store.reader,
             tape=store.tape,
+            live_completion=router.completion,
         )
         faulted = executor.run(
             RerunRequest(
@@ -223,13 +224,14 @@ def _run_pipeline(
     control_mode: ControlMode = "per_step",
 ):
     store = planted["store"]
-    executor = Tau2ForkExecutor(
-        store=store.blobs,
-        reader=TapeReader(planted["root"]),
-        tape=TapeWriter(planted["root"]),
-    )
     item = _item(planted)
-    with _session(store, planted["agent"]):
+    with _session(store, planted["agent"]) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs,
+            reader=TapeReader(planted["root"]),
+            tape=TapeWriter(planted["root"]),
+            live_completion=router.completion,
+        )
         return evaluate_dataset(
             [item],
             reader=store.reader,
@@ -282,10 +284,6 @@ def test_a_control_forked_before_the_fault_does_not_reproduce_the_failure(plante
     # Arrange
     store = planted["store"]
     culprit = planted["planted_step"]
-    executor = Tau2ForkExecutor(
-        store=store.blobs, reader=store.reader, tape=store.tape
-    )
-
     def control_at(step: int) -> bool:
         return executor.run(
             RerunRequest(
@@ -301,7 +299,11 @@ def test_a_control_forked_before_the_fault_does_not_reproduce_the_failure(plante
         ).passed
 
     # Act
-    with _session(store, planted["agent"]):
+    with _session(store, planted["agent"]) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
         before = control_at(0)
         at_the_fault = control_at(culprit)
 
@@ -475,12 +477,6 @@ def test_a_second_pass_reuses_the_forks_the_first_one_paid_for(planted):
     store = planted["store"]
     _run_pipeline(planted, judge)
 
-    executor = Tau2ForkExecutor(
-        store=store.blobs,
-        reader=store.reader,
-        tape=store.tape,
-    )
-
     # Act
     from agent_bisect.attribution.trajectory import build_judge_input
     from agent_bisect.bench.baselines import evaluate_item, judge_item
@@ -490,7 +486,11 @@ def test_a_second_pass_reuses_the_forks_the_first_one_paid_for(planted):
         FAULTED_RUN, reader=store.reader, store=store.blobs,
         item_id="item-1", task_description=description, policy=policy,
     )
-    with _session(store, planted["agent"]):
+    with _session(store, planted["agent"]) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
         judgement = judge_item(judge_input, judge, step_by_step=False)
         evaluate_item(
             item_id="item-1",
@@ -509,15 +509,17 @@ def test_a_second_pass_reuses_the_forks_the_first_one_paid_for(planted):
     assert executor.reused > 0, "a resumed evaluation must not pay for a fork twice"
 
 
-def test_the_item_is_recorded_as_unevaluated_when_its_run_is_missing(planted):
+def test_an_item_whose_run_is_missing_is_reported_and_publishes_nothing(planted):
     # Arrange
     store = planted["store"]
-    executor = Tau2ForkExecutor(
-        store=store.blobs, reader=store.reader, tape=store.tape,
-    )
     ghost = _item(planted, item_id="item-ghost").model_copy(update={"run_id": "nope"})
 
     # Act
+    with _session(store, planted["agent"]) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
     run = evaluate_dataset(
         [ghost],
         reader=store.reader,
@@ -528,12 +530,15 @@ def test_the_item_is_recorded_as_unevaluated_when_its_run_is_missing(planted):
         config=BaselineConfig(top_m=3, sequential=TOY_CONFIG),
         seed=3,
         runs_dir=planted["root"],
+        max_passes=1,
+        sleep=lambda _seconds: None,
     )
 
-    # Assert
+    # Assert: an item we never got to ask is NOT a wrong answer. It is
+    # reported, it contributes no rows, and the run refuses to be complete.
     assert run.n_failed_items == 1
-    assert len(run.outcomes) == 5, "every method still answers, wrongly, with a reason"
-    assert all(outcome.predicted_step is None for outcome in run.outcomes)
+    assert run.outcomes == []
+    assert run.complete is False
 
 
 def test_a_manifest_item_carries_the_label_the_report_scores_against(planted):
@@ -575,18 +580,17 @@ def standing(planted) -> dict:
         prefix_tools="snapshot",
         seed=None,
     )
-    with _session(store, planted["agent"]):
-        # The router, not the raw scripted model: a fork's live suffix must
-        # go through `route_tau2_llm` or its LLM steps are never recorded
-        # and the tape comes out with the tool rows and none of the turns.
-        import tau2.utils.llm_utils as llm_utils
-
+    with _session(store, planted["agent"]) as router:
+        # The router, not the raw scripted model and not the seam: a fork's
+        # live suffix must go through `route_tau2_llm` or its LLM steps are
+        # never recorded, and reading `llm_utils.completion` would pick up
+        # the replay dispatcher and recurse.
         driver = FaultedForkDriver(
             spec,
             store=store.blobs,
             reader=store.reader,
             tape=store.tape,
-            live_completion=llm_utils.completion,
+            live_completion=router.completion,
             fault=_standing_fault(planted),
         )
         outcome = run_fork(driver, spec, NoOpIntervention())
@@ -617,12 +621,13 @@ def test_a_control_forked_before_a_standing_fault_still_reproduces_the_failure(
     """
     # Arrange
     store = planted["store"]
-    executor = Tau2ForkExecutor(
-        store=store.blobs, reader=store.reader, tape=store.tape
-    )
 
     # Act
-    with _session(store, planted["agent"]):
+    with _session(store, planted["agent"]) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
         before = executor.run(
             RerunRequest(
                 parent_run_id="standing-1",
@@ -656,7 +661,11 @@ def test_the_truthful_fix_still_beats_a_standing_fault(planted, standing):
     resolver = Tau2TruthResolver(DOMAIN, TASK_ID, store.blobs)
 
     # Act
-    with _session(store, planted["agent"]):
+    with _session(store, planted["agent"]) as router:
+        executor = Tau2ForkExecutor(
+            store=store.blobs, reader=store.reader, tape=store.tape,
+            live_completion=router.completion,
+        )
         treated = executor.run(
             RerunRequest(
                 parent_run_id="standing-1",
