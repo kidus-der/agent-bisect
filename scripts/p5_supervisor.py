@@ -27,6 +27,8 @@ printed as one line so a supervisor log is greppable.
 from __future__ import annotations
 
 import argparse
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -128,8 +130,22 @@ def supervise(args: argparse.Namespace) -> Outcome:
                     calls_spent=spent),
             phase=PHASE,
         )
-        result = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            _command(args), capture_output=True, text=True, check=False
+        # `start_new_session` puts the child in its own process group so a
+        # signal to the supervisor does not orphan a live `bisect eval`.
+        # Orphaned children are how two evaluations ended up sharing one
+        # tape, colliding on fork ids and corrupting each other's pace.
+        process = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+            _command(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, start_new_session=True,
+        )
+        try:
+            stdout, _ = process.communicate()
+        except BaseException:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            process.wait(timeout=30)
+            raise
+        result = subprocess.CompletedProcess(
+            _command(args), process.returncode, stdout, ""
         )
         elapsed = time.time() - started
         tail = (result.stdout or "") + (result.stderr or "")
