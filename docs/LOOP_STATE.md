@@ -40,7 +40,17 @@ Source of truth for progress. On restart or context compaction: re-read this fil
 
 - **16:50 on 09-20:** P5 TEST split running unattended overnight (judge ≈ 7 min/call as a reasoning model on 14–54-step trajectories; agent 9 s, user 49 s; 0 failures; ETA 03:00–04:00 on 09-21); nothing frozen moves. **P8 STAGE A launched (p8-report, sonnet):** figure/table generator, `make reproduce` (byte-identical, offline), report.md with `{{P5_TEST}}` placeholders, P8 gate script, README results/limitations, walkthrough content — final numbers filled in stage B after P5.
 
-## Current
+- **P5 TEST PAUSED 18:08 on 09-20 — provider capacity collapse (decision 0023):** the agent model went from 110 calls/min at 17:30 to ~1 concurrent request (20 rpm × 10 concurrent: 1/10 ok in 328 s; solo calls fine at 2.4 s); 1,700 calls bought zero forks. Test split: 1/12 done, 53 forks banked, resumable. ~21,000 P5 calls used. Plan: probe every 15 min (burst test), auto-relaunch on recovery; **cutoff 06:00 on 09-21** → if incomplete, P5 is reported on the dev split (labelled) with the test split "not completed — provider capacity", gate "not evaluable", flaky "not collected". No model swap, no split change.
+
+- **19:20 on 09-20:** FINDING `docs/findings/token-rate-limit.md` — NIM's limit is token-based (8/8 trivial calls ok vs 1/8 with ~2.5k-token payloads at the same moment); P0's rpm was calibrated with small probes → limiter never bound during the 429 storms. `docs/gates/P5.md` written as NOT EVALUABLE (dev complete, test 1/12 partial) pending the 06:00 cutoff; 21k P5 calls used. **p6-real launched (sonnet):** real-data walk of every page, real-mode fixes, release rebuild, final screenshots with real data, install proof. P8 stage B waits for 06:00 (or an earlier test completion).
+
+## PAUSED BY OWNER — 2026-09-21 00:05 MDT
+
+- Owner: "just stop everything here. we will continue again when i decide." All jobs stopped, the hourly self-check cron cancelled, everything committed and pushed.
+- **State at pause:** P0 PASS · P1 PASS · P2 PASS · P3 FAILED on count (strict 18 / extended 26 / flaky 3, frozen) · P4 PASS under the owner-accepted bar (0020) · P5 **NOT EVALUABLE** (dev 6/6 complete: bisect 0.500, judge all-at-once 0.333, judge step-by-step 0.167, gap +16.7 [0.00, 0.60]; 3/3 exact where the judge's top-3 held the planted step, 0/3 otherwise; test split 1/12 + partial inventory `data/results/p5_test_partial.json`; NIM's agent model bursty-healthy but sustained-dead from 18:00 on 09-20 — token-shaped, time-varying ceiling; ~38.5k P5 calls) · P6 accepted by owner (0020), real data wired, release build committed, screenshots real · P7 PASS · P8 stage A done (report, `make reproduce` byte-identical + offline, P8 gate PASS on the dev-based state), stage B (final numbers, walkthrough artifact, closing summary) NOT started.
+- **To resume:** (1) decide whether to retry the P5 test split (needs NIM capacity for ~9,000 productive calls with τ² payloads; `scripts/p5_watch.py` + `p5_supervisor --split test --resume`), or accept NOT EVALUABLE; (2) run P8 stage B (`p8-report` agent: fill/verify numbers, regenerate, P8 gate in a clean clone, README results, then publish the walkthrough artifact from `docs/walkthrough/content.md`); (3) final summary to the owner. Known open items: NIM key rotation deferred by owner (09-17); light-theme heat-cell contrast notes; `rerun_steps` not available in real mode.
+
+## Current (history below is as of the pause)
 
 - **Phase:** P0 — Setup and model choice
 - **Status:** IN PROGRESS
