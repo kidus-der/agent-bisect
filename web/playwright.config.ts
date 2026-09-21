@@ -9,6 +9,10 @@ const BASE_URL = `http://${HOST}:${E2E_PORT}`
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.spec\.ts/,
+  // real-smoke.spec.ts only makes sense against `bisect serve --real`
+  // (playwright.real.config.ts) -- it needs REAL_RUN_ID/REAL_PR_CHECK_ID
+  // and real recordings, neither of which this fixture-backed config has.
+  testIgnore: /real-smoke\.spec\.ts/,
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
