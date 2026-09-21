@@ -324,6 +324,8 @@ export interface components {
             heatmap: components["schemas"]["HeatmapCell"][];
             /** Methods */
             methods: components["schemas"]["MethodResult"][];
+            /** Results Split */
+            results_split?: string | null;
             /** Sankey */
             sankey: components["schemas"]["SankeyFlow"][];
         };
@@ -845,6 +847,8 @@ export interface components {
             /** Recall At M */
             recall_at_m: components["schemas"]["RecallPoint"][];
             recall_provenance: components["schemas"]["RecallProvenance"];
+            /** Results Split */
+            results_split?: string | null;
         };
         /** PositionAccuracy */
         PositionAccuracy: {

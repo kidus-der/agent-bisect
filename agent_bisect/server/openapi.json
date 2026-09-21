@@ -80,6 +80,17 @@
             "title": "Methods",
             "type": "array"
           },
+          "results_split": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Split"
+          },
           "sankey": {
             "items": {
               "$ref": "#/components/schemas/SankeyFlow"
@@ -1760,6 +1771,17 @@
           },
           "recall_provenance": {
             "$ref": "#/components/schemas/RecallProvenance"
+          },
+          "results_split": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Split"
           }
         },
         "required": [
