@@ -43,6 +43,7 @@ from agent_bisect.bench.eval_run import (
 from agent_bisect.bench.evaluate import DEFAULT_TOP_M, build_report, score_outcomes
 from agent_bisect.bench.manifest import (
     DEFAULT_MANIFEST_PATH,
+    FrozenManifest,
     ManifestNotFrozenError,
     ManifestTamperedError,
     load_frozen,
@@ -80,6 +81,35 @@ RETRY_BUDGET_S = 900.0
 DEFAULT_SEED = 20260917
 
 
+#: The flaky set has its own frozen manifest (`data/manifest_flaky.json`)
+#: and no dev/test side: decision 0022 keeps `rerun_live` on those three
+#: items alone, and P3 froze them without assigning a split.
+FLAKY_SPLIT = "flaky"
+
+
+class FlakyManifestError(ValueError):
+    """`--split flaky` was pointed at a manifest that has dev/test sides."""
+
+
+def _items_for(manifest: FrozenManifest, split: str) -> list[Any]:
+    """The items `split` names.
+
+    `flaky` means every item of a flaky manifest. It is checked rather
+    than assumed: a manifest that carries dev/test sides is the strict
+    one, and silently evaluating the whole of *that* under this name
+    would spend the test split without ever opening it.
+    """
+    if split != FLAKY_SPLIT:
+        return manifest.split(split)  # type: ignore[arg-type]
+    if any(item.split is not None for item in manifest.items):
+        raise FlakyManifestError(
+            "--split flaky expects the flaky manifest (data/manifest_flaky.json), whose "
+            "items carry no dev/test side; this manifest has split items and the strict "
+            "splits are opened by name, once"
+        )
+    return list(manifest.items)
+
+
 def _report_only(
     *,
     split: str,
@@ -90,7 +120,7 @@ def _report_only(
 ) -> dict[str, Any]:
     """Rebuild every number from the stored table. No judge, no fork, no network."""
     manifest = load_frozen(manifest_path)
-    items = manifest.split(split)  # type: ignore[arg-type]
+    items = _items_for(manifest, split)
     outcomes = outcomes_from_rows(read_outcome_rows(out_dir))
     scores = score_outcomes(items, outcomes)
     report = build_report(
@@ -247,6 +277,12 @@ def eval_(
         typer.echo(str(error), err=True)
         raise typer.Exit(code=MANIFEST_EXIT_CODE) from None
 
+    try:
+        _items_for(frozen, split)
+    except FlakyManifestError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=MANIFEST_EXIT_CODE) from None
+
     if report_only:
         report = _report_only(
             split=split, seed=seed, manifest_path=manifest,
@@ -293,7 +329,7 @@ def eval_(
         typer.echo("NVIDIA_API_KEY not set; eval asks a judge and re-runs live.", err=True)
         raise typer.Exit(code=MISSING_KEY_EXIT_CODE)
 
-    items = frozen.split(split)  # type: ignore[arg-type]
+    items = _items_for(frozen, split)
     store = BlobStore(runs_dir)
     reader = TapeReader(runs_dir)
     ledger = BudgetLedger(runs_dir / "ledger.sqlite")
