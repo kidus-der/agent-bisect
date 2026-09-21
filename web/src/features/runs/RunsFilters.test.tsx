@@ -34,6 +34,19 @@ describe('RunsFilters', () => {
     )
   })
 
+  test('include re-runs toggle starts off and turns kind=all on when checked', async () => {
+    const { onChange, user } = setup()
+    const toggle = screen.getByRole('checkbox', { name: /include re-runs/i })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_RUNS_SEARCH, includeReruns: true })
+  })
+
+  test('include re-runs toggle reflects a checked search state', () => {
+    setup({ ...DEFAULT_RUNS_SEARCH, includeReruns: true })
+    expect(screen.getByRole('checkbox', { name: /include re-runs/i })).toBeChecked()
+  })
+
   test('selects a domain from the values the loaded runs actually have', async () => {
     const { onChange, user } = setup()
     await user.click(screen.getByRole('button', { name: /more filters/i }))

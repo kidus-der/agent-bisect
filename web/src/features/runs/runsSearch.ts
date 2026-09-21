@@ -27,6 +27,9 @@ export interface RunsSearch {
   readonly fault: FaultFilter | null
   readonly sort: SortableRunField
   readonly dir: SortDirection
+  /** Off by default: the list is top-level runs only, forks/re-runs stay
+   * reachable from Run detail's dot matrix. On sends `kind=all`. */
+  readonly includeReruns: boolean
 }
 
 export const DEFAULT_RUNS_SEARCH: RunsSearch = {
@@ -38,6 +41,7 @@ export const DEFAULT_RUNS_SEARCH: RunsSearch = {
   fault: null,
   sort: 'run_id',
   dir: 'asc',
+  includeReruns: false,
 }
 
 const OUTCOMES: readonly RunOutcome[] = ['pass', 'fail']
@@ -58,6 +62,10 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | nul
   return allowed.find((candidate) => candidate === value) ?? null
 }
 
+function boolFlag(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
 /**
  * What the route declares. Every key is optional: a bare `/runs` link must stay
  * a bare link, and anything absent falls back to `DEFAULT_RUNS_SEARCH`.
@@ -74,6 +82,7 @@ export function validateRunsSearch(input: Record<string, unknown>): RunsSearch {
     fault: oneOf(input.fault, FAULT_FILTERS),
     sort: oneOf(input.sort, SORTABLE_RUN_FIELDS) ?? DEFAULT_RUNS_SEARCH.sort,
     dir: oneOf<SortDirection>(input.dir, ['asc', 'desc']) ?? DEFAULT_RUNS_SEARCH.dir,
+    includeReruns: boolFlag(input.includeReruns),
   }
 }
 
@@ -90,6 +99,7 @@ export function toSearchParams(search: RunsSearch): RunsSearchInput {
   if (search.fault !== null) params.fault = search.fault
   if (search.sort !== DEFAULT_RUNS_SEARCH.sort) params.sort = search.sort
   if (search.dir !== DEFAULT_RUNS_SEARCH.dir) params.dir = search.dir
+  if (search.includeReruns) params.includeReruns = true
   return params
 }
 
@@ -112,6 +122,7 @@ export function serverFilters(search: RunsSearch): ServerRunFilters {
     model: search.model,
     sort: search.sort,
     descending: search.dir === 'desc',
+    includeReruns: search.includeReruns,
   }
 }
 

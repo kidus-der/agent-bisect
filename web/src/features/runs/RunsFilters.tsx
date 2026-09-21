@@ -289,7 +289,16 @@ export function RunsFilters({ search, facets, onChange, summary }: RunsFiltersPr
           </button>
         </div>
 
-        <output className="ml-auto num text-small text-ink-muted">{summary}</output>
+        <label className="ml-auto inline-flex cursor-pointer items-center gap-1.5 text-small text-ink-muted hover:text-ink">
+          <input
+            type="checkbox"
+            checked={search.includeReruns}
+            onChange={(event) => onChange({ ...search, includeReruns: event.target.checked })}
+            className="size-3.5 cursor-pointer accent-measure"
+          />
+          Include re-runs
+        </label>
+        <output className="num text-small text-ink-muted">{summary}</output>
         {active ? (
           <button
             type="button"

@@ -3318,6 +3318,19 @@
             }
           },
           {
+            "description": "'top' (default): exclude forks/re-runs. 'reruns': only forks. 'all': no filter.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "top",
+              "description": "'top' (default): exclude forks/re-runs. 'reruns': only forks. 'all': no filter.",
+              "pattern": "^(all|top|reruns)$",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "sort",
             "required": false,

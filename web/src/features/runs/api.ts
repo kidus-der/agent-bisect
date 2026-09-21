@@ -68,6 +68,10 @@ export interface ServerRunFilters {
   readonly model: string | null
   readonly sort: SortableRunField
   readonly descending: boolean
+  /** Off (the server default, `kind=top`): forks/re-runs are excluded from
+   * the list -- they stay reachable from Run detail's dot matrix. On sends
+   * `kind=all`. */
+  readonly includeReruns: boolean
 }
 
 export function runsQueryString(filters: ServerRunFilters, page: number): string {
@@ -82,6 +86,7 @@ export function runsQueryString(filters: ServerRunFilters, page: number): string
   if (filters.outcome) params.set('outcome', filters.outcome)
   if (filters.status) params.set('status', filters.status)
   if (filters.model) params.set('model', filters.model)
+  if (filters.includeReruns) params.set('kind', 'all')
   return params.toString()
 }
 

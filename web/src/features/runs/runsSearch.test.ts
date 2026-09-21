@@ -25,6 +25,7 @@ describe('validateRunsSearch', () => {
         fault: 'wrong_value',
         sort: 'n_steps',
         dir: 'desc',
+        includeReruns: true,
       }),
     ).toEqual({
       q: 'refund',
@@ -35,6 +36,7 @@ describe('validateRunsSearch', () => {
       fault: 'wrong_value',
       sort: 'n_steps',
       dir: 'desc',
+      includeReruns: true,
     })
   })
 
@@ -66,6 +68,13 @@ describe('validateRunsSearch', () => {
   test('treats a blank filter as absent', () => {
     expect(validateRunsSearch({ domain: '   ' }).domain).toBeNull()
   })
+
+  test('includeReruns defaults to false and only "true" turns it on', () => {
+    expect(validateRunsSearch({}).includeReruns).toBe(false)
+    expect(validateRunsSearch({ includeReruns: true }).includeReruns).toBe(true)
+    expect(validateRunsSearch({ includeReruns: 'true' }).includeReruns).toBe(true)
+    expect(validateRunsSearch({ includeReruns: 'nonsense' }).includeReruns).toBe(false)
+  })
 })
 
 describe('toSearchParams', () => {
@@ -76,6 +85,13 @@ describe('toSearchParams', () => {
   test('round-trips a chosen view', () => {
     const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, domain: 'retail', outcome: 'fail' }
     expect(validateRunsSearch(toSearchParams(search))).toEqual(search)
+  })
+
+  test('includeReruns is only carried in the link when it is on', () => {
+    expect(toSearchParams({ ...DEFAULT_RUNS_SEARCH, includeReruns: true })).toEqual({
+      includeReruns: true,
+    })
+    expect(toSearchParams({ ...DEFAULT_RUNS_SEARCH, includeReruns: false })).toEqual({})
   })
 })
 
@@ -143,6 +159,12 @@ describe('serverFilters and the query string', () => {
     const search: RunsSearch = { ...DEFAULT_RUNS_SEARCH, q: 'x'.repeat(500) }
     const value = new URLSearchParams(runsQueryString(serverFilters(search), 1)).get('q')
     expect(value).toHaveLength(100)
+  })
+
+  test('includeReruns sends kind=all; off relies on the server default', () => {
+    const on: RunsSearch = { ...DEFAULT_RUNS_SEARCH, includeReruns: true }
+    expect(runsQueryString(serverFilters(on), 1)).toContain('kind=all')
+    expect(runsQueryString(serverFilters(DEFAULT_RUNS_SEARCH), 1)).not.toContain('kind=')
   })
 })
 

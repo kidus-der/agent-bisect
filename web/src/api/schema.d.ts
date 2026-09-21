@@ -1451,6 +1451,8 @@ export interface operations {
                 model?: string | null;
                 fault_type?: string | null;
                 q?: string | null;
+                /** @description 'top' (default): exclude forks/re-runs. 'reruns': only forks. 'all': no filter. */
+                kind?: string;
                 sort?: string;
                 page?: number;
                 limit?: number;
