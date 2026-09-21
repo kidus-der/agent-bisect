@@ -71,9 +71,13 @@ RETRY_BACKOFF_S = 20.0
 #: How many `-r<n>` suffixes to try before giving up on a free run id.
 MAX_ID_ATTEMPTS = 50
 #: How many `-r<n>` suffixes a resume looks back through when hunting for
-#: a draw's recorded outcome. Small: ids only grow suffixes when a run
-#: died mid-fork, which is rare per draw.
-_ID_RETRY_LOOKBACK = 3
+#: a draw's recorded outcome. It must cover everything `_free_run_id` can
+#: hand out, or a resume cannot see what an earlier pass bought: the
+#: 2026-09-21 outage left 184 completed forks at `-r4` or deeper, all of
+#: them invisible to a scan that stopped at `-r3` and all of them
+#: re-bought on every pass. Misses are sqlite point lookups; a wasted
+#: fork is ~12 LLM calls.
+_ID_RETRY_LOOKBACK = MAX_ID_ATTEMPTS
 #: Offset folded into the seed of a retry so it is not the same draw again.
 _RETRY_SEED_OFFSET = 1_000_003
 
