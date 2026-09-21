@@ -40,8 +40,15 @@ serve:
 # moved, the target fails rather than quietly rewriting it.
 #
 # P8's own `reproduce` should call this rather than inline it.
+#
+# P5_SPLIT names the split whose outcomes are committed under
+# data/results/. It is `dev` while the test split is held (decision 0023):
+# scoring the dev outcome table against the test labels is refused by
+# `score_outcomes`, and rightly so -- an outcome with no label in the
+# split being scored must never be counted.
+P5_SPLIT ?= dev
 reproduce-p5:
-	uv run bisect eval --split test --report-only
+	uv run bisect eval --split $(P5_SPLIT) --report-only
 	uv run python scripts/gates/p5.py || true
 	git diff --exit-code -- data/results/p5_summary.json data/results/p5_items.json
 	@echo "P5 reproduced byte-identically"
