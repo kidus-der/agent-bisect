@@ -8,8 +8,10 @@ token-based, not request-based (`docs/findings/token-rate-limit.md`): at
 the moment 8 concurrent ~2,500-token requests were succeeding 1/8, a
 single trivial request still came back in ~2 s. A solo health probe would
 therefore have reported "healthy" through the whole degradation, so the
-probe here is a **burst of 10 concurrent realistic requests**, judged on
-how many come back inside 60 seconds.
+probe here is a **burst of 8 concurrent realistic requests**, judged on
+how many come back inside 60 seconds — the same shape as the load the
+relaunch will apply, so a pass means "this concurrency works", not "some
+smaller concurrency works".
 
 Each probe request is a single attempt (`max_elapsed_s=0`): a retry would
 turn the measurement into "the provider eventually answered", which is
@@ -17,7 +19,7 @@ not the question. The burst deliberately uses its own limiter rather than
 the shared one — spacing the burst out would measure the limiter instead
 of the provider — and it only ever runs while the evaluation is stopped.
 
-Three consecutive probes at >= 8/10 within 60 s relaunch the supervisor
+Three consecutive probes at >= 6/8 within 60 s relaunch the supervisor
 with `--resume`; the cutoff stops the watch whatever the state. Every
 probe is appended to `runs/p5/probes.jsonl` and mirrored into
 `runs/p5/status.json` so the hourly check sees real numbers.
@@ -54,9 +56,12 @@ PROBE_LOG = OUT_DIR / "probes.jsonl"
 STATUS = OUT_DIR / "status.json"
 STOP_FILE = OUT_DIR / "STOP"
 
-#: The burst, and the bar it has to clear, from decision 0023.
-BURST = 10
-PASS_AT = 8
+#: The burst, and the bar it has to clear, from decision 0023 as amended
+#: at 19:45 MDT: 8 concurrent rather than 10, passing at 6, relaunching at
+#: 8 in flight — the burst now matches the concurrency it authorises, so
+#: the probe measures the load the evaluation will actually apply.
+BURST = 8
+PASS_AT = 6
 BURST_DEADLINE_S = 60.0
 CONSECUTIVE_PASSES = 3
 PROBE_INTERVAL_S = 15 * 60
@@ -70,7 +75,7 @@ PROBE_RPM = 600.0
 #: Probe traffic is P5 spend and is ledgered as such, under its own purpose.
 PROBE_PURPOSE = "probe"
 
-RELAUNCH_CONCURRENCY = 12
+RELAUNCH_CONCURRENCY = 8
 MAX_CALLS = 120_000
 
 

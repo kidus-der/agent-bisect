@@ -23,6 +23,13 @@ Eight concurrent *small* requests succeed. Eight concurrent *large* ones, at the
 moment and the same request rate, fail seven times out of eight. The variable that moves
 is tokens, not requests.
 
+**Tokens are not the only variable.** P3's collection ran at 100+ calls/min with the same
+τ² payloads earlier the same day, and P5 itself sustained 110 calls/min at 17:30, so the
+ceiling also moves with load on the provider's side — capacity we neither see nor control.
+The honest statement is that the limit is token-shaped *and* time-varying: our
+`requests_per_minute` constant is the wrong unit, and no constant in the right unit would
+have been right all day either.
+
 ## Why this matters beyond P5
 
 `config/limits.toml` says 108 requests/min for this model, "measured … minus a 10% safety

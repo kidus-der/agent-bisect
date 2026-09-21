@@ -16,11 +16,11 @@ productive calls need 40+ hours.
 ## Decision — option 3: hold and probe
 
 1. **Stop spending.** No evaluation runs while the provider is degraded.
-2. **Probe every 15 minutes with a burst of 10 concurrent realistic requests** — not a
+2. **Probe every 15 minutes with a burst of 8 concurrent realistic requests** — not a
    solo call. Solo calls lie here: a single request succeeds in ~2 s throughout the
    degradation, so a solo probe would have reported "healthy" during the 92%-retry hour.
-3. **Auto-relaunch** `bisect eval --split test --resume` at **12 in flight** as soon as
-   **3 consecutive probes** each succeed **≥ 8/10 within 60 s**. Message the team lead on
+3. **Auto-relaunch** `bisect eval --split test --resume` at **8 in flight** as soon as
+   **3 consecutive probes** each succeed **≥ 6/8 within 60 s**. Message the team lead on
    relaunch.
 4. **CUTOFF: 06:00 MDT on 2026-09-21.** At the cutoff, whatever the state, stop and
    finalise.
@@ -51,6 +51,17 @@ evidence → final report.
 - `docs/gates/P5.md`: **FAILED-NOT-EVALUABLE**.
 - `data/results/` committed for dev and for the partial test items, separately labelled.
 - `make reproduce-p5` green.
+
+## Amendment, 2026-09-20 19:45 MDT
+
+The team lead revised the probe's shape: **8 concurrent, passing at 6, relaunching at 8 in
+flight**, rather than 10 / 8 / 12. The reason is that the probe should apply the same load
+the relaunch will, so a pass means "this concurrency works" rather than "a larger burst
+almost works". Interval, the three-consecutive rule and the cutoff are unchanged.
+
+One probe had already been taken under the old rule — 01:21Z, 9 of 10 in 7.5 s, a pass. It
+**does not count** toward the three: a pass measured at a different burst size is not the
+same measurement, and carrying it over would relaunch on two probes' evidence.
 
 ## Budget
 
