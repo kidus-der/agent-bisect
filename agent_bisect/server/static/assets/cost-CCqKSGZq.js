@@ -1,0 +1,1 @@
+import{r as e}from"./format-BXAYfFlG.js";var t=`model calls`;function n(t){if(t==null||!Number.isFinite(t))return`—`;let n=Math.round(t);return`${e(n,{decimals:0})} ${n===1?`call`:`calls`}`}function r(t){return t==null||!Number.isFinite(t)?null:e(t,{decimals:2,prefix:`$`})}export{n,r,t};

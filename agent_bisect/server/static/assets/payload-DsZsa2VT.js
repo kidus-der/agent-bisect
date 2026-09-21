@@ -1,0 +1,1 @@
+import{S as e}from"./Skeleton-BlApXnar.js";function t(t){return e(t)?{payload:null,reason:t.reason}:{payload:t,reason:null}}export{t};
