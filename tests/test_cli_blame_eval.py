@@ -385,6 +385,81 @@ def test_the_per_step_sensitivity_is_refused_on_the_test_split(tmp_path, monkeyp
     assert result.exit_code == SENSITIVITY_SPLIT_EXIT_CODE
 
 
+# ---- the flaky set (decision 0022: its own manifest, no dev/test side) ----
+
+
+def _frozen_flaky(tmp_path) -> Path:
+    """A flaky manifest: three items, frozen without a dev/test side."""
+    path = tmp_path / "manifest_flaky.json"
+    items = [
+        DatasetItem(
+            item_id=f"flaky-{i}", domain="airline", task_id=str(i),
+            base_run_id=f"fb{i}", base_pass_rate=0.75, run_id=f"fr{i}",
+            faulted_pass_rate=0.0, planted_step=2, position_bucket="middle",
+            fault_type="tool_error", mutation={}, oracle={}, intervention={},
+            seeds=[1], n_reruns=4,
+        )
+        for i in range(3)
+    ]
+    freeze(
+        items, path=path, models={"agent": "a", "judge": "j"},
+        tau2_commit="abc", config={"delta": 0.1}, counts={"items": 3},
+        created_at=datetime(2026, 9, 20, tzinfo=UTC), assign_split=False,
+    )
+    return path
+
+
+def test_the_flaky_split_evaluates_every_item_of_the_flaky_manifest(tmp_path, isolated_env):
+    # Arrange
+    path = _frozen_flaky(tmp_path)
+    out_dir = tmp_path / "p5"
+    out_dir.mkdir()
+    rows = [
+        {
+            "item_id": f"flaky-{i}", "run_id": f"fr{i}", "method": method,
+            "predicted_step": 2 if method == "bisect" else 1,
+            "ranking": [2, 1], "shortlist": [2, 1], "judge_calls": 1,
+            "replay_calls": 100, "total_calls": 101, "reruns": 10,
+            "control_reruns": 4, "parse_failed": False, "note": "",
+        }
+        for i in range(3)
+        for method in ("bisect", "rerun_live")
+    ]
+    (out_dir / "outcomes.json").write_text(json.dumps(rows))
+
+    # Act
+    result = runner.invoke(
+        _app(),
+        [
+            "--manifest", str(path), "--split", "flaky", "--report-only",
+            "--out-dir", str(out_dir), "--results-dir", str(tmp_path / "results"),
+        ],
+    )
+
+    # Assert
+    assert result.exit_code == 0, result.output
+    summary = json.loads((tmp_path / "results" / "p5_summary.json").read_text())
+    assert summary["config"]["n_items"] == 3
+
+
+def test_the_flaky_split_refuses_a_manifest_that_has_dev_and_test_sides(tmp_path):
+    # Arrange: the strict manifest, which must never be pulled in under this name
+    path = _frozen(tmp_path)
+
+    # Act
+    result = runner.invoke(
+        _app(),
+        [
+            "--manifest", str(path), "--split", "flaky", "--report-only",
+            "--out-dir", str(tmp_path / "p5"), "--results-dir", str(tmp_path / "results"),
+        ],
+    )
+
+    # Assert
+    assert result.exit_code == MANIFEST_EXIT_CODE
+    assert "flaky" in (result.output + str(result.stderr or ""))
+
+
 def test_the_refusal_explains_that_the_test_split_is_touched_once(tmp_path, monkeypatch):
     # Arrange
     path = _frozen(tmp_path)
