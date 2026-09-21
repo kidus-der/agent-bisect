@@ -920,3 +920,53 @@ def test_pr_checks_skips_a_malformed_result_file(tmp_path):
     checks = repo.pr_checks()
 
     assert [c.check_id for c in checks] == ["good"]
+
+
+def _write_p7_local_gate_result(runs_dir: Path, check_id: str) -> None:
+    """P7's own demo-suite runs: real `bisect gate` invocations that passed
+    a custom `--out runs/p7/local/<check_id>` instead of the documented
+    default -- same `result.json` shape, different directory."""
+    check_dir = runs_dir / "p7" / "local" / check_id
+    check_dir.mkdir(parents=True)
+    result = {
+        "base_ref": "main",
+        "head_ref": f"demo/{check_id}",
+        "suite": "demo",
+        "runs_per_scenario": 4,
+        "is_regression": True,
+        "base_pass_rate": {"value": 0.875, "ci_low": None, "ci_high": None, "n": 32},
+        "head_pass_rate": {"value": 0.4375, "ci_low": None, "ci_high": None, "n": 32},
+        "p_value": 0.0002,
+        "decisive_step_base": None,
+        "decisive_step_head": 2,
+        "scenarios": [],
+        "comment_markdown": "Bisect · agent regression detected",
+    }
+    (check_dir / "result.json").write_text(json.dumps(result))
+
+
+def test_pr_checks_also_finds_p7s_local_demo_suite_results(tmp_path):
+    """`runs/gate/` (the documented convention) is empty until someone runs
+    `bisect gate` with no `--out`; P7's own real runs used a custom `--out`
+    under `runs/p7/local/` and must still surface as real PR checks."""
+    runs_dir = tmp_path / "runs"
+    _write_p7_local_gate_result(runs_dir, "demo_p7-id-slip-100")
+    repo = RealRepository(runs_dir=runs_dir)
+
+    checks = repo.pr_checks()
+
+    assert [c.check_id for c in checks] == ["demo_p7-id-slip-100"]
+    detail = repo.pr_check_detail("demo_p7-id-slip-100")
+    assert detail.is_regression is True
+
+
+def test_pr_checks_prefers_runs_gate_over_p7_local_on_a_check_id_collision(tmp_path):
+    runs_dir = tmp_path / "runs"
+    _write_gate_result(runs_dir, "same-id", head_ref="from-runs-gate")
+    _write_p7_local_gate_result(runs_dir, "same-id")
+    repo = RealRepository(runs_dir=runs_dir)
+
+    checks = repo.pr_checks()
+
+    assert len(checks) == 1
+    assert checks[0].title == "main → from-runs-gate"

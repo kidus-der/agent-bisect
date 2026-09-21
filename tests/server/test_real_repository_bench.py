@@ -124,6 +124,12 @@ def test_benchmark_reads_the_real_method_comparison(p5_repo):
     assert methods["judge_all_at_once"].accuracy.value == 0.0
 
 
+def test_benchmark_carries_the_real_results_split(p5_repo):
+    """`build_report(scores, split="test", ...)` above -- the UI must be able
+    to tell a dev-split diagnostic run from the pre-registered test result."""
+    assert p5_repo.benchmark().results_split == "test"
+
+
 def test_benchmark_cost_histogram_buckets_bisects_real_call_counts(p5_repo):
     summary = p5_repo.benchmark()
     # Both bisect rows spent judge_calls(1) + replay_calls(18) = 19 calls,
@@ -150,6 +156,7 @@ def test_overview_headline_and_kpis_are_real(p5_repo):
     assert payload.kpis.runs_recorded == 2
     assert payload.kpis.cost_per_diagnosis_usd is None  # never fabricated
     assert payload.kpis.cost_per_diagnosis_calls is None  # nothing blamed yet (no runs/blame/)
+    assert payload.results_split == "test"
 
 
 def test_overview_recall_provenance_mirrors_the_real_report(p5_repo):

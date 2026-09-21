@@ -208,6 +208,7 @@ class RealRepository:
                 # in the tape index -- everything else above is still real
                 # and still worth serving; only this one slot degrades.
                 hero_run=self._hero_run_summary(items),
+                results_split=summary["config"].get("split"),
             )
         except (KeyError, ValidationError) as exc:
             raise DataNotAvailable(f"data/results/p5_summary.json is malformed: {exc}") from exc
@@ -615,6 +616,7 @@ class RealRepository:
                 if flaky_doc is not None
                 else None,
                 cost_histogram=self._cost_histogram(items),
+                results_split=summary["config"].get("split"),
             )
         except (KeyError, ValidationError) as exc:
             raise DataNotAvailable(f"data/results/p5_summary.json is malformed: {exc}") from exc
@@ -762,16 +764,39 @@ class RealRepository:
                 continue
         return tuple(statuses)
 
+    def _gate_roots(self) -> tuple[Path, ...]:
+        """Every directory that can hold `bisect gate`'s
+        `<check_id>/result.json` output: the documented `runs/gate/`
+        convention (`--out` defaults there), plus P7's own local demo-suite
+        runs (`runs/p7/local/`) -- real `bisect gate` invocations that
+        happened to pass a custom `--out`, not a different data source.
+        `runs/gate/` is checked first so it wins on a `check_id` collision.
+        """
+        return (self._runs_dir / _GATE_DIRNAME, self._runs_dir / "p7" / "local")
+
     def _gate_result(self, check_id: str) -> dict[str, Any] | None:
-        """`runs/gate/<check_id>/result.json`, or `None` if `bisect gate` has
-        never written one under that id."""
-        path = self._runs_dir / _GATE_DIRNAME / check_id / _GATE_RESULT_FILENAME
-        if not path.exists():
-            return None
-        try:
-            return json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            return None
+        """`<root>/<check_id>/result.json` from the first gate root that has
+        one, or `None` if `bisect gate` has never written that id anywhere."""
+        for root in self._gate_roots():
+            path = root / check_id / _GATE_RESULT_FILENAME
+            if not path.exists():
+                continue
+            try:
+                return json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                return None
+        return None
+
+    def _gate_check_ids(self) -> tuple[str, ...]:
+        """Every `check_id` directory found across `_gate_roots()`, deduped
+        (a root earlier in `_gate_roots()` wins), sorted for a stable list."""
+        seen: dict[str, None] = {}
+        for root in self._gate_roots():
+            if not root.is_dir():
+                continue
+            for check_dir in sorted(p.name for p in root.iterdir() if p.is_dir()):
+                seen.setdefault(check_dir, None)
+        return tuple(sorted(seen))
 
     @staticmethod
     def _pr_check_title(result: dict[str, Any]) -> str:
@@ -805,16 +830,16 @@ class RealRepository:
         )
 
     def pr_checks(self) -> tuple[PrCheckSummary, ...]:
-        gate_dir = self._runs_dir / _GATE_DIRNAME
-        if not gate_dir.is_dir():
+        check_ids = self._gate_check_ids()
+        if not check_ids:
             raise DataNotAvailable("no PR checks have run yet (gate/action.py)")
         summaries = []
-        for check_dir in sorted(p for p in gate_dir.iterdir() if p.is_dir()):
-            result = self._gate_result(check_dir.name)
+        for check_id in check_ids:
+            result = self._gate_result(check_id)
             if result is None:
                 continue
             try:
-                summaries.append(self._pr_check_summary(check_dir.name, result))
+                summaries.append(self._pr_check_summary(check_id, result))
             except (KeyError, ValidationError):
                 continue  # a malformed result.json never takes the whole list down
         return tuple(summaries)

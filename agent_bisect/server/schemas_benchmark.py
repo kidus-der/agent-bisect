@@ -119,3 +119,8 @@ class BenchmarkSummary(BaseModel):
     # Fixture mode always has one.
     flaky_ablation: FlakyAblation | None
     cost_histogram: tuple[CostBucket, ...]
+    # Which split of the evaluation produced these numbers -- `bench.results`'s
+    # own `config.split` verbatim ("dev" or "test"), or `None` in fixture
+    # mode, where the simulated dataset isn't a real split at all. The UI
+    # must never present a "dev" result as the pre-registered test result.
+    results_split: str | None = None

@@ -77,3 +77,9 @@ class OverviewPayload(BaseModel):
     # real, not fabricated: real mode never invents a run to fill this slot.
     # Fixture mode always has one.
     hero_run: RunSummary | None
+    # Which split of the evaluation produced `headline`/`recall_at_m`/
+    # `cost_vs_accuracy` -- `bench.results`'s own `config.split` verbatim
+    # ("dev" or "test"), or `None` in fixture mode, where the simulated
+    # dataset isn't a real split at all. The UI must never present a "dev"
+    # result as the pre-registered test result.
+    results_split: str | None = None
