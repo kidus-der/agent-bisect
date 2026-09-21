@@ -106,6 +106,12 @@ def serve(
             "--data-dir", help="Real mode only: where data/manifest.json and data/results/ live."
         ),
     ] = DEFAULT_DATA_DIR,
+    models_config: Annotated[
+        Path,
+        typer.Option(
+            "--models-config", help="Real mode only: where config/models.toml (P0's choice) lives."
+        ),
+    ] = DEFAULT_MODELS_PATH,
 ) -> None:
     """Serve the dashboard at http://127.0.0.1:8484 (phase P6)."""
     if fixture and real:
@@ -136,7 +142,7 @@ def serve(
         explicit_host=host != DEFAULT_HOST,
         runs_dir=runs_dir,
         data_dir=data_dir,
-        models_path=DEFAULT_MODELS_PATH,
+        models_path=models_config,
     )
 
 

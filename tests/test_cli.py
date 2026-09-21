@@ -267,6 +267,29 @@ def test_serve_data_dir_defaults_to_data(monkeypatch, tmp_path):
     assert seen["data_dir"] == Path("data")
 
 
+def test_serve_models_config_option_passes_through_to_run_server(monkeypatch, tmp_path):
+    """Same need as --data-dir: an installed wheel run from elsewhere still
+    has to find config/models.toml for a real /api/meta."""
+    seen = _serve_spy(monkeypatch)
+    models_config = tmp_path / "some-config" / "models.toml"
+
+    result = runner.invoke(
+        cli.app, ["serve", "--runs-dir", str(tmp_path), "--models-config", str(models_config)]
+    )
+
+    assert result.exit_code == 0
+    assert seen["models_path"] == models_config
+
+
+def test_serve_models_config_defaults_to_config_models_toml(monkeypatch, tmp_path):
+    seen = _serve_spy(monkeypatch)
+
+    result = runner.invoke(cli.app, ["serve", "--runs-dir", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert seen["models_path"] == Path("config/models.toml")
+
+
 def test_serve_passes_an_explicit_host_through_as_explicit(monkeypatch, tmp_path):
     """run_server refuses a non-loopback bind unless the operator asked."""
     seen = _serve_spy(monkeypatch)
