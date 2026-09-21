@@ -34,7 +34,11 @@ from agent_bisect.server.static import register_static
 def _build_repository(settings: ServerSettings) -> DashboardRepository:
     if settings.data_source == "fixture":
         return FixtureRepository(seed=settings.fixture_seed)
-    return RealRepository(runs_dir=settings.runs_dir)
+    return RealRepository(
+        runs_dir=settings.runs_dir,
+        data_dir=settings.data_dir,
+        models_path=settings.models_path,
+    )
 
 
 def _fallback_meta(settings: ServerSettings) -> ResponseMeta:

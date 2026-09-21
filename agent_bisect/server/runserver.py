@@ -42,9 +42,17 @@ def run_server(
     explicit_host: bool = False,
     fixture_seed: int = DEFAULT_FIXTURE_SEED,
     runs_dir: Path = Path("runs"),
+    data_dir: Path = Path("data"),
+    models_path: Path = Path("config/models.toml"),
 ) -> None:
     """Build the app and serve it with uvicorn. Blocks until interrupted."""
     _validate_host(host, explicit_host)
-    settings = ServerSettings(data_source=data_source, fixture_seed=fixture_seed, runs_dir=runs_dir)
+    settings = ServerSettings(
+        data_source=data_source,
+        fixture_seed=fixture_seed,
+        runs_dir=runs_dir,
+        data_dir=data_dir,
+        models_path=models_path,
+    )
     app = create_app(settings)
     uvicorn.run(app, host=host, port=port)

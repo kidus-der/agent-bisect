@@ -9,6 +9,7 @@ import, or network side effects.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from agent_bisect import cli
@@ -241,6 +242,29 @@ def test_serve_real_flag_refuses_when_there_is_no_tape(monkeypatch, tmp_path):
 
     assert result.exit_code != 0
     assert "no recorded runs" in result.output
+
+
+def test_serve_data_dir_option_passes_through_to_run_server(monkeypatch, tmp_path):
+    """`--real` on an installed wheel needs to find `data/manifest.json` and
+    `data/results/*` somewhere other than the current directory."""
+    seen = _serve_spy(monkeypatch)
+    data_dir = tmp_path / "some-data"
+
+    result = runner.invoke(
+        cli.app, ["serve", "--runs-dir", str(tmp_path), "--data-dir", str(data_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert seen["data_dir"] == data_dir
+
+
+def test_serve_data_dir_defaults_to_data(monkeypatch, tmp_path):
+    seen = _serve_spy(monkeypatch)
+
+    result = runner.invoke(cli.app, ["serve", "--runs-dir", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert seen["data_dir"] == Path("data")
 
 
 def test_serve_passes_an_explicit_host_through_as_explicit(monkeypatch, tmp_path):

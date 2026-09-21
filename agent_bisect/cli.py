@@ -31,6 +31,8 @@ DOCTOR_FAILURE_EXIT_CODE = 1
 SERVE_USAGE_EXIT_CODE = 2
 #: Module-level so the option default is not a call (ruff B008).
 DEFAULT_RUNS_DIR = Path("runs")
+DEFAULT_DATA_DIR = Path("data")
+DEFAULT_MODELS_PATH = Path("config/models.toml")
 
 
 def _not_implemented(phase: str) -> None:
@@ -98,6 +100,12 @@ def serve(
     runs_dir: Annotated[
         Path, typer.Option(help="Where the recordings live.")
     ] = DEFAULT_RUNS_DIR,
+    data_dir: Annotated[
+        Path,
+        typer.Option(
+            "--data-dir", help="Real mode only: where data/manifest.json and data/results/ live."
+        ),
+    ] = DEFAULT_DATA_DIR,
 ) -> None:
     """Serve the dashboard at http://127.0.0.1:8484 (phase P6)."""
     if fixture and real:
@@ -121,7 +129,15 @@ def serve(
         typer.echo(f"serving real recordings from {runs_dir}")
     typer.echo(f"http://{host}:{port}")
 
-    run_server(host, port, data_source, explicit_host=host != DEFAULT_HOST, runs_dir=runs_dir)
+    run_server(
+        host,
+        port,
+        data_source,
+        explicit_host=host != DEFAULT_HOST,
+        runs_dir=runs_dir,
+        data_dir=data_dir,
+        models_path=DEFAULT_MODELS_PATH,
+    )
 
 
 app.command()(gate)

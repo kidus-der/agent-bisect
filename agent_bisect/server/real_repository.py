@@ -34,6 +34,7 @@ from agent_bisect.bench.manifest import (
     load_frozen,
 )
 from agent_bisect.core.limits import load_limiter_settings
+from agent_bisect.core.models import MissingModelsConfigError, load_chosen_models
 from agent_bisect.core.store import BlobStore
 from agent_bisect.core.tape import Outcome, RunManifest, Step
 from agent_bisect.server.repository import DataNotAvailable, RunFilter
@@ -117,7 +118,12 @@ def _ro_connect(path: Path) -> sqlite3.Connection | None:
 class RealRepository:
     """Serves what real recordings on disk can answer; everything else is `DataNotAvailable`."""
 
-    def __init__(self, runs_dir: Path = Path("runs"), data_dir: Path = Path("data")) -> None:
+    def __init__(
+        self,
+        runs_dir: Path = Path("runs"),
+        data_dir: Path = Path("data"),
+        models_path: Path = Path("config/models.toml"),
+    ) -> None:
         self._runs_dir = runs_dir
         self._index_path = runs_dir / "index.sqlite"
         self._ledger_path = runs_dir / "ledger.sqlite"
@@ -127,18 +133,32 @@ class RealRepository:
         #: payload-free evaluation output, `bench.results`).
         self._manifest_path = data_dir / "manifest.json"
         self._results_dir = data_dir / "results"
+        #: `config/models.toml` (`core.models`, P0's chosen models) -- read
+        #: here only, never written; a missing/incomplete file degrades to
+        #: "unknown" per field rather than raising, since `meta()` must
+        #: never take the rest of the dashboard down over it.
+        self._models_path = models_path
 
     def data_source(self) -> str:
         return "real"
 
     def meta(self) -> MetaPayload:
+        try:
+            models = load_chosen_models(self._models_path)
+            tau2_commit, agent_model, user_model = (
+                models.tau2_commit,
+                models.agent,
+                models.user_sim,
+            )
+        except MissingModelsConfigError:
+            tau2_commit = agent_model = user_model = "unknown"
         return MetaPayload(
             data_source="real",
             simulated=False,
             package_version=PACKAGE_VERSION,
-            tau2_commit="unknown",
-            agent_model="unknown",
-            user_model="unknown",
+            tau2_commit=tau2_commit,
+            agent_model=agent_model,
+            user_model=user_model,
             generated_at=datetime.now(UTC).isoformat(),
         )
 

@@ -315,6 +315,31 @@ def test_meta_reports_real_source(one_run_dir):
     assert meta.simulated is False
 
 
+def test_meta_reads_the_chosen_models_when_config_models_toml_exists(tmp_path, one_run_dir):
+    models_path = tmp_path / "config" / "models.toml"
+    models_path.parent.mkdir(parents=True)
+    models_path.write_text(
+        'tau2_commit = "abc1234"\n'
+        'agent = "nvidia/nemotron-3-super-120b-a12b"\n'
+        'user_sim = "nvidia/nemotron-3.5-lightning-30b-a3b"\n'
+        'judge = "nvidia/nemotron-3-ultra-550b-a55b"\n'
+    )
+    repo = RealRepository(runs_dir=one_run_dir, models_path=models_path)
+    meta = repo.meta()
+    assert meta.tau2_commit == "abc1234"
+    assert meta.agent_model == "nvidia/nemotron-3-super-120b-a12b"
+    assert meta.user_model == "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+
+def test_meta_falls_back_to_unknown_without_a_models_config(tmp_path, one_run_dir):
+    """Honest, not fabricated: no invented model name when nothing pinned one."""
+    repo = RealRepository(runs_dir=one_run_dir, models_path=tmp_path / "no-such-file.toml")
+    meta = repo.meta()
+    assert meta.tau2_commit == "unknown"
+    assert meta.agent_model == "unknown"
+    assert meta.user_model == "unknown"
+
+
 def test_redacted_secret_never_resurfaces_through_real_repository(tmp_path):
     """`BlobStore.put_bytes` redacts on write; the real repository must never undo that."""
     runs_dir = tmp_path / "runs"

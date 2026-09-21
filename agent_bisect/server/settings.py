@@ -18,4 +18,9 @@ class ServerSettings:
     data_source: DataSource = "fixture"
     fixture_seed: int = DEFAULT_FIXTURE_SEED
     runs_dir: Path = Path("runs")
+    #: Real mode only: `data/manifest.json` + `data/results/*` (P3's frozen
+    #: dataset, P5's committed evaluation output).
+    data_dir: Path = Path("data")
+    #: Real mode only: `config/models.toml` (P0's chosen models, for `/api/meta`).
+    models_path: Path = Path("config/models.toml")
     cors_origins: tuple[str, ...] = DEV_ORIGINS
