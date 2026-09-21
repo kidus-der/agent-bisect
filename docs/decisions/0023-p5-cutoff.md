@@ -63,6 +63,20 @@ One probe had already been taken under the old rule — 01:21Z, 9 of 10 in 7.5 s
 **does not count** toward the three: a pass measured at a different burst size is not the
 same measurement, and carrying it over would relaunch on two probes' evidence.
 
+## Superseded, 2026-09-21 00:05 MDT — the owner stopped the project
+
+The owner paused the project ("just stop everything here… the project is essentially
+paused"), so the **cutoff was brought forward from 06:00 to 00:05 on 09-21**. The watch,
+the probes and the evaluation were stopped at that point, `runs/p5/STOP` was written, and
+P5 was finalised immediately on the state described in `docs/gates/P5.md`:
+**FAILED-NOT-EVALUABLE**. Nothing below changes retroactively; the hold simply ended
+earlier than the decision planned, by the owner's instruction rather than by a measurement.
+
+The probe evidence collected under this decision, in full: 01:21Z 9/10 (old rule), 01:30Z
+8/8, 01:33Z 8/8, 01:48Z 8/8, 02:33Z 7/8, 02:48Z 8/8 → relaunch, and 05:50Z 8/8 after the
+relaunch was stopped. Six of seven bursts passed; the relaunch they authorised still bought
+152 answers from 17,569 calls. That contrast is the finding, not the failure.
+
 ## Budget
 
 The P5 cap may be raised from 80,000 to 120,000 calls if the relaunch needs it; the cap
