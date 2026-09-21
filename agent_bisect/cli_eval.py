@@ -85,6 +85,7 @@ DEFAULT_SEED = 20260917
 #: and no dev/test side: decision 0022 keeps `rerun_live` on those three
 #: items alone, and P3 froze them without assigning a split.
 FLAKY_SPLIT = "flaky"
+DEFAULT_FLAKY_MANIFEST = Path("data/manifest_flaky.json")
 
 
 class FlakyManifestError(ValueError):
@@ -110,6 +111,20 @@ def _items_for(manifest: FrozenManifest, split: str) -> list[Any]:
     return list(manifest.items)
 
 
+def _flaky_scores(out_dir: Path | None, manifest_path: Path) -> list[Any] | None:
+    """The flaky run's scored items, or `None` when there was no flaky run.
+
+    `None` and "zero" are different answers: the gate's flaky criterion
+    reads an absent ablation as *not collected* and a present one as
+    measured, and a not-collected ablation must never look like a result.
+    """
+    if out_dir is None:
+        return None
+    manifest = load_frozen(manifest_path)
+    outcomes = outcomes_from_rows(read_outcome_rows(out_dir))
+    return list(score_outcomes(_items_for(manifest, FLAKY_SPLIT), outcomes))
+
+
 def _report_only(
     *,
     split: str,
@@ -117,6 +132,8 @@ def _report_only(
     manifest_path: Path,
     out_dir: Path,
     results_dir: Path,
+    flaky_out_dir: Path | None = None,
+    flaky_manifest: Path = DEFAULT_FLAKY_MANIFEST,
 ) -> dict[str, Any]:
     """Rebuild every number from the stored table. No judge, no fork, no network."""
     manifest = load_frozen(manifest_path)
@@ -130,6 +147,7 @@ def _report_only(
         manifest_digest=manifest.digest,
         estimator_config=manifest.config,
         measured_to_m=int(manifest.config.get("top_m", DEFAULT_TOP_M)),
+        flaky_scores=_flaky_scores(flaky_out_dir, flaky_manifest),
     )
     write_results(
         scores=scores,
@@ -268,6 +286,13 @@ def eval_(
     report_only: bool = typer.Option(
         False, "--report-only", help="Rebuild the report from stored results. Offline."
     ),
+    flaky_out_dir: Annotated[
+        Path | None,
+        typer.Option(help="A finished flaky run's tables; folds its ablation into this report."),
+    ] = None,
+    flaky_manifest: Annotated[
+        Path, typer.Option(help="The frozen flaky manifest those tables are scored against.")
+    ] = DEFAULT_FLAKY_MANIFEST,
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Evaluate Bisect against the baselines on a frozen split."""
@@ -287,6 +312,7 @@ def eval_(
         report = _report_only(
             split=split, seed=seed, manifest_path=manifest,
             out_dir=out_dir, results_dir=results_dir,
+            flaky_out_dir=flaky_out_dir, flaky_manifest=flaky_manifest,
         )
         typer.echo(
             json.dumps(report, indent=2, sort_keys=True) if json_output
@@ -409,6 +435,7 @@ def eval_(
         unguarded_calls=run.bisect_unguarded_calls,
         sensitivity=sensitivity,
         measured_to_m=top,
+        flaky_scores=_flaky_scores(flaky_out_dir, flaky_manifest),
     )
     written = write_results(
         scores=scores,
