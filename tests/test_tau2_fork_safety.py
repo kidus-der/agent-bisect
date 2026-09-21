@@ -230,6 +230,21 @@ def test_a_draw_recorded_under_a_retry_id_is_also_reused():
     assert executor.reused == 1
 
 
+def test_a_draw_recorded_under_a_deep_retry_id_is_still_reused():
+    """The outage drove retries far past `-r3`.
+
+    184 completed forks ended up at `-r4` or deeper on 2026-09-21. A
+    candidate scan that stops at `-r3` cannot see them, so every resume
+    re-buys a draw that is already on the tape.
+    """
+    executor = _executor_over(_TapeWithOutcome("p-c4-abc-r9"))
+
+    outcome = executor.run(_request())
+
+    assert outcome.passed is True
+    assert executor.reused == 1
+
+
 def test_a_reused_draw_is_charged_no_calls():
     executor = _executor_over(_TapeWithOutcome("p-c4-abc-a1"))
 
