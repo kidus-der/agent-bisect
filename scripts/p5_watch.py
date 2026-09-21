@@ -31,6 +31,7 @@ import argparse
 import asyncio
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import time
@@ -79,6 +80,17 @@ RELAUNCH_CONCURRENCY = 8
 #: How often the relaunched supervisor is checked on. Long, because the
 #: answer only changes when it exits.
 SUPERVISOR_POLL_S = 60.0
+
+#: A relaunched run is watched for *productive* calls, not for liveness.
+#: The 02:48Z relaunch passed three clean bursts and then spent 17,525
+#: calls in three hours for 136 answers — 98% retries — because a run
+#: that is 429-ing is indistinguishable from a busy one unless the
+#: ledger is read. Below this rate over `STALL_WINDOW_S`, and past the
+#: grace period that lets the first judge calls land, the run is buying
+#: nothing and is stopped.
+MIN_OK_PER_MIN = 2.0
+STALL_WINDOW_S = 900.0
+STALL_GRACE_S = 1200.0
 MAX_CALLS = 120_000
 
 
@@ -225,17 +237,61 @@ def relaunch(log_path: Path) -> subprocess.Popen[bytes]:
     )
 
 
-def wait_for(process: subprocess.Popen[bytes], cutoff: datetime) -> int | None:
-    """Wait out the supervisor. `None` means the cutoff came first.
+def productive_rate(ledger_path: Path, window_s: float = STALL_WINDOW_S) -> float:
+    """Answered P5 calls per minute over the last `window_s`.
 
-    A supervisor still working at the cutoff is left running: it is
-    spending on items that resume from the tape, and killing it mid-fork
-    would throw that away for nothing.
+    Read straight from the ledger because that is the only place a
+    retry is distinguishable from an answer. `ts` is a UNIX float, and
+    a row's status is updated in place when the call finishes.
     """
+    since = time.time() - window_s
+    with sqlite3.connect(f"file:{ledger_path}?mode=ro", uri=True) as connection:
+        answered = connection.execute(
+            "select count(*) from calls where phase = ? and status = 'ok' and ts >= ?",
+            (PHASE, since),
+        ).fetchone()[0]
+    return float(answered) / (window_s / 60.0)
+
+
+def stop_run(out_dir: Path = OUT_DIR) -> None:
+    """Stop a running evaluation the way a human would, without orphans.
+
+    The stop file makes the supervisor refuse to start another attempt;
+    terminating the `bisect eval` process itself is what ends the
+    attempt already in flight. Killing the supervisor instead would
+    leave its child running against the same tape.
+    """
+    (out_dir / STOP_FILE.name).touch()
+    subprocess.run(  # noqa: S603 - fixed argv, no shell
+        ["pkill", "-TERM", "-f", "bisect eval --split test"], check=False
+    )
+
+
+def wait_for(
+    process: subprocess.Popen[bytes], cutoff: datetime, ledger_path: Path
+) -> int | None:
+    """Wait out the supervisor, stopping it if it stops buying anything.
+
+    `None` means the cutoff came first. A supervisor still *working* at
+    the cutoff is left running: it is spending on items that resume from
+    the tape, and killing it mid-fork would throw that away. A supervisor
+    that is only retrying is stopped whenever that becomes clear.
+    """
+    started = time.monotonic()
     while datetime.now(cutoff.tzinfo) < cutoff:
         code = process.poll()
         if code is not None:
+            STOP_FILE.unlink(missing_ok=True)
             return code
+        if time.monotonic() - started >= STALL_GRACE_S:
+            rate = productive_rate(ledger_path)
+            if rate < MIN_OK_PER_MIN:
+                print(
+                    f"[watch] STALLED · {rate:.2f} answered calls/min over the last "
+                    f"{STALL_WINDOW_S / 60:.0f} min; stopping the run",
+                    flush=True,
+                )
+                stop_run()
         time.sleep(SUPERVISOR_POLL_S)
     return None
 
@@ -269,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"[watch] RELAUNCHED supervisor pid={process.pid} → {args.log}", flush=True
             )
-            code = wait_for(process, cutoff)
+            code = wait_for(process, cutoff, args.ledger)
             if code is None:
                 print("[watch] STOPPED reason=cutoff · supervisor still running", flush=True)
                 return 2
