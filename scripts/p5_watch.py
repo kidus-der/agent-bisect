@@ -76,6 +76,9 @@ PROBE_RPM = 600.0
 PROBE_PURPOSE = "probe"
 
 RELAUNCH_CONCURRENCY = 8
+#: How often the relaunched supervisor is checked on. Long, because the
+#: answer only changes when it exits.
+SUPERVISOR_POLL_S = 60.0
 MAX_CALLS = 120_000
 
 
@@ -206,8 +209,8 @@ def record(result: BurstResult, consecutive: int, spent: int, cutoff: datetime) 
     os.replace(temporary, STATUS)
 
 
-def relaunch(log_path: Path) -> int:
-    """Start the supervisor on the test split, detached, and return its pid."""
+def relaunch(log_path: Path) -> subprocess.Popen[bytes]:
+    """Start the supervisor on the test split, detached."""
     command = [
         "uv", "run", "python", "scripts/p5_supervisor.py",
         "--split", "test", "--resume",
@@ -217,10 +220,24 @@ def relaunch(log_path: Path) -> int:
         "--max-calls", str(MAX_CALLS),
     ]
     handle = log_path.open("a")
-    process = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+    return subprocess.Popen(  # noqa: S603 - fixed argv, no shell
         command, stdout=handle, stderr=subprocess.STDOUT, start_new_session=True
     )
-    return process.pid
+
+
+def wait_for(process: subprocess.Popen[bytes], cutoff: datetime) -> int | None:
+    """Wait out the supervisor. `None` means the cutoff came first.
+
+    A supervisor still working at the cutoff is left running: it is
+    spending on items that resume from the tape, and killing it mid-fork
+    would throw that away for nothing.
+    """
+    while datetime.now(cutoff.tzinfo) < cutoff:
+        code = process.poll()
+        if code is not None:
+            return code
+        time.sleep(SUPERVISOR_POLL_S)
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -248,9 +265,21 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
         if consecutive >= CONSECUTIVE_PASSES:
-            pid = relaunch(args.log)
-            print(f"[watch] RELAUNCHED supervisor pid={pid} → {args.log}", flush=True)
-            return 0
+            process = relaunch(args.log)
+            print(
+                f"[watch] RELAUNCHED supervisor pid={process.pid} → {args.log}", flush=True
+            )
+            code = wait_for(process, cutoff)
+            if code is None:
+                print("[watch] STOPPED reason=cutoff · supervisor still running", flush=True)
+                return 2
+            if code == 0:
+                print("[watch] STOPPED reason=success · the test split finished", flush=True)
+                return 0
+            # It came back up and fell over again. Go back to probing
+            # rather than leaving the overnight window unused.
+            consecutive = 0
+            print(f"[watch] supervisor exited {code}; resuming probes", flush=True)
         time.sleep(args.interval)
 
     print(f"[watch] STOPPED reason=cutoff · {cutoff.isoformat()} reached", flush=True)
