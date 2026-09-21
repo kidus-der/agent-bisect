@@ -5,8 +5,7 @@
       "/Volumes/main-storage-2tb/projects/agent-bisect/web/node_modules/.bin/playwright",
       "test",
       "--config",
-      "playwright.real.config.ts",
-      "--repeat-each=2"
+      "playwright.real.config.ts"
     ],
     "configFile": "/Volumes/main-storage-2tb/projects/agent-bisect/web/playwright.real.config.ts",
     "rootDir": "/Volumes/main-storage-2tb/projects/agent-bisect/web/e2e",
@@ -26,7 +25,7 @@
     "projects": [
       {
         "outputDir": "/Volumes/main-storage-2tb/projects/agent-bisect/web/test-results",
-        "repeatEach": 2,
+        "repeatEach": 1,
         "retries": 0,
         "metadata": {
           "actualWorkers": 5
@@ -89,12 +88,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4073,
+                  "duration": 3598,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:19.658Z",
+                  "startTime": "2026-09-21T01:56:43.863Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -123,12 +122,12 @@
                   "workerIndex": 1,
                   "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 3956,
+                  "duration": 3649,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:19.670Z",
+                  "startTime": "2026-09-21T01:56:43.838Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -157,12 +156,12 @@
                   "workerIndex": 2,
                   "parallelIndex": 2,
                   "status": "passed",
-                  "duration": 4365,
+                  "duration": 3844,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:19.669Z",
+                  "startTime": "2026-09-21T01:56:43.840Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -191,12 +190,12 @@
                   "workerIndex": 3,
                   "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 4413,
+                  "duration": 3831,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:19.667Z",
+                  "startTime": "2026-09-21T01:56:43.863Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -225,12 +224,12 @@
                   "workerIndex": 4,
                   "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 3982,
+                  "duration": 3484,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:19.671Z",
+                  "startTime": "2026-09-21T01:56:43.843Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -256,15 +255,15 @@
               "projectName": "chromium",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
                   "status": "passed",
-                  "duration": 2860,
+                  "duration": 2835,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:24.042Z",
+                  "startTime": "2026-09-21T01:56:47.694Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -290,15 +289,15 @@
               "projectName": "chromium",
               "results": [
                 {
-                  "workerIndex": 4,
-                  "parallelIndex": 4,
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2925,
+                  "duration": 2793,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:24.059Z",
+                  "startTime": "2026-09-21T01:56:47.806Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -324,15 +323,15 @@
               "projectName": "chromium",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 481,
+                  "duration": 248,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:24.150Z",
+                  "startTime": "2026-09-21T01:56:47.860Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -358,15 +357,15 @@
               "projectName": "chromium",
               "results": [
                 {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
                   "status": "passed",
-                  "duration": 354,
+                  "duration": 313,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-21T01:29:24.439Z",
+                  "startTime": "2026-09-21T01:56:48.042Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -378,321 +377,15 @@
           "file": "real-smoke.spec.ts",
           "line": 71,
           "column": 1
-        },
-        {
-          "title": "/ loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 5,
-                  "parallelIndex": 3,
-                  "status": "passed",
-                  "duration": 2911,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:24.884Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-7b9587866e99a6d68293",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "/runs loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 6,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 2796,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:24.986Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-09135769b8c6b33f05dd",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "/runs/airline-17-t0-a4-k4-tool_error-s0 loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 7,
-                  "parallelIndex": 2,
-                  "status": "passed",
-                  "duration": 3224,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:25.155Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-d9ac17dd9538cbe251ac",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "/benchmark loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 8,
-                  "parallelIndex": 1,
-                  "status": "passed",
-                  "duration": 4049,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:27.162Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-8640c41d1e91a641e34e",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "/live loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 9,
-                  "parallelIndex": 4,
-                  "status": "passed",
-                  "duration": 3220,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:27.247Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-53904bcf359984dce307",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "/pr-checks loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 6,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 2919,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:27.877Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-13feb9ad649b3f82a04e",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "/pr-checks/demo_p7-id-slip-100 loads real data with no crash and no blocking axe violations",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 5,
-                  "parallelIndex": 3,
-                  "status": "passed",
-                  "duration": 2932,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:27.893Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-d6deee16001c3b06da86",
-          "file": "real-smoke.spec.ts",
-          "line": 46,
-          "column": 3
-        },
-        {
-          "title": "data source flag reads Recorded data, not Simulated",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 7,
-                  "parallelIndex": 2,
-                  "status": "passed",
-                  "duration": 186,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:28.482Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-18fdc5d2869ef8b36cc8",
-          "file": "real-smoke.spec.ts",
-          "line": 65,
-          "column": 1
-        },
-        {
-          "title": "overview headline names the dev split as a diagnostic run",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 30000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chromium",
-              "projectName": "chromium",
-              "results": [
-                {
-                  "workerIndex": 7,
-                  "parallelIndex": 2,
-                  "status": "passed",
-                  "duration": 1409,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-09-21T01:29:28.674Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "48138f24909e5c5ba157-a417129e6b50a853b2a9",
-          "file": "real-smoke.spec.ts",
-          "line": 71,
-          "column": 1
         }
       ]
     }
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-09-21T01:29:19.316Z",
-    "duration": 11992.089,
-    "expected": 18,
+    "startTime": "2026-09-21T01:56:43.568Z",
+    "duration": 7055.18,
+    "expected": 9,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
