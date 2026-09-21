@@ -380,7 +380,13 @@ def test_redacted_secret_never_resurfaces_through_real_repository(tmp_path):
 
 
 def _write_run(
-    writer: TapeWriter, run_id: str, n_steps: int, *, record_outcome: bool = True
+    writer: TapeWriter,
+    run_id: str,
+    n_steps: int,
+    *,
+    record_outcome: bool = True,
+    parent_run_id: str | None = None,
+    fork_step: int | None = None,
 ) -> None:
     writer.start_run(
         RunManifest(
@@ -391,6 +397,8 @@ def _write_run(
             user_model="u",
             tau2_commit="c",
             created_at=datetime.now(UTC),
+            parent_run_id=parent_run_id,
+            fork_step=fork_step,
         )
     )
     for idx in range(n_steps):
@@ -423,6 +431,44 @@ def test_list_runs_honours_the_sort_field_in_real_mode(tmp_path):
     repo = RealRepository(runs_dir=runs_dir)
     runs, _ = repo.list_runs(RunFilter(sort="-n_steps"))
     assert [r.run_id for r in runs] == ["run-a", "run-b"]
+
+
+@pytest.fixture
+def top_and_fork_dir(tmp_path) -> Path:
+    """One top-level run and a fork of it -- forks are P5's re-run/candidate
+    mechanism (`Tau2ForkExecutor`), real real_repository.py data."""
+    runs_dir = tmp_path / "runs"
+    writer = TapeWriter(runs_dir)
+    _write_run(writer, "base-run", n_steps=3)
+    _write_run(writer, "base-run-fork-1", n_steps=2, parent_run_id="base-run", fork_step=1)
+    return runs_dir
+
+
+def test_list_runs_default_kind_excludes_forks(top_and_fork_dir):
+    repo = RealRepository(runs_dir=top_and_fork_dir)
+    runs, total = repo.list_runs(RunFilter())
+    assert total == 1
+    assert [r.run_id for r in runs] == ["base-run"]
+
+
+def test_list_runs_kind_reruns_returns_only_forks(top_and_fork_dir):
+    repo = RealRepository(runs_dir=top_and_fork_dir)
+    runs, total = repo.list_runs(RunFilter(kind="reruns"))
+    assert total == 1
+    assert [r.run_id for r in runs] == ["base-run-fork-1"]
+
+
+def test_list_runs_kind_all_returns_both(top_and_fork_dir):
+    repo = RealRepository(runs_dir=top_and_fork_dir)
+    runs, total = repo.list_runs(RunFilter(kind="all"))
+    assert total == 2
+    assert {r.run_id for r in runs} == {"base-run", "base-run-fork-1"}
+
+
+def test_list_runs_kind_top_is_explicit_for_default(top_and_fork_dir):
+    repo = RealRepository(runs_dir=top_and_fork_dir)
+    runs, _ = repo.list_runs(RunFilter(kind="top"))
+    assert [r.run_id for r in runs] == ["base-run"]
 
 
 @pytest.fixture

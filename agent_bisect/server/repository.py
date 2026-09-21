@@ -54,7 +54,18 @@ class DataNotAvailable(Exception):
 class RunFilter:
     """Filter/sort/pagination parameters for `list_runs`. Immutable; build a new one to change."""
 
-    __slots__ = ("domain", "outcome", "status", "model", "fault_type", "q", "sort", "page", "limit")
+    __slots__ = (
+        "domain",
+        "outcome",
+        "status",
+        "model",
+        "fault_type",
+        "q",
+        "kind",
+        "sort",
+        "page",
+        "limit",
+    )
 
     def __init__(
         self,
@@ -64,6 +75,7 @@ class RunFilter:
         model: str | None = None,
         fault_type: str | None = None,
         q: str | None = None,
+        kind: str = "top",
         sort: str = "run_id",
         page: int = 1,
         limit: int = 50,
@@ -74,6 +86,11 @@ class RunFilter:
         self.model = model
         self.fault_type = fault_type
         self.q = q
+        #: `"top"` (default) -- runs with no `parent_run_id`, i.e. not a fork/
+        #: re-run; `"reruns"` -- only forks; `"all"` -- no filtering on this
+        #: axis at all. Anything else is treated as `"top"` (fail safe to the
+        #: narrower, more legible default).
+        self.kind = kind
         self.sort = sort
         self.page = page
         self.limit = limit

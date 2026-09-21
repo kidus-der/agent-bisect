@@ -450,7 +450,13 @@ class RealRepository:
                 blame = self._load_blame_doc(manifest.run_id)
                 summary = self._run_summary(manifest, outcome, steps, calls, blame)
                 tool_names = tuple(sorted({s.tool_name for s in steps if s.tool_name}))
-                rows.append(RunSearchRow(summary=summary, tool_names=tool_names))
+                rows.append(
+                    RunSearchRow(
+                        summary=summary,
+                        tool_names=tool_names,
+                        is_top_level=manifest.parent_run_id is None,
+                    )
+                )
         finally:
             conn.close()
 

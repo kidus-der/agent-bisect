@@ -20,6 +20,25 @@ def test_list_runs_filters_by_outcome(client):
     assert all(r["outcome"] == "fail" for r in body["data"]["runs"])
 
 
+def test_list_runs_default_kind_is_top_level_only(client):
+    """Fixture mode has no fork concept -- every simulated run is top-level,
+    so the new default (`kind=top`) must not drop any of them."""
+    default_total = client.get("/api/runs?limit=1").json()["meta"]["total"]
+    all_total = client.get("/api/runs?kind=all&limit=1").json()["meta"]["total"]
+    assert default_total == all_total
+    assert default_total >= 260
+
+
+def test_list_runs_kind_reruns_is_empty_in_fixture_mode(client):
+    body = client.get("/api/runs?kind=reruns&limit=200").json()
+    assert body["meta"]["total"] == 0
+    assert body["data"]["runs"] == []
+
+
+def test_list_runs_kind_invalid_value_is_422(client):
+    assert client.get("/api/runs?kind=not_a_real_kind").status_code == 422
+
+
 def test_list_runs_sort_descending(client):
     body = client.get("/api/runs?sort=-n_steps&limit=5").json()
     sizes = [r["n_steps"] for r in body["data"]["runs"]]

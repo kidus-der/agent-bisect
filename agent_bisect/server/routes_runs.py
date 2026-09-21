@@ -33,6 +33,11 @@ _SortQuery = Query("run_id", pattern=r"^-?[A-Za-z_]+$")
 _FaultTypeQuery = Query(
     None, pattern=r"^(wrong_value|missing_field|stale_record|tool_error|none)$"
 )
+_KindQuery = Query(
+    "top",
+    pattern=r"^(all|top|reruns)$",
+    description="'top' (default): exclude forks/re-runs. 'reruns': only forks. 'all': no filter.",
+)
 
 
 @router.get("")
@@ -43,6 +48,7 @@ def list_runs(
     model: str | None = None,
     fault_type: str | None = _FaultTypeQuery,
     q: str | None = Query(None, max_length=Q_MAX_LENGTH),
+    kind: str = _KindQuery,
     sort: str = _SortQuery,
     page: int = Query(1, ge=1),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
@@ -55,6 +61,7 @@ def list_runs(
         model=model,
         fault_type=fault_type,
         q=q,
+        kind=kind,
         sort=sort,
         page=page,
         limit=limit,
