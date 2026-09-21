@@ -1,0 +1,130 @@
+{
+  "items": [
+    {
+      "domain": "airline",
+      "fault_type": "tool_error",
+      "forks_completed": 1,
+      "forks_recorded": 81,
+      "item_id": "airline-11-k10-tool_error",
+      "planted_step": 10,
+      "run_id": "airline-11-t0-a2-k10-tool_error-s0",
+      "verdict": null
+    },
+    {
+      "domain": "airline",
+      "fault_type": "stale_record",
+      "forks_completed": 6,
+      "forks_recorded": 69,
+      "item_id": "airline-25-k4-stale_record",
+      "planted_step": 4,
+      "run_id": "airline-25-t0-a3-k4-stale_record-s0",
+      "verdict": null
+    },
+    {
+      "domain": "airline",
+      "fault_type": "missing_field",
+      "forks_completed": 2,
+      "forks_recorded": 74,
+      "item_id": "airline-34-k8-missing_field",
+      "planted_step": 8,
+      "run_id": "airline-34-t0-k8-missing_field-s1",
+      "verdict": null
+    },
+    {
+      "domain": "airline",
+      "fault_type": "tool_error",
+      "forks_completed": 10,
+      "forks_recorded": 58,
+      "item_id": "airline-41-k24-tool_error",
+      "planted_step": 24,
+      "run_id": "airline-41-t0-k24-tool_error-s0-a2",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "tool_error",
+      "forks_completed": 6,
+      "forks_recorded": 65,
+      "item_id": "retail-1-k2-tool_error",
+      "planted_step": 2,
+      "run_id": "retail-1-t0-k2-tool_error-s0-a2",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "wrong_value",
+      "forks_completed": 4,
+      "forks_recorded": 66,
+      "item_id": "retail-14-k6-wrong_value",
+      "planted_step": 6,
+      "run_id": "retail-14-t0-k6-wrong_value-s0-a2",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "stale_record",
+      "forks_completed": 0,
+      "forks_recorded": 0,
+      "item_id": "retail-14-k8-stale_record",
+      "planted_step": 8,
+      "run_id": "retail-14-t0-k8-stale_record-s0",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "wrong_value",
+      "forks_completed": 5,
+      "forks_recorded": 67,
+      "item_id": "retail-24-k4-wrong_value",
+      "planted_step": 4,
+      "run_id": "retail-24-t0-a5-k4-wrong_value-s0",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "missing_field",
+      "forks_completed": 0,
+      "forks_recorded": 58,
+      "item_id": "retail-26-k4-missing_field",
+      "planted_step": 4,
+      "run_id": "retail-26-t0-k4-missing_field-s0",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "tool_error",
+      "forks_completed": 0,
+      "forks_recorded": 50,
+      "item_id": "retail-33-k2-tool_error",
+      "planted_step": 2,
+      "run_id": "retail-33-t0-k2-tool_error-s0",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "missing_field",
+      "forks_completed": 5,
+      "forks_recorded": 30,
+      "item_id": "retail-33-k6-missing_field",
+      "planted_step": 6,
+      "run_id": "retail-33-t0-k6-missing_field-s0-a2",
+      "verdict": null
+    },
+    {
+      "domain": "retail",
+      "fault_type": "tool_error",
+      "forks_completed": 19,
+      "forks_recorded": 26,
+      "item_id": "retail-95-k4-tool_error",
+      "planted_step": 4,
+      "run_id": "retail-95-t0-a4-k4-tool_error-s0-a2",
+      "verdict": null
+    }
+  ],
+  "manifest_digest": "2604e2137564ca3b928da16bdcebf4477bf9f9b7c4c11cf2cb6b86577a827749",
+  "n_items": 12,
+  "n_items_with_verdict": 0,
+  "note": "The test split did not complete. These counts are inventory, not results: no accuracy, gap or recall is computed from them, and they are never pooled into a number. One item reached a verdict inside an incomplete pass, which by design wrote no results file. See docs/decisions/0023-p5-cutoff.md.",
+  "split": "test",
+  "status": "incomplete"
+}
