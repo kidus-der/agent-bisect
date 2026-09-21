@@ -442,6 +442,93 @@ def test_the_flaky_split_evaluates_every_item_of_the_flaky_manifest(tmp_path, is
     assert summary["config"]["n_items"] == 3
 
 
+def _flaky_outcomes(out_dir: Path) -> Path:
+    """A finished flaky run's outcome table: both mechanisms, three items."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {
+            "item_id": f"flaky-{i}", "run_id": f"fr{i}", "method": method,
+            "predicted_step": 2 if method == "bisect" else 1,
+            "ranking": [2, 1], "shortlist": [2, 1], "judge_calls": 1,
+            "replay_calls": 100, "total_calls": 101, "reruns": 10,
+            "control_reruns": 4, "parse_failed": False, "note": "",
+        }
+        for i in range(3)
+        for method in ("bisect", "rerun_live")
+    ]
+    (out_dir / "outcomes.json").write_text(json.dumps(rows))
+    return out_dir
+
+
+def test_the_flaky_ablation_reaches_the_summary_the_gate_reads(tmp_path, isolated_env):
+    # Arrange
+    strict = _frozen(tmp_path)
+    flaky_manifest = _frozen_flaky(tmp_path)
+    out_dir = tmp_path / "p5"
+    out_dir.mkdir()
+    dev = [item for item in json.loads(strict.read_text())["items"]
+           if item["split"] == "dev"]
+    (out_dir / "outcomes.json").write_text(json.dumps([
+        {
+            "item_id": item["item_id"], "run_id": item["run_id"], "method": "bisect",
+            "predicted_step": 2, "ranking": [2], "shortlist": [2], "judge_calls": 1,
+            "replay_calls": 100, "total_calls": 101, "reruns": 10,
+            "control_reruns": 4, "parse_failed": False, "note": "",
+        }
+        for item in dev
+    ]))
+    flaky_dir = _flaky_outcomes(tmp_path / "p5-flaky")
+
+    # Act
+    result = runner.invoke(
+        _app(),
+        [
+            "--manifest", str(strict), "--split", "dev", "--report-only",
+            "--out-dir", str(out_dir), "--results-dir", str(tmp_path / "results"),
+            "--flaky-out-dir", str(flaky_dir),
+            "--flaky-manifest", str(flaky_manifest),
+        ],
+    )
+
+    # Assert
+    assert result.exit_code == 0, result.output
+    summary = json.loads((tmp_path / "results" / "p5_summary.json").read_text())
+    assert summary["flaky_ablation"] is not None
+    assert summary["flaky_ablation"]["world"] == "flaky"
+
+
+def test_without_a_flaky_run_the_ablation_is_absent_not_zero(tmp_path, isolated_env):
+    # Arrange
+    strict = _frozen(tmp_path)
+    out_dir = tmp_path / "p5"
+    out_dir.mkdir()
+    dev = [item for item in json.loads(strict.read_text())["items"]
+           if item["split"] == "dev"]
+    (out_dir / "outcomes.json").write_text(json.dumps([
+        {
+            "item_id": item["item_id"], "run_id": item["run_id"], "method": "bisect",
+            "predicted_step": 2, "ranking": [2], "shortlist": [2], "judge_calls": 1,
+            "replay_calls": 100, "total_calls": 101, "reruns": 10,
+            "control_reruns": 4, "parse_failed": False, "note": "",
+        }
+        for item in dev
+    ]))
+
+    # Act
+    result = runner.invoke(
+        _app(),
+        [
+            "--manifest", str(strict), "--split", "dev", "--report-only",
+            "--out-dir", str(out_dir), "--results-dir", str(tmp_path / "results"),
+        ],
+    )
+
+    # Assert
+    assert result.exit_code == 0, result.output
+    summary = json.loads((tmp_path / "results" / "p5_summary.json").read_text())
+    assert summary["flaky_ablation"] is None
+
+
 def test_the_flaky_split_refuses_a_manifest_that_has_dev_and_test_sides(tmp_path):
     # Arrange: the strict manifest, which must never be pulled in under this name
     path = _frozen(tmp_path)
