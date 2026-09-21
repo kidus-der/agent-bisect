@@ -121,6 +121,7 @@ export function OverviewPage() {
             headline={payload.headline}
             simulated={overview.data.meta.simulated}
             sampleSize={payload.kpis.failures_diagnosed}
+            resultsSplit={payload.results_split}
           />
           {/* The rail beside the hero: the four figures, then what produced them. */}
           <div className="flex flex-col gap-3 lg:gap-4">

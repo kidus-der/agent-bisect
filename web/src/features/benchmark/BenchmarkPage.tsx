@@ -31,6 +31,11 @@ function BenchmarkSections({ summary }: { readonly summary: BenchmarkSummary }) 
   }
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
+      {summary.results_split != null && summary.results_split !== 'test' ? (
+        <p data-testid="results-split-notice" className="text-small text-ink-muted">
+          {summary.results_split} split — a diagnostic run, not the pre-registered test result.
+        </p>
+      ) : null}
       <MethodComparison methods={summary.methods} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
         <AccuracyHeatmap cells={summary.heatmap} />

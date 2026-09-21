@@ -181,9 +181,16 @@ interface HeadlineBarsProps {
   readonly simulated: boolean
   /** How many labelled failures the accuracy was scored on, when known. */
   readonly sampleSize?: number | null
+  /**
+   * Which split of the evaluation produced these numbers -- `"dev"` or
+   * `"test"` from real mode, `null` in fixture mode. Anything other than
+   * `"test"` must say so beside the result: a dev-split number is a
+   * diagnostic, not the pre-registered gate result.
+   */
+  readonly resultsSplit?: string | null
 }
 
-export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsProps) {
+export function HeadlineBars({ headline, simulated, sampleSize, resultsSplit }: HeadlineBarsProps) {
   const reduced = useReducedMotion() ?? false
   const heroRef = useRef<HTMLElement | null>(null)
   // Once, on first view: the bars must not have finished drawing behind the
@@ -231,6 +238,12 @@ export function HeadlineBars({ headline, simulated, sampleSize }: HeadlineBarsPr
           </span>
           {gap.beatsZero ? ', which clears zero.' : ', which does not clear zero.'}
           {simulated ? ' These numbers are simulated — the API is serving fixtures.' : ''}
+          {!simulated && resultsSplit != null && resultsSplit !== 'test' ? (
+            <span data-testid="results-split-notice">
+              {' '}
+              {resultsSplit} split — a diagnostic run, not the pre-registered test result.
+            </span>
+          ) : null}
         </p>
       </header>
 
